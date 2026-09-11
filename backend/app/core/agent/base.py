@@ -46,6 +46,7 @@ class BaseAgent:
             model=self.config.get("model_name", self.default_model),
             temperature=float(self.config.get("temperature", 0.3) or 0.3),
             max_tokens=int(self.config.get("max_tokens", 4000) or 4000),
+            provider=self.config.get("provider", ""),
         )
 
     async def _run(self, prompt: str, system_prompt: str = "") -> str:

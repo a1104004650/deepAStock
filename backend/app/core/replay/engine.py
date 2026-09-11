@@ -1,5 +1,6 @@
 """复盘引擎 - 每日盘后生成复盘报告"""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 import json
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,12 @@ from app.core.agent.executor import AgentExecutor
 from app.models.market import ReplayReport, LimitUp
 from app.utils.logger import logger
 
+SHANGHAI = ZoneInfo("Asia/Shanghai")
+
+
+class ReplayGateError(Exception):
+    pass
+
 
 class ReplayEngine:
     def __init__(self, db: AsyncSession):
@@ -17,8 +24,37 @@ class ReplayEngine:
         self.market = MarketService(db)
         self.executor = AgentExecutor(db)
 
+    async def resolve_target(self, target_date: date = None) -> date:
+        """复盘目标日解析：
+        1) 显式指定历史日期 → 直接用（不做时间门禁）；
+        2) 未指定（默认今日）→ 17:00(上海)后才允许按“当日”复盘，盘中/午前调用抛 ReplayGateError；
+        3) 非交易日（周末/节假日）→ 自动回退至最近一个交易日（如周日→上周五）。
+        """
+        now = datetime.now(SHANGHAI)
+        t = target_date or now.date()
+        if not target_date and now.hour < 17:
+            raise ReplayGateError(
+                f"今日复盘需在 17:00(北京时间)后生成，当前 {now.strftime('%H:%M')}，"
+                "可先选择历史交易日进行复盘")
+        for _ in range(10):
+            if t.weekday() < 5:
+                # 日期有真实K线才算交易日（排除法定节假日）
+                if t == now.date() and not target_date:
+                    return t
+                try:
+                    dsm = DataSourceManager(self.db)
+                    k = await dsm.get_klines("SH000001", "day", start=t - timedelta(days=1), end=t)
+                    if k and str((k[-1].get("dt") or ""))[:10] >= t.isoformat():
+                        return t
+                except Exception as e:
+                    logger.warning(f"trading-day check {t} failed, assume trading day: {e}")
+                    return t
+                return t
+            t -= timedelta(days=1)
+        raise ReplayGateError("未能解析出最近交易日，请手动选择历史日期")
+
     async def run(self, target_date: date = None) -> dict:
-        target_date = target_date or date.today()
+        target_date = await self.resolve_target(target_date)
         logger.info(f"=== 开始复盘 {target_date} ===")
 
         # 数据采集

@@ -70,6 +70,7 @@ async def get_agent_configs(db: AsyncSession, user_id: int = 0) -> list[dict]:
     result = [{
         "id": r.id, "agent_type": r.agent_type, "name": r.name, "system_prompt": r.system_prompt,
         "model_name": r.model_name, "api_base": r.api_base, "api_key": r.api_key,
+        "provider": getattr(r, "provider", None),
         "temperature": float(r.temperature), "max_tokens": r.max_tokens,
         "is_active": r.is_active, "is_default": r.is_default,
     } for r in rows]

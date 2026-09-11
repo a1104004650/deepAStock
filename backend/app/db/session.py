@@ -1,4 +1,5 @@
 """数据库会话管理"""
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 from pathlib import Path
@@ -41,3 +42,8 @@ async def init_db():
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # 轻量迁移：为既有库补齐新增列
+        try:
+            await conn.execute(text("ALTER TABLE agent_configs ADD COLUMN provider VARCHAR(20)"))
+        except Exception:
+            pass

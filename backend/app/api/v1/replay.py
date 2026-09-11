@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
-from app.core.replay.engine import ReplayEngine
+from app.core.replay.engine import ReplayEngine, ReplayGateError
 from app.schemas.common import ReplayTriggerRequest
 
 router = APIRouter(prefix="/api/v1/replay", tags=["复盘"])
@@ -34,4 +34,7 @@ async def by_date(replay_date: str, db: AsyncSession = Depends(get_db)):
 @router.post("/trigger")
 async def trigger(body: ReplayTriggerRequest, db: AsyncSession = Depends(get_db)):
     engine = ReplayEngine(db)
-    return await engine.run(body.date or date.today())
+    try:
+        return await engine.run(body.date)
+    except ReplayGateError as e:
+        return {"status": "gated", "message": str(e)}

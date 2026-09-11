@@ -16,6 +16,7 @@ class AgentConfig(Base):
     prompt_version: Mapped[int] = mapped_column(Integer, default=1)
     prompt_history = mapped_column(JSON, default=list)
     model_name: Mapped[str] = mapped_column(String(100), nullable=True, default="deepseek-chat")
+    provider: Mapped[str] = mapped_column(String(20), nullable=True)
     api_base: Mapped[str] = mapped_column(String(500), nullable=True)
     api_key: Mapped[str] = mapped_column(String(500), nullable=True)
     temperature: Mapped[Decimal] = mapped_column(Numeric(4, 2), default=0.3)

@@ -44,14 +44,15 @@
         </el-col>
       </el-row>
 
-      <!-- 市场状态卡片 -->
+      <div class="ai-comment" v-if="indexComment">💡 指数点评：{{ indexComment }}</div>
+
+      <!-- 市场状态：左侧涨跌区间分布 + 右侧沪深两市大盘资金流向 -->
       <el-row :gutter="10" class="mt8">
-        <el-col :span="24">
-          <div class="card">
-            <div class="flex gap" style="align-items:center;flex-wrap:wrap">
+        <el-col :xs="24" :sm="12">
+          <div class="card" style="height:100%">
+            <div class="flex gap" style="align-items:center;flex-wrap:wrap;margin-bottom:6px">
               <span class="fs14 bold">市场状态</span>
               <el-tag :type="emotion.tagType" size="small">{{ emotion.label }}</el-tag>
-              <el-divider direction="vertical" />
               <span class="fs12 up">上涨 {{ distribution.up_count ?? '-' }}</span>
               <span class="fs12 down">下跌 {{ distribution.down_count ?? '-' }}</span>
               <span class="fs12 flat">平盘 {{ distribution.flat_count ?? '-' }}</span>
@@ -61,10 +62,9 @@
               <span class="fs12" style="color:#909399">连板高度 <b>{{ maxBoard }}</b></span>
               <el-divider direction="vertical" />
               <span class="fs12" style="color:#606266">A股成交 <b class="mono">{{ fmtMoney(distribution.amount) }}</b></span>
-              <span class="fs12" style="color:#606266">涨跌停比 <b>{{ ratioUpDown }}</b></span>
             </div>
             <!-- 涨跌区间分布柱状图 -->
-            <div class="mt8" style="border-top:1px dashed #f0f0f0;padding-top:8px">
+            <div class="mt4">
               <div class="fs12 mb8" style="color:#909399">涨跌区间分布（家数）</div>
               <div class="dist-bars" v-if="distBuckets.length">
                 <div v-for="(b, i) in distBuckets" :key="i" class="dist-col" :title="b.label + '：' + b.count + ' 家'">
@@ -75,16 +75,34 @@
               </div>
               <div v-else class="fs12" style="color:#c0c4cc">暂无分布数据</div>
             </div>
+            <div class="ai-comment" v-if="stateComment">💡 {{ stateComment }}</div>
+          </div>
+        </el-col>
+        <el-col :xs="24" :sm="12">
+          <div class="card" style="height:100%">
+            <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
+              <span class="fs14 bold">沪深两市大盘资金流向 <span class="fs12" style="color:#909399">{{ marketFlow.date }}</span></span>
+              <el-radio-group v-model="mfMode" size="small">
+                <el-radio-button value="intraday">今日分时</el-radio-button>
+                <el-radio-button value="daily">逐日</el-radio-button>
+              </el-radio-group>
+            </div>
+            <div class="chart-box mt4">
+              <LineChart v-if="mfChartData.length" :data="mfChartData" height="235px"
+                :multi="mfSeries" :area="mfMode === 'intraday'" />
+              <div v-else class="fs12" style="color:#909399;text-align:center;height:235px;line-height:235px">资金流向加载中…</div>
+            </div>
+            <div class="ai-comment" v-if="flowComment">💡 {{ flowComment }}</div>
           </div>
         </el-col>
       </el-row>
 
-      <!-- 人气股票排行 TOP5 -->
+      <!-- 人气股票排行 TOP10 -->
       <el-row :gutter="10" class="mt8">
         <el-col :span="24">
           <div class="card">
             <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
-              <span class="fs14 bold">人气股票 TOP5 <span class="fs12" style="color:#909399">（按当日 换手×量比×涨幅 综合热度估算）</span></span>
+              <span class="fs14 bold">人气股票 TOP10 <span class="fs12" style="color:#909399">（按当日 换手×量比×涨幅 综合热度估算）</span></span>
               <span class="fs12" style="color:#909399">点击进入个股详情 · {{ todayStr }}</span>
             </div>
             <div class="hot-grid mt8">
@@ -104,6 +122,7 @@
               </div>
               <el-empty v-if="!hotStocks.length" description="暂无人气排行" :image-size="40" />
             </div>
+            <div class="ai-comment" v-if="hotComment">💡 人气点评：{{ hotComment }}</div>
           </div>
         </el-col>
       </el-row>
@@ -134,6 +153,7 @@
               </div>
               <el-empty v-if="!sectorList.length" description="暂无数据" :image-size="40" />
             </div>
+            <div class="ai-comment" v-if="sectorComment">💡 板块点评：{{ sectorComment }}</div>
             <!-- 选中板块详情：ETF 有分时图，概念/行业展示实时行情+领涨股 -->
             <div v-if="selectedSector" class="mt8" style="border-top:1px solid #f0f0f0;padding-top:8px">
               <div class="flex gap" style="align-items:center;flex-wrap:wrap">
@@ -237,16 +257,23 @@
       <el-row :gutter="10" class="mt8">
         <el-col :xs="24" :sm="14">
           <div class="card col-card">
-            <div class="fs14 bold">消息滚动 <span class="fs12" style="color:#909399">（区分板块与重要性）</span></div>
+            <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
+              <span class="fs14 bold">消息滚动 <span class="fs12" style="color:#909399">（区分板块与重要性）</span></span>
+              <el-radio-group v-model="newsFilter" size="small">
+                <el-radio-button value="1">重要</el-radio-button>
+                <el-radio-button value="2">普通</el-radio-button>
+                <el-radio-button value="3">一般</el-radio-button>
+              </el-radio-group>
+            </div>
             <el-scrollbar class="news-scroll">
-              <div v-for="(n, i) in news" :key="i" class="news-item">
+              <div v-for="(n, i) in filteredNews" :key="i" class="news-item">
                 <el-tag size="small" :type="impTag(n.importance)" style="flex-shrink:0">{{ impText(n.importance) }}</el-tag>
                 <el-tag size="small" type="info" effect="plain" style="flex-shrink:0">{{ n.category }}</el-tag>
                 <a v-if="n.url" :href="n.url" target="_blank" rel="noopener" class="fs12 news-title">{{ n.title }}</a>
                 <span v-else class="fs12 news-title">{{ n.title }}</span>
                 <span class="fs12 news-time">{{ formatNewsTime(n.time) }}</span>
               </div>
-              <el-empty v-if="!news.length" description="暂无消息" :image-size="50" />
+              <el-empty v-if="!filteredNews.length" description="暂无消息" :image-size="50" />
             </el-scrollbar>
           </div>
         </el-col>
@@ -318,6 +345,24 @@ const mktSummary = ref('')
 const mktDate = ref('')
 const indices = ref([])
 const news = ref([])
+const newsFilter = ref('1')
+const marketFlow = ref({ date: '', intraday: [], daily: [] })
+const mfMode = ref('intraday')
+const filteredNews = computed(() => {
+  const f = Number(newsFilter.value) || 1
+  return (news.value || []).filter((n) => Number(n.importance) === f)
+})
+const mfSeries = [
+  { name: '主力', key: 'main_net', color: '#ef232a', area: false },
+  { name: '超大单', key: 'super_net', color: '#e6a23c', area: false },
+  { name: '大单', key: 'large_net', color: '#f56c6c', area: false },
+  { name: '中单', key: 'mid_net', color: '#67c23a', area: false },
+  { name: '小单', key: 'small_net', color: '#909399', area: false }
+]
+const mfChartData = computed(() => {
+  const src = mfMode.value === 'intraday' ? marketFlow.value.intraday : marketFlow.value.daily
+  return Array.isArray(src) ? src : []
+})
 function formatNewsTime(ts) {
   if (!ts || isNaN(Number(ts))) return ts || ''
   const d = new Date(Number(ts) * 1000)
@@ -435,6 +480,68 @@ const emotion = computed(() => {
   return { label: '多空均衡', tagType: 'success' }
 })
 
+// ---- 轻量 AI 点评（启发式，无需 LLM Key；随行情自动更新） ----
+const stateComment = computed(() => {
+  const up = distribution.value.up_count || 0
+  const down = distribution.value.down_count || 0
+  const limUp = distribution.value.limit_up || 0
+  const limDown = distribution.value.limit_down || 0
+  if (!up && !down) return ''
+  const breadth = up - down
+  const parts = []
+  if (breadth > 300) parts.push(`普涨格局，上涨 ${up} 家远超下跌 ${down} 家，短线做多气氛浓`)
+  else if (breadth < -300) parts.push(`大面积下跌（${down}家），情绪偏冰点，谨慎追高`)
+  else if (breadth > 100) parts.push(`涨多跌少（${up}↑/${down}↓），结构偏强`)
+  else if (breadth < -100) parts.push(`跌多涨少（${up}↑/${down}↓），注意回撤风险`)
+  else parts.push('涨跌互现，多空均衡，宜选强弃弱')
+  if (limUp >= 10 && limDown === 0) parts.push('涨停潮无跌停，赚钱效应极佳')
+  else if (limDown > limUp) parts.push(`跌停(${limDown})多于涨停(${limUp})，风险偏好下降`)
+  return parts.join('；')
+})
+const flowComment = computed(() => {
+  const last = marketFlow.value.intraday?.[marketFlow.value.intraday.length - 1]
+  if (!last) return ''
+  const main = last.main_net || 0
+  const superNet = last.super_net || 0
+  const parts = []
+  const abs = Math.abs(main)
+  if (main < 0 && abs > 1e10) parts.push(`两市主力大幅净流出 ${(abs / 1e8).toFixed(0)}亿，机构减仓迹象明显`)
+  else if (main > 0 && abs > 1e10) parts.push(`两市主力净流入 ${(abs / 1e8).toFixed(0)}亿，资金积极进场`)
+  else if (main < 0) parts.push(`主力净流出 ${(abs / 1e8).toFixed(1)}亿，观望为主`)
+  else parts.push(`主力净流入 ${(abs / 1e8).toFixed(1)}亿，情绪回暖`)
+  parts.push(superNet < 0 ? '超大单（机构）在卖出，注意权重股拖累' : '超大单（机构）净买入，权重托底')
+  return parts.join('；')
+})
+const indexComment = computed(() => {
+  const rows = indices.value || []
+  if (!rows.length) return ''
+  const up = rows.filter((r) => Number(r.change_pct) >= 0)
+  const down = rows.filter((r) => Number(r.change_pct) < 0)
+  if (down.length === 0) return '三大指数全线翻红，权重与题材共振，做多动能充足'
+  if (up.length === 0) return '三大指数集体下挫，谨防破位风险，多看少动'
+  return `指数分化（${up.length}红/${down.length}绿），结构性行情，优先关注走强分支`
+})
+const hotComment = computed(() => {
+  const rows = hotStocks.value || []
+  if (!rows.length) return ''
+  const top = rows[0]
+  const up = rows.filter((r) => Number(r.change_pct) >= 0).length
+  return `人气龙头 ${top.name}（热度 ${top.heat}，${top.change_pct >= 0 ? '+' : ''}${top.change_pct}%）领衔；TOP10 中 ${up} 只上涨，说明盘面热度${up >= 6 ? '较高，资金接力情绪好' : '一般，谨防高位分歧'}`
+})
+const sectorComment = computed(() => {
+  const rows = sectorList.value || []
+  if (!rows.length) return ''
+  const upRows = rows.filter((s) => Number(s.change_pct) >= 0)
+  const strong = upRows.filter((s) => Number(s.change_pct) >= 2)
+  const weak = rows.filter((s) => Number(s.change_pct) <= -2)
+  const parts = []
+  parts.push(`监控 ${rows.length} 板块，上涨 ${upRows.length} / 下跌 ${rows.length - upRows.length}`)
+  if (strong.length) parts.push(`强势分支：${strong.slice(0, 3).map((s) => `${s.sector}(${s.change_pct > 0 ? '+' : ''}${s.change_pct}%)`).join('、')}`)
+  if (weak.length) parts.push(`弱势分支：${weak.slice(0, 3).map((s) => `${s.sector}(${s.change_pct}%)`).join('、')}`)
+  return parts.join('；')
+})
+const emComment = computed(() => emotion.value.label + (emotion.value.label.includes('强') ? '，短线方向偏多' : emotion.value.label.includes('弱') ? '，仓位宜轻' : ''))
+
 const impText = (v) => (v === 1 ? '重要' : v === 3 ? '一般' : '普通')
 const impTag = (v) => (v === 1 ? 'danger' : v === 3 ? 'info' : 'warning')
 
@@ -499,6 +606,9 @@ async function loadDistribution() {
 async function loadLadder() {
   try { ladder.value = (await marketApi.limitUpLadder()) || {} } catch { /* 保留旧数据 */ }
 }
+async function loadMarketFlow() {
+  try { marketFlow.value = (await marketApi.marketFlow()) || { date: '', intraday: [], daily: [] } } catch { /* 保留旧数据 */ }
+}
 
 async function analyzeMarket() {
   mktLoading.value = true
@@ -523,7 +633,8 @@ async function load() {
       loadDistribution(),
       loadLadder(),
       loadSectorMonitor(),
-      loadHotStocks()
+      loadHotStocks(),
+      loadMarketFlow()
     ])
   } finally {
     loading.value = false
@@ -541,7 +652,7 @@ onMounted(() => {
   indexTimer = setInterval(() => { loadIndices(); mainIdxDefs.forEach((m) => loadPanel(m.code)) }, 15000)
   newsTimer = setInterval(loadNews, 60000)
   flowTimer = setInterval(() => { loadSectorFlowTop(); loadEtf(); loadHotStocks() }, 60000)
-  distTimer = setInterval(() => { loadDistribution(); loadLadder() }, 60000)
+  distTimer = setInterval(() => { loadDistribution(); loadLadder(); loadMarketFlow() }, 60000)
   sectorTimer = setInterval(loadSectorMonitor, 15000)
 })
 onUnmounted(() => {
@@ -560,6 +671,16 @@ onUnmounted(() => {
   gap: 6px;
   padding: 5px 0;
   border-bottom: 1px dashed #f0f0f0;
+}
+.ai-comment {
+  margin-top: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #606266;
+  background: linear-gradient(90deg, #f5f7fa, #fdf6ec);
+  border-left: 3px solid #e6a23c;
+  border-radius: 4px;
 }
 .news-title {
   color: #303133;

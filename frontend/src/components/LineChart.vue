@@ -12,7 +12,8 @@ const props = defineProps({
   area: { type: Boolean, default: true },
   colors: { type: Array, default: () => ['#409eff'] },
   showAvg: { type: Boolean, default: true },
-  volume: { type: Boolean, default: false }
+  volume: { type: Boolean, default: false },
+  multi: { type: Array, default: () => [] }
 })
 
 const el = ref(null)
@@ -150,6 +151,40 @@ function render() {
       areaStyle: props.area ? { opacity: 0.15, color: props.colors[si % props.colors.length] } : undefined
     })
   })
+
+  if (props.multi && props.multi.length) {
+    // 多序列对比图（如 主力/超大/大/中/小 净流入），labels 取首个数据点的 date/time
+    const keys = props.multi.map((m) => m.key)
+    series = props.multi.map((m, si) => {
+      const color = m.color || props.colors[si % props.colors.length]
+      return {
+        name: m.name,
+        type: 'line',
+        data: props.data.map((row) => {
+          const v = row[m.key]
+          return v == null ? null : Number(v)
+        }),
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { width: 1.5, color },
+        areaStyle: m.area === false ? undefined : { opacity: 0.12, color }
+      }
+    })
+    chart.setOption({
+      animation: false,
+      tooltip: { trigger: 'axis', valueFormatter: (v) => v == null ? '-' : v >= 0 ? '+' + (v / 1e8).toFixed(2) + '亿' : (v / 1e8).toFixed(2) + '亿' },
+      legend: { top: 0, right: 10, textStyle: { fontSize: 12 } },
+      grid: { left: 50, right: 20, top: 30, bottom: 24 },
+      xAxis: { type: 'category', data: labels, boundaryGap: false, axisLabel: { fontSize: 10 } },
+      yAxis: {
+        scale: true,
+        splitLine: { lineStyle: { color: '#f0f0f0' } },
+        axisLabel: { fontSize: 10, formatter: (v) => Math.abs(v) >= 1e8 ? (v / 1e8) + '亿' : v }
+      },
+      series
+    })
+    return
+  }
 
   chart.setOption({
     animation: false,

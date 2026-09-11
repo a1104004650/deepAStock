@@ -214,8 +214,47 @@ class CZSCAnalyzer:
             "last_bi_direction": bi_list[-1]["direction"] if bi_list else None,
             "price": closes[-1] if closes else None,
             "boll": boll,
+            "rsi": self._calc_rsi(closes, 14),
             "yangjia_stage": yangjia_stage,
         }
+
+    @staticmethod
+    def _calc_rsi(closes: list[float], period: int = 14) -> dict:
+        """RSI(14)：多周期读数 + 超买超卖/金叉死叉参考（供布林带区引用）"""
+        if len(closes) < period + 1:
+            return {"rsi6": 50, "rsi12": 50, "rsi24": 50, "superposition": "中性", "cross": "—"}
+        def _rsi(vals: list[float], n: int) -> float:
+            if len(vals) < n + 1:
+                return 50.0
+            gains = losses = 0.0
+            for i in range(len(vals) - n, len(vals)):
+                chg = vals[i] - vals[i - 1]
+                gain = chg if chg > 0 else 0.0
+                loss = -chg if chg < 0 else 0.0
+                gains += gain
+                losses += loss
+            avg_g = gains / n
+            avg_l = losses / n
+            if avg_l == 0:
+                return 100.0
+            rs = avg_g / avg_l
+            return round(100 - 100 / (1 + rs), 2)
+        rsi6 = _rsi(closes, 6)
+        rsi12 = _rsi(closes, 12)
+        rsi24 = _rsi(closes, 24)
+        superposition = "中性"
+        if rsi6 < 30 and rsi12 < 40:
+            superposition = "超卖"
+        elif rsi6 > 70 and rsi12 > 60:
+            superposition = "超买"
+        cross = "—"
+        if len(closes) >= 25:
+            if rsi6 > rsi12 and closes[-1] > closes[-2]:
+                cross = "短线金叉"
+            elif rsi6 < rsi12 and closes[-1] < closes[-2]:
+                cross = "短线死叉"
+        return {"rsi6": rsi6, "rsi12": rsi12, "rsi24": rsi24,
+                "superposition": superposition, "cross": cross}
 
     @staticmethod
     def _calc_boll(closes: list[float], period: int = 20) -> dict:

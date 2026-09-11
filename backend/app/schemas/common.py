@@ -43,6 +43,7 @@ class AgentConfigCreate(BaseModel):
     model_name: str = "deepseek-chat"
     api_base: Optional[str] = None
     api_key: Optional[str] = None
+    provider: Optional[str] = None
     temperature: float = 0.3
     max_tokens: int = 4000
     extra_params: dict = {}
@@ -54,6 +55,7 @@ class AgentConfigUpdate(BaseModel):
     model_name: Optional[str] = None
     api_base: Optional[str] = None
     api_key: Optional[str] = None
+    provider: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     is_active: Optional[bool] = None

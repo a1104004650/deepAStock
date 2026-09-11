@@ -66,6 +66,10 @@ class WatchlistService:
         if not (symbol.startswith(("SH", "SZ", "BJ")) and digits.isdigit()):
             return {"ok": False, "error": "无效的股票代码", "message": f"「{symbol}」不是有效的 A 股代码（应形如 SH600519 / SZ000001）",
                     "hint": "请先搜索并选择一只股票，或输入6位数字代码后搜索确认"}
+        total = (await self.db.execute(select(WatchlistItem))).scalars().all()
+        if len(total) >= 50:
+            return {"ok": False, "error": "limit_exceeded",
+                    "message": "自选股总数已达上限 50 只，请删除部分后再添加"}
         rt = await self.dsm.get_realtime([symbol])
         if not name:
             name = rt.get(symbol, {}).get("name")

@@ -204,6 +204,33 @@ async def get_runs(limit: int = 50, db: AsyncSession = Depends(get_db)):
              "created_at": r.created_at.isoformat() if r.created_at else None} for r in rows]
 
 
+@router.get("/runs/stats")
+async def get_runs_stats(days: int = 30, db: AsyncSession = Depends(get_db)):
+    """智能体调用次数统计（周维度 / 小时维度），供 Agents.vue 图表."""
+    from datetime import timedelta
+    rows = (await db.execute(
+        select(AgentRun).where(AgentRun.created_at >= datetime.utcnow() - timedelta(days=days))
+    )).scalars().all()
+    sh = ZoneInfo("Asia/Shanghai")
+    by_weekday = {i: 0 for i in range(7)}   # 0=周一..6=周日
+    by_hour = {i: 0 for i in range(24)}
+    total = 0
+    for r in rows:
+        if not r.created_at:
+            continue
+        total += 1
+        local = r.created_at.astimezone(sh)
+        by_weekday[local.weekday()] = by_weekday.get(local.weekday(), 0) + 1
+        by_hour[local.hour] = by_hour.get(local.hour, 0) + 1
+    week_labels = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+    return {
+        "total": total,
+        "days": days,
+        "by_weekday": [{"label": week_labels[i], "count": by_weekday[i]} for i in range(7)],
+        "by_hour": [{"label": f"{i:02d}:00", "count": by_hour[i]} for i in range(24)],
+    }
+
+
 @router.get("/runs/{run_id}")
 async def get_run(run_id: int, db: AsyncSession = Depends(get_db)):
     r = (await db.execute(select(AgentRun).where(AgentRun.id == run_id))).scalars().first()
