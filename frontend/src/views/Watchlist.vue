@@ -462,6 +462,7 @@ const searchResults = ref([])
 const searched = ref(false)
 const searchDialog = ref(false)
 const selectedSymbol = ref(null)
+const VALID_PERIODS = ['mf', 'm5', 'm15', 'm30', 'm60', 'day']
 const period = ref('day')
 const kline = ref([])
 const intraday = ref([])
@@ -848,7 +849,7 @@ function removeSelected() {
   if (item?.id) watchlistApi.removeItem(item.id).then(() => { selectedSymbol.value = null; load() })
 }
 
-watch(period, () => loadKline())
+watch(period, (v) => { if (VALID_PERIODS.includes(v)) loadKline() })
 
 let timer = null
 onMounted(() => {

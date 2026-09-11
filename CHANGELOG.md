@@ -2,6 +2,26 @@
 
 > 版本日志按时间倒序。`v1.0.0` 为首次发布版本。
 
+## v1.1.4 (2026-09-11) — 本机一键启动 + 微博 Cookie 移到应用内配置
+
+### 新增功能
+- **`start.bat` 一键本地启动前后端（无需 Docker）**：后端从 8000、前端从 5173 起自动寻找空闲端口（冲突自动顺延），`Ctrl+C` 一并停止；不再需要原来的菜单式启动器。
+- **微博订阅 Cookie 不再写进 docker/环境变量**：新增「设置 → RSSHub 订阅」和「订阅消息 → RSSHub 配置」的**微博 Cookie** 输入框，保存在应用自身配置中；微博用户订阅（`/weibo/user/{uid}`）由后端**直连 `m.weibo.cn`** 拉取（带 Cookie、解析图片/转发/时间），完全不依赖 RSSHub 的 `WEIBO_COOKIES`；Cookie 失效时轮询状态给出明确提示。
+
+### 变更
+- 移除 `docker-compose.yml` 中 RSSHub 的 `WEIBO_COOKIES` 注释占位。
+- 前端 vite 代理目标改为读取 `BACKEND_PORT` 环境变量，跟随一键启动选出的后端端口。
+
+## v1.1.3 (2026-09-11) — RSSHub 可访问性修复 + 微博订阅配置指引
+
+### 修复
+- **RSSHub 仅监听 127.0.0.1，宿主机 11200 端口一直打不开**：compose 中 `LISTEN_INADDR_ANY=0`（已改为 `true` 并重建容器）。自检：`docker exec deepastock-rsshub cat /proc/net/tcp` 无 `0100007F:04B0` 行、`docker port deepastock-rsshub` 显示 `0.0.0.0:11200`。
+
+### 使用须知（微博订阅）
+- 微博**个人博主 / 热搜**类路由在 RSSHub 中标记 `requirePuppeteer`：未提供 Cookie 时返回 `Cooling down before new visitor Cookies from https://m.weibo.cn/ may be fetched`（503）。
+- 正确姿势：登录 `https://m.weibo.cn` → F12 → 复制任一 `m.weibo.cn` 请求的 **Cookie 请求头整串** → 填入 `docker-compose.yml` rsshub 服务的 `WEIBO_COOKIES`（已预留注释位）→ `docker compose up -d rsshub` 重建 → 测试 `http://127.0.0.1:11200/weibo/user/{uid}`。
+- 「设置 → RSSHub 订阅」与「订阅消息」页均已补充该配置提示。
+
 ## v1.1.2 (2026-09-11) — 实盘导入支持券商交割单
 
 ### 新增功能

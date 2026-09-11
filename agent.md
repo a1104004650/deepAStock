@@ -5,7 +5,7 @@
 
 ## 项目目标
 构建个人深度 A 股 AI 交易平台（PC/H5），闭环：**看盘 → 选股 → 交易 → 复盘 → 进化**。
-项目名 **deepAStock（深度A股交易）**，版本 **1.1.2**。
+项目名 **deepAStock（深度A股交易）**，版本 **1.1.4**。
 需求来源：`提示词.txt`（功能要求）、`量化交易系统开发需求讨论.markdown`（工程文档）。
 
 ## 关键环境事实（务必遵守）
@@ -39,7 +39,7 @@
 
 ## 部署
 - **Docker 多服务**：根 `Dockerfile`（叠加 node 构建前端 + python 依赖 + nginx，supervisord 同容器跑 uvicorn+nginx）+ `nginx.conf`（`/api`→`127.0.0.1:8000`）+ `docker-compose.yml`（默认 SQLite 卷 `backend_data`，可选 `postgres` profile；**rsshub** 本地部署镜像 diygod/rsshub，宿主机 11200 映射，应用内部走 `http://rsshub:1200`，弱依赖不阻塞主业务）。端口（宿主机）：18080 前端 / 18000 接口 / 11200 rsshub / 15432 postgres。
-- **本地开发**：`start.bat`（chcp 65001）或手动。
+- **本地开发**：双击 `start.bat`（chcp 65001，调用 `backend/scripts/dev_up.py`：后端 8000、前端 5173 起自动顺延端口，Ctrl+C 一并停止）或手动两脚本。
 
 ## 模块与关键文件
 | 模块 | 路径 | 说明 |
@@ -76,14 +76,18 @@
 19. **ST 名称检测正则 `\bST\b` 在中文 CJK 场景失效**：Python `\b` 将 CJK 视为 word char，`ST慧球`（T后直接跟"慧"）无法触发边界 → 改用 `(?<![A-Za-z0-9])(?:S[*★]?ST|\*?ST)(?![A-Za-z0-9])` 显式排除前后 ASCII 字母数字，同步应用于 `engine._ST_NAME_RE` 与 `parser._ST_RE`。
 20. **`snapshot()["overridden"]` 原返回所有 DB 键** → 用户恢复默认值后 overridden 列表仍残留该项 → 改为 `EFFECTIVE[k] != DEFAULTS.get(k, "")` 比较。
 21. **直接把微博网页地址（如 `https://weibo.com/u/1xxxx`）当订阅 URL**：解析器拿到 HTML 页面后返回 0 条（`ok:0`），看起来“配置了但没反应”→ 微博等平台必须用 RSSHub **路径** `/weibo/user/{uid}`（`url` 留空，base 从设置取）；解析器现已对 `text/html` 内容显式报错（`err:地址返回的是 HTML 网页…`）。**rsshub_base 默认 `http://127.0.0.1:1200` 只对容器内有效**：本机开发必须在「设置 → RSSHub 订阅」把实例地址改成宿主机映射 `http://127.0.0.1:11200`，且先 `docker compose up -d rsshub`，否则路径型订阅报连接错误。
+22. **宿主机访问不到/连不上 rsshub（11200 拒绝）但容器看着在跑**：查 compose 里 rsshub `LISTEN_INADDR_ANY`，若为 `0` 则 RSSHub 只监听容器内 `127.0.0.1:1200`（`docker exec … cat /proc/net/tcp` 见 `0100007F:04B0` 即中招），宿主机端口转发必超时 → 必须为 `true` 并 `docker compose up -d rsshub` 重建；用 `docker port deepastock-rsshub` 确认绑定。
+23. **微博个人博主/热搜路由 503**：**v1.1.4 起微博用户订阅（`/weibo/user/{uid}`）不再走 RSSHub**，由后端 `parser._fetch_weibo_user` **直连 m.weibo.cn**（Cookie 取自「设置 → RSSHub 订阅」/「订阅消息 → RSSHub 配置」里保存的 `weibo_cookies`，不写 docker/环境变量）。若报 `微博接口返回 4xx`/`未找到内容 Tab` = Cookie 失效，重新登录 m.weibo.cn 复制新 Cookie 即可；其他微博路由（热搜 `/weibo/search/hot` 等）仍走 RSSHub，需其实例可用。
 
-## 当前完成度（v1.1.2 发布状态）
+## 当前完成度（v1.1.4 发布状态）
 - 后端全部核心功能 + API 全链路可用：行情/自选(批量删除)/个股(资金流/财务/产业链/行业对比)/复盘(真实龙虎榜+板块资金流)/模拟/导入/智能体/系统/设置/RSS订阅。
 - 前端 8 页面完成（大盘/自选/复盘/模拟/实盘导入/智能体/订阅消息/设置），`npm run build` 成功；复盘 pending/ready/empty 状态、涨跌区间分布、批量删除、消息滚动（平台新闻+RSS合并）、订阅消息独立页等均已联调。
 - Docker 多服务部署方案确定（compose config 校验通过，含 rsshub 本地镜像）。
 - v1.1.0：RSSHub 订阅系统（本地实例+订阅源管理+轮询去重+ST过滤+独立「订阅消息」页+内置 4 个可直连案例源）、系统设置页（数据源链+数据库+RSSHub）、大盘看板四板块等高、模拟四池Tab切换、AI禁买ST/观察池差异化。
 - v1.1.1：导航「订阅」为完整整页（保留顶部导航栏、含 RSS 配置与订阅源状态）；设置页 RSSHub 实例地址可编辑；订阅弹窗支持 RSSHub 路径/URL 二选一；RSS 解析对 HTML 网页地址显式报错；微博订阅源修正为 RSSHub 路径；订阅页嵌入配置行可保存；后台轮询后重要 RSS 消息全局定向推送；`run_server.py` stop GBK 解码修复。版本号 1.1.1（compose / build_release / 文档）已同步。
 - v1.1.2：实盘导入**直接解析券商交割单**（同花顺/东方财富/投资账本等 CSV/Excel，UTF-8/GBK 自动识别，表头别名映射，分红/配号/非交易行自动跳过，佣金+印花税+过户费合计入费用；endpoint `/trade/import/file`，旧 `/trade/import/csv` 保留兼容）。版本号 1.1.2 已同步。
+- v1.1.3：修复 compose 中 rsshub `LISTEN_INADDR_ANY=0` 导致**只监听容器内 127.0.0.1、宿主机始终打不开**的问题（改为 `true`）；微博博主/热搜路由需 RSSHub 配 `WEIBO_COOKIES`（已注释位），README/设置页/订阅页给出获取与配置指引；README 补部署排障与强制重建说明。版本号 1.1.3 已同步。
+- v1.1.4：**一键本地启动**（`start.bat` → `backend/scripts/dev_up.py`，后端 8000/前端 5173 起自动顺延空闲端口，Ctrl+C 一并停止）；**微博 Cookie 移到应用内配置**（设置页/订阅页新增「微博 Cookie」，`weibo_cookies` 存 DB；`/weibo/user/{uid}` 由后端直连 m.weibo.cn 拉取，不再依赖 RSSHub WEIBO_COOKIES/docker），vite 代理目标读 `BACKEND_PORT` 跟随启动端口。版本号 1.1.4 已同步。
 
 ## 常用命令
 ```bash
@@ -98,7 +102,7 @@ cd C:\aiStock && docker compose config --quiet  # 验证 compose 配置
 ```
 
 ## Roadmap / 未完成项
-- v1.1.2 发布准备已完成：版本号 1.1.2（compose / build_release / README / CHANGELOG），release zip 已打包验证。
+- v1.1.4 发布准备已完成：版本号 1.1.4（compose / build_release / README / CHANGELOG），release zip 已打包验证。
 - 待优化：前端按需引入 (echarts/core、element-plus 按组件) 减少厂商包体积；release smoke 测试脚本（解压→compose→health 断言）。
 - 数据：恢复东财板块涨速/个股新闻/股东/情绪等（网络放开时）；复盘 Markdown 原文渲染；财务图表化。
 - 性能容量：SQLite→PostgreSQL（已支持）；TimescaleDB 预留。

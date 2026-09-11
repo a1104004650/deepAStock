@@ -16,7 +16,7 @@ services:
       # - USE_POSTGRES=true
       # ---------- 默认配置 ----------
       - APP_NAME=deepAStock 深度A股交易
-      - APP_VERSION=1.1.2
+      - APP_VERSION=1.1.4
       - DEBUG=false
       # SECRET_KEY 可选：不设置则首次启动自动生成并持久化到 data/.secret_key；
       # 如需固定密钥（多实例/回滚一致），取消下面一行注释并填入自己的随机串
@@ -52,11 +52,6 @@ services:
       - CACHE_TYPE=memory
       - LISTEN_INADDR_ANY=true
       - PORT=1200
-      # 按需放行微博等第三方 Cookie（可忽略；未登录时公共接口亦可用）
-      # - WB_PUBSUB_SERVER=false
-      # 微博个人博主/热搜等路由需要登录态 Cookie：
-      #   浏览器登录 https://m.weibo.cn → F12 → 任一个 m.weibo.cn 请求的 Cookie 请求头整串贴到下面（含特殊字符请保持单行）
-      # - WEIBO_COOKIES=SUB=xxx; his=xxx; F_2aKbNq=xxx
     ports:
       - "11200:1200"  # RSSHub 实例（宿主机映射 11200，供调试；应用内部走 rsshub:1200）
 

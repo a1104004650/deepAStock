@@ -13,6 +13,7 @@ _ST_RE = re.compile(r"(?<![A-Za-z0-9])(?:S[*★]?ST|\*?ST)(?![A-Za-z0-9])", re.I
 _IMPORTANCE_KW_HIGH = ["暴雷", "违规", "处罚", "警示", "重大", "利空", "退市", "立案", "诉讼"]
 _IMPORTANCE_KW_MID = ["涨停", "跌停", "增持", "减持", "业绩预告", "分红", "增持计划", "回购"]
 _SYMBOL_RE = re.compile(r"(?:[shSH]|sh|sz|SZ)?([036]\d{5})")
+_WEIBO_USER_RE = re.compile(r"/weibo/user/(\d+)")
 _CN_TZ = timezone(timedelta(hours=8))
 
 __all__ = ["fetch_feed", "FeedItem"]
@@ -44,6 +45,11 @@ class FeedItem:
 
 def fetch_feed(url: str, timeout: float = 10.0) -> list[FeedItem]:
     """拉取单个 RSSHub/自定义订阅地址，返回统一 FeedItem 列表"""
+    # 微博用户订阅：直连 m.weibo.cn，无需 RSSHub / docker 环境变量
+    m = _WEIBO_USER_RE.search(url)
+    if m:
+        return _fetch_weibo_user(m.group(1), timeout)
+
     req = urllib.request.Request(
         url,
         headers={
@@ -169,6 +175,88 @@ def _parse_json(text: str) -> list[FeedItem]:
 
 
 # ── 通用工具 ──────────────────────────────────────────────────
+
+def _fetch_weibo_user(uid: str, timeout: float = 10.0) -> list[FeedItem]:
+    """直连 m.weibo.cn 拉取用户微博（复用「设置 → RSSHub 订阅」里的 weibo_cookies）"""
+    from app.core.settings.service import get_setting
+    cookie = get_setting("weibo_cookies", "")
+    if not cookie:
+        raise ValueError("微博订阅需要登录 Cookie：请在「设置 → RSSHub 订阅」/「订阅消息 → RSSHub 配置」填写微博 Cookie")
+
+    def _get(url: str):
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+            "Referer": f"https://m.weibo.cn/u/{uid}",
+            "Cookie": cookie,
+        })
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8", "replace"))
+
+    try:
+        idx = _get(f"https://m.weibo.cn/api/container/getIndex?type=uid&value={uid}")
+    except urllib.error.HTTPError as e:
+        raise ValueError(f"微博接口返回 {e.code}：Cookie 可能失效，请重新登录 m.weibo.cn 更新") from e
+    data = idx.get("data") or {}
+    tabs = ((data.get("tabsInfo") or {}).get("tabs")) or []
+    containerid = next((t.get("containerid") for t in tabs if t.get("tab_type") == "weibo"), None)
+    if not containerid:
+        raise ValueError("微博页面未找到内容 Tab：Cookie 可能失效，请重新登录 m.weibo.cn 后更新")
+    user_name = (data.get("userInfo") or {}).get("screen_name") or uid
+    cards_url = f"https://m.weibo.cn/api/container/getIndex?type=uid&value={uid}&containerid={containerid}"
+    cards = (_get(cards_url).get("data") or {}).get("cards") or []
+
+    out: list[FeedItem] = []
+    for card in cards:
+        mb = card.get("mblog")
+        if not mb:
+            continue
+        bid = mb.get("bid") or mb.get("id") or ""
+        text = _weibo_html_to_text(mb.get("text") or "")
+        if (mb.get("pics") or []) and text:
+            text += "\n" + "\n".join(
+                f"[图片] {p.get('large', {}).get('url') or p.get('url', '')}"
+                for p in mb["pics"] if p.get("large", {}).get("url") or p.get("url"))
+        ret = mb.get("retweeted_status")
+        if ret and ret.get("text"):
+            text += ("\n[转发] " + _weibo_html_to_text(ret["text"]))
+        title = text[:60].strip() or bid
+        raw_t = mb.get("created_at") or ""
+        st = _ST_RE.search(text) or _ST_RE.search(title)
+        out.append(FeedItem(
+            guid=f"weibo:{uid}:{bid}",
+            title=title,
+            summary=text,
+            link=f"https://m.weibo.cn/detail/{bid}" if bid else f"https://m.weibo.cn/u/{uid}",
+            author=user_name,
+            pub_time=_parse_weibo_dt(raw_t),
+            is_st=st,
+            importance=_calc_importance(title, text),
+            symbol=_extract_symbol(text + title),
+        ))
+    if not out:
+        raise ValueError("微博接口未返回内容（Cookie 可能失效或该用户无可见微博）")
+    return out
+
+
+def _weibo_html_to_text(html: str) -> str:
+    import html as _h
+    txt = _h.unescape(html or "")
+    txt = re.sub(r"<br\s*/?>", "\n", txt)
+    txt = re.sub(r"<[^>]+>", "", txt)
+    txt = re.sub(r"[ \t]+", " ", txt)
+    txt = re.sub(r"\n{2,}", "\n", txt)
+    return txt.strip()
+
+
+def _parse_weibo_dt(s: str):
+    """m.weibo.cn 时间格式如 'Wed Apr 12 10:00:00 +0800 2023'"""
+    m = re.search(r"(\w{3} \w{3} \d{2} \d{2}:\d{2}:\d{2}) \+0800 (\d{4})", s or "")
+    if not m:
+        return _parse_dt(s)
+    try:
+        return datetime.strptime(m.group(1) + " " + m.group(2), "%a %b %d %H:%M:%S %Y").replace(tzinfo=_CN_TZ)
+    except ValueError:
+        return _parse_dt(s)
 
 def _decode(raw: bytes, ct: str) -> str:
     import re as _re

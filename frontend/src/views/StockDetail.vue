@@ -293,6 +293,7 @@ const router = useRouter()
 const symbol = route.params.symbol
 
 const loading = ref(false)
+const VALID_PERIODS = ['mf', 'm5', 'm15', 'm30', 'm60', 'day', 'week', 'month']
 const period = ref('day')
 const tab = ref('forms')
 const basic = ref({})
@@ -492,7 +493,7 @@ async function runAI() {
   }
 }
 
-watch(period, loadKline)
+watch(period, (v) => { if (VALID_PERIODS.includes(v)) loadKline() })
 onMounted(() => {
   load()
   loadKline()

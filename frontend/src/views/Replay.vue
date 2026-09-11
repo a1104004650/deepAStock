@@ -8,13 +8,9 @@
           <el-option v-for="i in 30" :key="i" :label="dateStr(i) + (i === 0 ? '（今日）' : '')" :value="dateStr(i)" />
         </el-select>
         <el-button size="small" :loading="triggering" @click="trigger"
-          :type="status === 'pending' ? 'danger' : 'warning'"
-          :disabled="triggerDisabled">
-          {{ triggerDisabled ? '今日复盘需 17:00 后' : '生成复盘' }}
+          :type="status === 'pending' ? 'danger' : 'warning'">
+          生成复盘
         </el-button>
-        <el-tooltip v-if="triggerDisabled" effect="dark" content="非交易日或 17:00(北京时间)前，默认生成上一交易日复盘" placement="bottom">
-          <el-tag size="small" type="info">{{ prevTradingDate }}</el-tag>
-        </el-tooltip>
         <el-tag v-if="status === 'pending'" size="small" type="warning">今日尚未生成，交易日 18:00 自动复盘</el-tag>
         <el-tag v-if="status === 'empty'" size="small" type="info">暂无复盘记录</el-tag>
         <el-tag v-if="rpt?.date" size="small" type="info">{{ rpt.date }}</el-tag>
@@ -303,12 +299,6 @@ const prevTradingDate = computed(() => {
   while (!isWeekday(d)) d.setUTCDate(d.getUTCDate() - 1)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 })
-const triggerDisabled = computed(() => {
-  const now = toAsiaShanghai()
-  if (triggerDate.value !== dateStr(0)) return false
-  if (!isWeekday(now)) return true
-  return now.getUTCHours() * 60 + now.getUTCMinutes() < 17 * 60
-})
 
 function goStock(symbol, name) {
   if (!symbol) return
@@ -377,10 +367,7 @@ async function trigger() {
 }
 
 onMounted(() => {
-  const now = toAsiaShanghai()
-  triggerDate.value = isWeekday(now) && now.getUTCHours() * 60 + now.getUTCMinutes() >= 17 * 60
-    ? dateStr(0)
-    : prevTradingDate.value
+  triggerDate.value = dateStr(0)
   load()
   loadCalendar()
 })

@@ -4,7 +4,7 @@
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Version = "1.1.2"
+$Version = "1.1.4"
 $PkgName = "deepAStock-v$Version"
 $ReleaseDir = Join-Path $Root "release"
 $PkgDir = Join-Path $ReleaseDir $PkgName

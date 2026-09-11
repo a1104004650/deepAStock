@@ -21,6 +21,7 @@ DEFAULTS = {
     "rsshub_enabled": "1" if settings.RSSHUB_ENABLED else "0",
     "rsshub_poll_seconds": str(settings.RSSHUB_POLL_SECONDS),
     "rsshub_item_retention_days": str(settings.RSSHUB_ITEM_RETENTION_DAYS),
+    "weibo_cookies": "",
 }
 
 # 内存快照：DB 中的覆盖值（key -> value）
@@ -63,7 +64,12 @@ async def update_settings(db: AsyncSession, updates: dict) -> dict:
         if obj is None:
             obj = Setting(key=k, value="")
             db.add(obj)
-        obj.value = str(v)
+        if isinstance(v, bool):
+            obj.value = "1" if v else "0"
+        elif v is None:
+            obj.value = ""
+        else:
+            obj.value = str(v)
     await db.commit()
     await refresh_settings(db)
     return snapshot()

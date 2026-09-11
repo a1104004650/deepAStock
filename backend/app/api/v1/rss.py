@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/v1/rss", tags=["订阅"])
 
 
 class SourceBody(BaseModel):
-    name: str
+    name: str = ""
     platform: str = "generic"
     route: str | None = None
     url: str | None = None

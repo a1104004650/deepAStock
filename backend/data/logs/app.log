@@ -766,3 +766,57 @@
 2026-09-11 16:00:21,780 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
 2026-09-11 16:05:25,791 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
 2026-09-11 16:07:23,490 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 17:21:20,860 [INFO] quant: 初始化数据库...
+2026-09-11 17:21:20,889 [INFO] quant: 启动定时任务...
+2026-09-11 17:21:20,891 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 17:44:34,367 [INFO] quant: 初始化数据库...
+2026-09-11 17:44:34,389 [INFO] quant: 启动定时任务...
+2026-09-11 17:44:34,390 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 17:47:43,966 [INFO] quant: 初始化数据库...
+2026-09-11 17:47:43,991 [INFO] quant: 启动定时任务...
+2026-09-11 17:47:43,993 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 17:47:48,201 [WARNING] quant: em boards m:90+t:3 p1: Remote end closed connection without response
+2026-09-11 17:47:50,366 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 17:47:59,093 [INFO] quant: 初始化数据库...
+2026-09-11 17:47:59,119 [INFO] quant: 启动定时任务...
+2026-09-11 17:47:59,121 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 17:48:02,924 [WARNING] quant: em boards m:90+t:3 p1: Remote end closed connection without response
+2026-09-11 17:48:05,120 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 18:13:59,108 [INFO] quant: 初始化数据库...
+2026-09-11 18:13:59,136 [INFO] quant: 启动定时任务...
+2026-09-11 18:13:59,137 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 18:14:33,019 [INFO] quant: 初始化数据库...
+2026-09-11 18:14:33,046 [INFO] quant: 启动定时任务...
+2026-09-11 18:14:33,048 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 18:16:14,003 [INFO] quant: 初始化数据库...
+2026-09-11 18:16:14,027 [INFO] quant: 启动定时任务...
+2026-09-11 18:16:14,028 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 18:16:17,873 [WARNING] quant: em boards m:90+t:3 p1: Remote end closed connection without response
+2026-09-11 18:16:20,248 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 18:22:48,306 [INFO] quant: 初始化数据库...
+2026-09-11 18:22:48,333 [INFO] quant: 启动定时任务...
+2026-09-11 18:22:48,334 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 18:24:47,893 [INFO] quant: === 开始复盘 2026-09-11 ===
+2026-09-11 18:25:11,074 [INFO] quant: === 开始复盘 2026-09-11 ===
+2026-09-11 18:26:31,516 [INFO] quant: === 复盘完成 2026-09-11, 选股池 11 只 ===
+2026-09-11 18:26:52,419 [INFO] quant: === 复盘完成 2026-09-11, 选股池 11 只 ===
+2026-09-11 18:27:26,494 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 18:28:03,814 [WARNING] quant: tencent kline failed SZ000636/day: HTTP Error 501: Not Implemented
+2026-09-11 18:28:03,815 [WARNING] quant: tencent kline failed SZ000636/day: HTTP Error 501: Not Implemented
+2026-09-11 18:28:03,830 [WARNING] quant: tencent kline failed SZ000636/day: HTTP Error 501: Not Implemented
+2026-09-11 18:28:19,225 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:28:19,234 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:28:19,235 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:28:44,728 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:28:44,733 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:28:44,793 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:28:46,971 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:28:46,978 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:28:46,994 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:29:02,199 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:29:02,209 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:29:02,217 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:29:09,986 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:29:13,601 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:29:13,657 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented
+2026-09-11 18:29:16,005 [WARNING] quant: tencent kline failed SH603377/day: HTTP Error 501: Not Implemented

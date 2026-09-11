@@ -62,7 +62,7 @@ export const stockApi = {
 export const replayApi = {
   latest: () => http.get('/replay/latest'),
   history: () => http.get('/replay/history'),
-  trigger: (data) => http.post('/replay/trigger', data)
+  trigger: (data) => http.post('/replay/trigger', data, { timeout: 300000 })
 }
 
 // 智能体

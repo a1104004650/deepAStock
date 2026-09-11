@@ -12102,3 +12102,54 @@ INFO:     127.0.0.1:60767 - "GET /api/v1/system/health HTTP/1.1" 200 OK
 INFO:     127.0.0.1:51060 - "GET /api/v1/rss/sources HTTP/1.1" 200 OK
 INFO:     127.0.0.1:59372 - "GET /api/v1/system/status HTTP/1.1" 200 OK
 INFO:     127.0.0.1:52542 - "GET /api/v1/rss/items?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53403 - "GET /api/v1/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53404 - "GET /api/v1/rss/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58968 - "GET /api/v1/system/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61917 - "GET /api/v1/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61920 - "GET /api/v1/rss/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61919 - "GET /api/v1/rss/items?limit=50&importance=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58096 - "GET /api/v1/system/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61272 - "GET /api/v1/rss/items?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61918 - "GET /api/v1/market/news?limit=60 HTTP/1.1" 200 OK
+2026-09-11 17:21:20,860 [INFO] quant: 初始化数据库...
+2026-09-11 17:21:20,889 [INFO] quant: 启动定时任务...
+2026-09-11 17:21:20,891 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+INFO:     127.0.0.1:56752 - "GET /api/v1/system/health HTTP/1.1" 200 OK
+2026-09-11 17:44:34,367 [INFO] quant: 初始化数据库...
+2026-09-11 17:44:34,389 [INFO] quant: 启动定时任务...
+2026-09-11 17:44:34,390 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+INFO:     127.0.0.1:49207 - "GET /api/v1/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51870 - "GET /api/v1/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51871 - "PUT /api/v1/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52087 - "PUT /api/v1/settings HTTP/1.1" 200 OK
+2026-09-11 18:13:59,108 [INFO] quant: 初始化数据库...
+2026-09-11 18:13:59,136 [INFO] quant: 启动定时任务...
+2026-09-11 18:13:59,137 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+INFO:     127.0.0.1:64362 - "GET /api/v1/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50393 - "PUT /api/v1/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50394 - "PUT /api/v1/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50395 - "PUT /api/v1/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50396 - "POST /api/v1/rss/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50397 - "PUT /api/v1/rss/sources/7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50398 - "DELETE /api/v1/rss/sources/7 HTTP/1.1" 200 OK
+2026-09-11 18:14:33,019 [INFO] quant: 初始化数据库...
+2026-09-11 18:14:33,046 [INFO] quant: 启动定时任务...
+2026-09-11 18:14:33,048 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+INFO:     127.0.0.1:58136 - "GET /api/v1/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63314 - "PUT /api/v1/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63315 - "PUT /api/v1/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56288 - "PUT /api/v1/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56289 - "POST /api/v1/rss/poll HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56914 - "POST /api/v1/rss/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56915 - "DELETE /api/v1/rss/sources/7 HTTP/1.1" 200 OK
+2026-09-11 18:22:48,306 [INFO] quant: 初始化数据库...
+2026-09-11 18:22:48,333 [INFO] quant: 启动定时任务...
+2026-09-11 18:22:48,334 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+INFO:     127.0.0.1:52043 - "GET /api/v1/system/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58219 - "PUT /api/v1/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58220 - "POST /api/v1/rss/poll HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64100 - "GET /api/v1/rss/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64465 - "PUT /api/v1/rss/sources/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64466 - "DELETE /api/v1/rss/sources/4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64467 - "POST /api/v1/rss/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64468 - "POST /api/v1/rss/poll HTTP/1.1" 200 OK

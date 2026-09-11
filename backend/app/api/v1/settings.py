@@ -1,4 +1,5 @@
 """系统设置接口"""
+from typing import Any
 from fastapi import APIRouter, Depends, Body
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/api/v1/settings", tags=["设置"])
 
 
 class UpdateBody(BaseModel):
-    updates: dict[str, str]
+    updates: dict[str, Any]
 
 
 class TestDBBody(BaseModel):

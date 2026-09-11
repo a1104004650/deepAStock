@@ -79,11 +79,16 @@
               <el-input v-model="rssHubBase" size="small" style="width:240px" placeholder="http://127.0.0.1:11200" />
               <el-button size="small" type="primary" :loading="savingRssHub" @click="saveRssHub">保存</el-button>
             </div>
+            <div class="rss-base-line">
+              <span class="form-tip" style="margin-left:0">微博 Cookie</span>
+              <el-input v-model="weiboCookie" size="small" type="textarea" :rows="2" style="width:520px" placeholder="浏览器登录 m.weibo.cn 后 F12 复制任一请求的 Cookie 头整串（仅供微博订阅直连使用，保存在本应用配置中）" />
+              <el-button size="small" type="primary" :loading="savingRssHub" @click="saveWeiboCookie">保存</el-button>
+            </div>
             <span class="form-tip">订阅源 {{ sources.length }} 个 · 入库消息 {{ itemTotal }} 条 · 上次轮询：{{ lastPollText }}</span>
           </div>
-          <div class="rss-tip">
+<div class="rss-tip">
             提示：本机开发填宿主机映射地址 <code>http://127.0.0.1:11200</code>；Docker 容器内自动为 <code>http://rsshub:1200</code>（compose 已配置）。
-            新浪微博用户路由 <code>/weibo/user/{uid}</code>（如 <code>https://weibo.com/u/1645823934</code> 的 uid 为 <code>1645823934</code>）。
+            微博博主/热搜订阅无需改 docker，只需在上方「微博 Cookie」填登录态 Cookie 即可（微博订阅直连 m.weibo.cn）。
           </div>
 
           <el-table :data="sources" size="small" empty-text="暂无订阅源" class="rss-table">
@@ -141,45 +146,53 @@
     </el-tabs>
 
     <!-- 新增/编辑订阅源 -->
-    <el-dialog v-model="dialogVisible" :title="editing ? '编辑订阅源' : '新增订阅源'" width="560px">
+    <el-dialog v-model="dialogVisible" :title="editing ? '编辑订阅源' : '新增订阅源'" width="580px">
       <el-form label-width="90px" label-position="left">
-        <el-form-item label="名称" required>
-          <el-input v-model="form.name" placeholder="如：某游资微博 / 某公众号" />
-        </el-form-item>
-        <el-form-item label="平台">
+        <el-form-item label="平台" required>
           <el-select v-model="form.platform" @change="onPlatform">
             <el-option v-for="(p, key) in platformMap" :key="key" :label="p.label" :value="key" />
           </el-select>
+          <span class="form-tip">{{ platformHint }}</span>
         </el-form-item>
-        <el-form-item label="RSSHub 路径">
-          <el-input v-model="form.route" placeholder="/weibo/user/1234567890（将拼接到 RSSHUB_BASE）" />
-        </el-form-item>
-        <el-form-item label="完整 URL">
-          <el-input v-model="form.url" placeholder="可选，若填写则优先使用完整 URL" />
-          <div class="form-tip" style="width:100%">
-            微博用户 <code>/weibo/user/{uid}</code> · 微博热搜 <code>/weibo/search/hot</code> ·
-            公众号(搜狗) <code>/wechat/sogou/{关键词}</code> · 东财股吧 <code>/eastmoney/guba/{代码}</code>，
-            具体路由以实际部署的 RSSHub /routes 为准
+        <el-form-item :label="isRssHub ? 'RSSHub 路径' : '订阅地址'" required>
+          <el-input v-model="addressValue" :placeholder="addressPlaceholder" />
+          <div class="form-tip" style="display:block;width:100%;margin-left:0;margin-top:4px">
+            <template v-if="isRssHub">
+              填写 RSSHub 路径，会自动拼接到上方实例地址。示例：<br/>
+              <code>/weibo/user/1645823934</code>（微博用户）·
+              <code>/weibo/search/hot</code>（微博热搜）·
+              <code>/wechat/sogou/财经</code>（公众号）·
+              <code>/eastmoney/guba/600519</code>（股吧）
+            </template>
+            <template v-else>
+              填写 RSS / Atom / JSON Feed 完整链接，直接拉取不经过 RSSHub。示例：<br/>
+              <code>https://xueqiu.com/hots/topic/rss</code>（雪球热帖）·
+              <code>https://www.ithome.com/rss/</code>（IT之家）·
+              <code>https://www.ifanr.com/feed</code>（爱范儿）
+            </template>
           </div>
         </el-form-item>
+        <el-form-item label="名称">
+          <el-input v-model="form.name" placeholder="给这个源起个名字（可不填，自动识别）" />
+        </el-form-item>
         <el-form-item label="关注标签">
-          <el-input v-model="form.tagsText" :placeholder="'逗号分隔，如：600519,茅台,跟单'" />
+          <el-input v-model="form.tagsText" :placeholder="'逗号分隔，如：600519,茅台,跟单（可不填）'" />
         </el-form-item>
         <el-form-item label="轮询间隔">
           <el-input-number v-model="form.interval_sec" :min="10" :max="1800" :step="10" />
-          <span class="form-tip" style="margin-left:10px">秒，最小 10 秒，限频保护</span>
+          <span class="form-tip" style="margin-left:10px">秒</span>
         </el-form-item>
         <el-form-item label="启用">
           <el-switch v-model="form.enabled" />
         </el-form-item>
         <el-form-item label="过滤 ST">
           <el-switch v-model="form.filter_st" />
-          <span class="form-tip" style="margin-left:10px">自动过滤标题含 ST / *ST 的消息</span>
+          <span class="form-tip" style="margin-left:10px">过滤标题含 ST / *ST 的消息</span>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button v-if="form.url || form.route" @click="testFeed" :loading="testing">
-          测试订阅地址
+        <el-button v-if="addressValue" @click="testFeed" :loading="testing">
+          测试地址
         </el-button>
         <span v-if="testResult" class="form-tip" :class="testResult.ok ? 'ok' : 'err'" style="margin-right:10px">
           {{ testResult.ok ? '可解析 ' + testResult.count + ' 条' : '失败：' + testResult.error }}
@@ -209,25 +222,45 @@ const dbTest = ref(null)
 const testingDb = ref(false)
 
 const platformMap = {
-  weibo: { label: '微博', route: '/weibo/user/{uid}' },
-  wechat: { label: '微信公众号', route: '/wechat/sogou/{关键词}' },
-  guba: { label: '东方财富股吧', route: '/eastmoney/guba/{代码}' },
-  generic: { label: '其他 / 自定义', route: '' }
+  generic: { label: '直接 RSS（填完整链接）', route: '' },
+  weibo: { label: '微博（RSSHub 路径）', route: '/weibo/user/' },
+  wechat: { label: '微信公众号（RSSHub 路径）', route: '/wechat/sogou/' },
+  guba: { label: '东方财富股吧（RSSHub 路径）', route: '/eastmoney/guba/' },
+  weibo_hot: { label: '微博热搜（RSSHub 路径）', route: '/weibo/search/hot' }
 }
-const platformLabel = (p) => (platformMap[p] || platformMap.generic).label
+const platformHint = computed(() => {
+  const p = platformMap[form.value.platform]
+  return p?.route ? '走 RSSHub 实例，填路径即可' : '直接抓取 RSS 链接，不走 RSSHub'
+})
+const isRssHub = computed(() => {
+  const p = platformMap[form.value.platform]
+  return !!(p && p.route)
+})
+const addressValue = computed({
+  get: () => isRssHub.value ? form.value.route : form.value.url,
+  set: (v) => { if (isRssHub.value) form.value.route = v; else form.value.url = v }
+})
+const addressPlaceholder = computed(() => {
+  if (isRssHub.value) {
+    const hint = { weibo: '1645823934（只填 uid，自动拼成 /weibo/user/uid）', wechat: '财经（关键词）', guba: '600519（股票代码）', weibo_hot: '（无需填写，直接保存）' }
+    return hint[form.value.platform] || '/路由/参数'
+  }
+  return 'https://example.com/feed.xml'
+})
 
 const sources = ref([])
 const previewItems = ref([])
 const itemTotal = ref(0)
 const rssStatus = ref({ enabled: true, base: '' })
 const rssHubBase = ref('')
+const weiboCookie = ref('')
 const lastPollText = ref('待轮询')
 const polling = ref(false)
 const savingRssHub = ref(false)
 
 const dialogVisible = ref(false)
 const editing = ref(false)
-const form = ref({ name: '', platform: 'weibo', route: '', url: '', tagsText: '', interval_sec: 30, enabled: true, filter_st: true })
+const form = ref({ name: '', platform: 'generic', route: '', url: '', tagsText: '', interval_sec: 30, enabled: true, filter_st: true })
 const testing = ref(false)
 const testResult = ref(null)
 const firstLoad = ref(false)
@@ -246,6 +279,7 @@ async function loadSettings() {
   dbForm.value.database_url = eff.database_url || ''
   rssStatus.value = { enabled: eff.rsshub_enabled === '1', base: eff.rsshub_base || '', poll: eff.rsshub_poll_seconds || '30' }
   rssHubBase.value = eff.rsshub_base || ''
+  weiboCookie.value = eff.weibo_cookies || ''
 }
 
 async function saveRssHub() {
@@ -257,6 +291,16 @@ async function saveRssHub() {
     rssHubBase.value = url
     ElMessage.success('RSSHub 实例地址已保存并生效')
     await loadRss()
+  } finally {
+    savingRssHub.value = false
+  }
+}
+
+async function saveWeiboCookie() {
+  savingRssHub.value = true
+  try {
+    await settingsApi.save({ weibo_cookies: (weiboCookie.value || '').trim() })
+    ElMessage.success('微博 Cookie 已保存（微博订阅将直连 m.weibo.cn）')
   } finally {
     savingRssHub.value = false
   }
@@ -297,14 +341,15 @@ async function testDb() {
 }
 
 function onPlatform() {
-  form.value.route = platformMap[form.value.platform].route
+  form.value.route = ''
+  form.value.url = ''
 }
 function openDialog(row) {
   editing.value = !!row
   testResult.value = null
   form.value = {
     name: row?.name || '',
-    platform: row?.platform || 'weibo',
+    platform: row?.platform || 'generic',
     route: row?.route || '',
     url: row?.url || '',
     tagsText: (row?.tags || []).join(','),
@@ -321,7 +366,7 @@ function testUrl() {
 
 async function testFeed() {
   const u = testUrl()
-  if (!u) { ElMessage.warning('请先填写订阅地址'); return }
+  if (!u) { ElMessage.warning('请填写订阅地址'); return }
   testing.value = true
   try {
     testResult.value = await rssApi.testFeed(u)
@@ -331,13 +376,22 @@ async function testFeed() {
 }
 
 async function saveSourceDialog() {
-  if (!form.value.name) { ElMessage.warning('请填写订阅源名称'); return }
-  if (!form.value.route && !form.value.url) { ElMessage.warning('请填写 RSSHub 路径或完整 URL'); return }
+  const route = form.value.route || null
+  const url = form.value.url || null
+  if (!route && !url) { ElMessage.warning('请填写订阅地址'); return }
+  let name = form.value.name
+  if (!name) {
+    if (url) {
+      try { name = new URL(url).hostname } catch { name = url.slice(0, 30) }
+    } else {
+      name = route
+    }
+  }
   const payload = {
-    name: form.value.name,
+    name,
     platform: form.value.platform,
-    route: form.value.route || null,
-    url: form.value.url || null,
+    route,
+    url,
     tags: form.value.tagsText.split(/[,，\s]+/).filter(Boolean),
     interval_sec: form.value.interval_sec,
     enabled: form.value.enabled,
