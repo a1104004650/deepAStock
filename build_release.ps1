@@ -4,7 +4,7 @@
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Version = "1.0.0"
+$Version = "1.1.0"
 $PkgName = "deepAStock-v$Version"
 $ReleaseDir = Join-Path $Root "release"
 $PkgDir = Join-Path $ReleaseDir $PkgName
@@ -51,6 +51,7 @@ Write-Host "HOW TO DEPLOY (no Python/Node/DB needed):"
 Write-Host "  1. unzip  $PkgName.zip"
 Write-Host "  2. cd $PkgName && docker compose up -d --build"
 Write-Host "  3. open http://localhost:18080  (API docs: http://localhost:18000/docs)"
+Write-Host "  4. RSSHub subscribe page: http://localhost:11200  (managed in 界面「设置 → RSSHub 订阅」)"
 Write-Host ""
 Write-Host "Database: default SQLite (volume backend_data, survives rebuild)."
 Write-Host "To use your own PostgreSQL: edit docker-compose.yml, uncomment"

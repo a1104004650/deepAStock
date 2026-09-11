@@ -94,6 +94,7 @@ export const simulationApi = {
   reviews: (id) => http.get(`/simulation/accounts/${id}/reviews`),
   logs: (id, limit = 100) => http.get(`/simulation/accounts/${id}/logs`, { params: { limit } }),
   pool: (id) => http.get(`/simulation/accounts/${id}/pool`),
+  setPool: (id, tracked) => http.put(`/simulation/accounts/${id}/pool`, { tracked }),
   stats: (id) => http.get(`/simulation/accounts/${id}/stats`),
   reset: (id) => http.post(`/simulation/accounts/${id}/reset`),
 }
@@ -114,4 +115,22 @@ export const tradeApi = {
 export const systemApi = {
   health: () => http.get('/system/health'),
   status: () => http.get('/system/status')
+}
+
+// 系统设置
+export const settingsApi = {
+  get: () => http.get('/settings'),
+  save: (updates) => http.put('/settings', { updates }),
+  testDatabase: (url) => http.post('/settings/test-database', { url })
+}
+
+// RSSHub 订阅
+export const rssApi = {
+  sources: () => http.get('/rss/sources'),
+  createSource: (data) => http.post('/rss/sources', data),
+  updateSource: (id, data) => http.put(`/rss/sources/${id}`, data),
+  deleteSource: (id) => http.delete(`/rss/sources/${id}`),
+  testFeed: (url) => http.post('/rss/test', { url }),
+  items: (params) => http.get('/rss/items', { params }),
+  poll: () => http.post('/rss/poll')
 }

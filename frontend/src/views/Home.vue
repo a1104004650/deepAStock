@@ -314,10 +314,10 @@
 
       <!-- 消息滚动 + ETF资金流 -->
       <el-row :gutter="10" class="mt8">
-        <el-col :xs="24" :sm="14">
+        <el-col :xs="24" :sm="12">
           <div class="card col-card">
             <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
-              <span class="fs14 bold">消息滚动 <span class="fs12" style="color:#909399">（区分板块与重要性）</span></span>
+              <span class="fs14 bold">消息滚动 <span class="fs12" style="color:#909399">（平台新闻 + RSSHub 订阅推送）</span></span>
               <el-radio-group v-model="newsFilter" size="small">
                 <el-radio-button value="1">重要</el-radio-button>
                 <el-radio-button value="2">普通</el-radio-button>
@@ -327,7 +327,7 @@
             <el-scrollbar class="news-scroll">
               <div v-for="(n, i) in filteredNews" :key="i" class="news-item">
                 <el-tag size="small" :type="impTag(n.importance)" style="flex-shrink:0">{{ impText(n.importance) }}</el-tag>
-                <el-tag size="small" type="info" effect="plain" style="flex-shrink:0">{{ n.category }}</el-tag>
+                <el-tag size="small" :type="n.src === 'RSS' ? 'success' : 'info'" effect="plain" style="flex-shrink:0">{{ n.category }}</el-tag>
                 <a v-if="n.url" :href="n.url" target="_blank" rel="noopener" class="fs12 news-title">{{ n.title }}</a>
                 <span v-else class="fs12 news-title">{{ n.title }}</span>
                 <span class="fs12 news-time">{{ formatNewsTime(n.time) }}</span>
@@ -336,7 +336,7 @@
             </el-scrollbar>
           </div>
         </el-col>
-        <el-col :xs="24" :sm="10">
+        <el-col :xs="24" :sm="12">
           <div class="card col-card">
             <div class="flex between" style="align-items:center">
               <span class="fs14 bold">ETF 资金流 <span class="fs12 mono" style="color:#909399">（截至 {{ etfFlowDate }}）</span></span>
@@ -390,7 +390,7 @@ import { useRouter } from 'vue-router'
 import MainLayout from '../layout/MainLayout.vue'
 import LineChart from '../components/LineChart.vue'
 import KlineChart from '../components/KlineChart.vue'
-import { marketApi, agentApi } from '../api'
+import { marketApi, agentApi, rssApi } from '../api'
 
 const router = useRouter()
 function goStock(symbol, name) {
@@ -405,11 +405,23 @@ const mktDate = ref('')
 const indices = ref([])
 const news = ref([])
 const newsFilter = ref('1')
+const rssNews = ref([])
 const marketFlow = ref({ date: '', intraday: [], daily: [] })
 const mfMode = ref('intraday')
+const mergedNews = computed(() => {
+  const plat = (news.value || []).map((n) => ({
+    title: n.title, url: n.url, importance: Number(n.importance) || 3,
+    category: n.category || '财经', time: n.time || '', src: '平台'
+  }))
+  const rss = (rssNews.value || []).map((r) => ({
+    title: r.title, url: r.link, importance: Number(r.importance) || 3,
+    category: '订阅·' + (r.source_name || r.platform || 'RSS'), time: r.pub_time || '', src: 'RSS'
+  }))
+  return [...rss, ...plat]
+})
 const filteredNews = computed(() => {
   const f = Number(newsFilter.value) || 1
-  return (news.value || []).filter((n) => Number(n.importance) === f)
+  return mergedNews.value.filter((n) => Number(n.importance) === f)
 })
 const mfSeries = [
   { name: '主力', key: 'main_net', color: '#ef232a', area: false },
@@ -423,8 +435,16 @@ const mfChartData = computed(() => {
   return Array.isArray(src) ? src : []
 })
 function formatNewsTime(ts) {
-  if (!ts || isNaN(Number(ts))) return ts || ''
-  const d = new Date(Number(ts) * 1000)
+  if (!ts) return ''
+  const str = String(ts)
+  if (str.includes('T')) {
+    const d = new Date(str.includes('T') && /[Zz]|[+-]\d{2}:\d{2}$/.test(str) ? str : str + '+08:00')
+    if (!isNaN(d.getTime())) {
+      return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    }
+  }
+  if (isNaN(Number(str))) return str
+  const d = new Date(Number(str) * 1000)
   const now = new Date()
   const isToday = d.toDateString() === now.toDateString()
   if (isToday) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -690,6 +710,12 @@ async function loadEtf() {
 async function loadNews() {
   try { news.value = (await marketApi.news(50)) || [] } catch { /* 保留旧数据 */ }
 }
+async function loadRssNews() {
+  try {
+    const rows = (await rssApi.items({ limit: 30 })) || []
+    rssNews.value = rows.filter((r) => !r.is_st)
+  } catch { /* RSS 未启用时保持旧数据 */ }
+}
 async function loadDistribution() {
   try { distribution.value = (await marketApi.distribution()) || {} } catch { /* 保留旧数据 */ }
 }
@@ -720,6 +746,7 @@ async function load() {
       loadSectorFlowTop(),
       loadEtf(),
       loadNews(),
+      loadRssNews(),
       loadDistribution(),
       loadLadder(),
       loadSectorMonitor(),
@@ -742,7 +769,7 @@ let sectorTimer = null
 onMounted(() => {
   load()
   indexTimer = setInterval(() => { loadIndices(); mainIdxDefs.forEach((m) => loadPanel(m.code)) }, 15000)
-  newsTimer = setInterval(loadNews, 60000)
+  newsTimer = setInterval(() => { loadNews(); loadRssNews() }, 60000)
   flowTimer = setInterval(() => { loadSectorFlowTop(); loadEtf(); loadHotStocks() }, 60000)
   distTimer = setInterval(() => { loadDistribution(); loadLadder(); loadMarketFlow(); loadCalendar(); loadRegulatory() }, 60000)
   sectorTimer = setInterval(loadSectorMonitor, 15000)
@@ -790,9 +817,13 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
 }
+/* 四大板块（投资日历/监管异动/消息滚动/ETF资金流）统一等高 */
+@media (min-width: 768px) {
+  .col-card { height: 440px; }
+}
 .news-scroll {
   flex: 1;
-  height: 240px;
+  min-height: 0;
   margin-top: 8px;
 }
 .ix-panel {
@@ -890,7 +921,7 @@ onUnmounted(() => {
 .dist-num { font-size: 11px; line-height: 1; }
 .dist-bar { width: 70%; border-radius: 2px 2px 0 0; min-height: 2px; opacity: .85; }
 .dist-label { font-size: 10px; color: #909399; white-space: nowrap; }
-.cal-scroll { flex: 1; height: 250px; overflow: auto; }
+.cal-scroll { flex: 1; min-height: 0; overflow: auto; }
 .cal-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px dashed #f5f5f5; }
 .cal-date { color: #c0c4cc; font-size: 11px; flex-shrink: 0; width: 42px; }
 .cal-name { flex-shrink: 0; }

@@ -1,4 +1,4 @@
-"""数据源管理器 - 主备切换 + 数据库缓存"""
+"""数据源管理器 - 主备切换 + 数据库缓存 + 设置驱动多源回退"""
 import asyncio
 from datetime import date, timedelta
 from sqlalchemy import select, delete
@@ -7,37 +7,51 @@ from app.core.datasource.base import DataSourceBase
 from app.core.datasource.sina_source import SinaSource, to_standard_symbol
 from app.models.market import Kline, SectorMoneyFlow, DragonTiger, LimitUp
 from app.models.cache import CacheMetadata
+from app.core.settings import source_order, get_setting
 from app.utils.logger import logger
 
 PERIOD_STEP = {"day": 1, "week": 7, "month": 30, "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60}
 
+# 数据源 token → 类（tencent 当前无独立实现，复用 sina）
+_SOURCE_REGISTRY: dict[str, type[DataSourceBase]] = {
+    "sina": SinaSource,
+    "tencent": SinaSource,
+}
+
+
+def _instantiate_sources(tokens: list[str]) -> list[DataSourceBase]:
+    seen: set[str] = set()
+    out: list[DataSourceBase] = []
+    for t in tokens:
+        t = t.strip().lower()
+        cls = _SOURCE_REGISTRY.get(t)
+        if cls and cls.__name__ not in seen:
+            seen.add(cls.__name__)
+            out.append(cls())
+    return out or [SinaSource()]
+
 
 class DataSourceManager:
-    """数据源管理器 - 缓存优先 + 主备切换"""
+    """数据源管理器 - 缓存优先 + 设置驱动顺序回退"""
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.primary: DataSourceBase = SinaSource()
-        self.backup: DataSourceBase = SinaSource()  # 同一真实源重试，无 mock 兜底
-        self.timeout = 15.0
+        self.sources: list[DataSourceBase] = _instantiate_sources(source_order())
+        self.primary: DataSourceBase = self.sources[0]
+        self.timeout = float(get_setting("source_timeout", "5.0"))
 
     async def _call(self, method: str, *args, **kwargs):
-        """带超时的数据源调用，失败自动降级"""
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(getattr(self.primary, method), *args, **kwargs),
-                timeout=self.timeout,
-            )
-        except (asyncio.TimeoutError, Exception) as e:
-            logger.warning(f"primary {method} failed/timeout: {e}")
+        """按配置顺序逐源尝试，成功即返回，全部失败返回空"""
+        for i, src in enumerate(self.sources):
             try:
                 return await asyncio.wait_for(
-                    asyncio.to_thread(getattr(self.backup, method), *args, **kwargs),
+                    asyncio.to_thread(getattr(src, method), *args, **kwargs),
                     timeout=self.timeout,
                 )
-            except (asyncio.TimeoutError, Exception) as e2:
-                logger.error(f"backup {method} also failed: {e2}")
-                return []
+            except (asyncio.TimeoutError, Exception) as e:
+                logger.warning(f"[{src.name}] {method} failed/timeout: {e}")
+                continue
+        return []
 
     async def get_klines(self, symbol: str, period: str = "day",
                          start: date = None, end: date = None) -> list[dict]:

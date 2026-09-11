@@ -1,6 +1,6 @@
 # deepAStock 深度A股交易
 
-深度 A 股 AI 交易平台（PC/H5）。围绕「看盘 → 选股 → 交易 → 复盘 → 进化」闭环，内置 3 个默认 AI 智能体（投研 / 短线 / 波段），支持模拟交易、实盘导入、缠论分析、每日自动复盘。
+深度 A 股 AI 交易平台（PC/H5）。围绕「看盘 → 选股 → 交易 → 复盘 → 进化」闭环，内置 3 个默认 AI 智能体（投研 / 短线 / 波段），支持模拟交易（AI 禁买 ST）、实盘导入、缠论分析、每日自动复盘、RSSHub 订阅消息（微博/公众号/股吧实时推送）与系统设置。
 
 > 发布说明 & 版本日志见 [CHANGELOG.md](CHANGELOG.md) · 需求来源 `提示词.txt` 与 `量化交易系统开发需求讨论.markdown`
 
@@ -12,13 +12,13 @@
 ```bash
 # 开发者：自己打 release 包
 powershell -ExecutionPolicy Bypass -File build_release.ps1
-# 产出：release/deepAStock-v1.0.0.zip（含完整项目 + Docker 全家桶 + 文档）
+# 产出：release/deepAStock-v1.1.0.zip（含完整项目 + Docker 全家桶 + 文档）
 ```
 
 ### 2. 部署（使用者）
 ```bash
-unzip deepAStock-v1.0.0.zip
-cd deepAStock-v1.0.0
+unzip deepAStock-v1.1.0.zip
+cd deepAStock-v1.1.0
 docker compose up -d --build     # 首次构建约需数分钟，之后秒级
 # 打开浏览器 http://localhost:18080   （接口文档 http://localhost:18000/docs）
 docker compose logs -f app       # 看日志
@@ -29,8 +29,9 @@ docker compose up -d             # 再次启动（增量秒级）
 ### 端口
 | 端口 | 用途 |
 |---|---|
-| `80`  | 前端页面（Nginx 托管 `frontend/dist`，`/api` 反代到同容器 8000） |
-| `8000` | 后端接口（uvicorn，可直接访问 /docs） |
+| `18080` | 前端页面（Nginx 托管 `frontend/dist`，`/api` 反代到同容器 8000） |
+| `18000` | 后端接口（uvicorn，可直接访问 /docs） |
+| `11200` | 本地 RSSHub 实例（微博/公众号/股吧等订阅源，仅供本项目） |
 
 ### 数据库选择
 - **SQLite（默认）**：数据保存在 Docker 卷 `backend_data`，重建容器不丢失，开箱即用。
@@ -50,10 +51,10 @@ docker compose up -d             # 再次启动（增量秒级）
 | `SECRET_KEY` | 自动生成并持久化到 `data/.secret_key` | 固定密钥勿留默认，可用环境变量显式覆盖 |
 | `DEBUG` | false | 生产安全默认关闭 |
 | `TZ` | Asia/Shanghai | 时区 |
-| `APP_VERSION` | 1.0.0 | 显示版本 |
+| `APP_VERSION` | 1.1.0 | 显示版本 |
 | `PRIMARY_SOURCE/BACKUP_SOURCE` | sina+tencent | 行情数据源 |
-
-## 本机开发（开发者）
+| `RSSHUB_BASE` | http://rsshub:1200 | 本地 RSSHub 实例地址（容器内）；本机直接跑后端用 `http://127.0.0.1:1200` |
+| `RSSHUB_ENABLED` | true | RSSHub 轮询总开关 |
 
 ## 本机开发（开发者）
 > 上文的 Docker 是给使用者的发布形态。开发者在本机迭代时用下面的方式（进程式，热重载）。
@@ -84,9 +85,10 @@ python scripts/run_frontend.py  status|start|stop
 | 大盘看板 | `/` | 四大指数（含日K线）、**涨跌区间分布图**、板块资金流/涨速、消息滚动、自选股分时 |
 | 自选股 | `/watchlist` | 分组管理、**批量/单条删除**、实时行情与最近查看价格、个股详情（资金流/财务/产业链/行业对比） |
 | 每日复盘 | `/replay` | 市场概况、涨停梯队、**真实龙虎榜**、**板块主力净流入/流出**、AI 复盘、次日选股池、复盘原文（交易日 18:00 自动生成） |
-| 模拟交易 | `/simulation` | 多账户，AI 每日决策买卖，收益曲线 + 绩效统计（收益率/胜率/最大回撤） |
+| 模拟交易 | `/simulation` | 多账户，AI 每日决策买卖（**禁买 ST/\*ST**），持仓/追踪/观察/复盘四池 Tab 切换，收益曲线 + 绩效统计（收益率/胜率/最大回撤） |
 | 实盘导入 | `/trade` | JSON/CSV 导入真实成交，持仓与盈亏汇总 |
 | 智能体中心 | `/agents` | 3 个默认智能体 + 自定义，配置 API/模型/提示词，大盘分析 |
+| 系统设置 | `/settings` | 数据源（主+备用1/2/3顺序回退）、数据库配置/测试、RSSHub开关+订阅地址+间隔+订阅源管理 |
 
 ## 核心接口（节选）
 | 接口 | 说明 |
@@ -99,6 +101,11 @@ python scripts/run_frontend.py  status|start|stop
 | `/api/v1/stocks/{symbol}/industry-ranking` | 行业对比（中位数/排名/Top榜单） |
 | `/api/v1/stocks/search` | 股票搜索（本地 A 股名称库优先） |
 | `/api/v1/watchlist/items/batch-delete` | 自选批量删除 |
+| `/api/v1/settings` | 系统设置（GET/PUT，含数据库测试） |
+| `/api/v1/rss/sources` | RSS 订阅源 CRUD |
+| `/api/v1/rss/items` | RSS 消息列表（支持 search/filter） |
+| `/api/v1/rss/poll` | 手动触发轮询 |
+| `/api/v1/rss/test` | 测试订阅地址是否可用 |
 
 ## 智能体配置
 在「智能体中心」填入 OpenAI 兼容 API：
@@ -111,6 +118,7 @@ python scripts/run_frontend.py  status|start|stop
 ## 定时任务
 | 时间（Asia/Shanghai，交易日） | 任务 |
 |---|---|
+| 每 30 秒 | RSSHub 轮询（按单源 interval_sec 限频，去重后落库） |
 | 09:25 / 10:30 / 13:30 / 14:50 | 盘中 AI 决策（模拟账户） |
 | 15:10 | 收盘决策（当日已有成交的账户自动跳过） |
 | 18:00 | 每日复盘（数据采集 + 智能体解读 + 次日选股池） |
@@ -118,6 +126,7 @@ python scripts/run_frontend.py  status|start|stop
 
 ## 数据源
 - 主：`新浪 + 腾讯`（`backend/app/core/datasource/sina_source.py`，实时行情/K线/分时/指数/搜索，**全真实数据，无 mock**）
+- **多源链式降级**：`DataSourceManager` 按「设置→数据源」中的主源 + 备用源 1/2/3 顺序逐源调用（支持 `sina+tencent` 组合写法），当前源失败自动回退下一个；无需重启，运行时生效。
 - 东财系（板块资金流/龙虎榜/财务/股东/资金K线）：直连 `push2delay.eastmoney.com` 等，网络不可达时**如实返回空**，前端显示「数据源受限」，不注入假数据
 - K线/自选/名称库落库 SQLite，重复请求走缓存
 
@@ -144,15 +153,18 @@ python scripts/run_frontend.py  status|start|stop
 ## 目录结构
 ```
 backend/app
-  api/v1          # REST 接口（market/watchlist/stock/replay/agent/simulation/trade/system）
-  core/datasource # sina+tencent 直连（全真实） + EastMoney 资金/财务/龙虎榜
+  api/v1          # REST 接口（market/watchlist/stock/replay/agent/simulation/trade/system/settings/rss）
+  core/datasource # sina+tencent 直连（全真实） + EastMoney 资金/财务/龙虎榜 + 多源链式降级
   core/market     # 行情/自选/个股服务
   core/agent      # 智能体（LLM + 3 默认 + 执行器）
   core/czsc_engine# 缠论（分型/笔/中枢）
-  core/simulation # 模拟交易
+  core/simulation # 模拟交易（ST禁买 + 观察池轮转）
   core/replay     # 每日复盘
   core/trade_import # 实盘导入
-  models, schemas, tasks, utils
+  core/rsshub     # RSSHub 订阅（parser解析 + service轮询去重）
+  core/settings   # 系统设置快照（DB 覆盖 env 默认值）
+  models/rss.py, models/system.py  # rss_sources/rss_items + setting 表
+  schemas, tasks, utils
 frontend/src
   api, components, layout, views, router, styles
 ```
@@ -161,3 +173,5 @@ frontend/src
 - **行情数据**：实时/K线/分时来自新浪与腾讯直连，个别端点较慢时最多等约 15s；确实不可达的东财系数据如实返回空并提示「数据源受限」。
 - **端口占用**：`scripts/run_server.py stop` 按端口强制清理；前端同理。
 - **数据库**：数据保存在 `backend/data/quant.db`，删除后执行 `python -m scripts.init_db` 重建（Docker 部署在卷 `backend_data`）。
+- **RSSHub 不可用**：本项目 RSSHub 走 Docker 本地镜像（`diygod/rsshub`），不依赖公网；应用启动不依赖 rsshub（弱依赖），rsshub 拉取失败不影响主业务；订阅轮询在 rsshub 启动后自动生效。
+- **ST 漏检**：引擎与 RSS 解析器均使用 `(?<![A-Za-z0-9])(?:S[*★]?ST|\*?ST)(?![A-Za-z0-9])` 正则，已兼容中文 CJK 无空格场景（如"ST慧球"）。

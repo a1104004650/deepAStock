@@ -81,24 +81,61 @@
           </el-col>
 
           <el-col :xs="24" :sm="9">
-            <div class="fs14 bold mb8">当前持仓（点击行看 K线+缠论）</div>
-            <el-table :data="(acc.positions || []).slice(0, 8)" size="small" max-height="186" @row-click="showPosChart">
-              <el-table-column label="名称" min-width="110">
-                <template #default="{ row }"><span class="fs12">{{ row.name || row.symbol }}</span></template>
-              </el-table-column>
-              <el-table-column prop="symbol" label="代码" width="96" />
-              <el-table-column prop="quantity" label="股数" width="80" align="right" />
-              <el-table-column label="盈亏%" align="right">
-                <template #default="{ row }">
-                  <span class="mono" :class="pnlCls(pnlPct(row))">{{ pnlPct(row) >= 0 ? '+' : '' }}{{ pnlPct(row).toFixed(2) }}%</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="盈亏" align="right">
-                <template #default="{ row }">
-                  <span class="mono" :class="pnlCls(row.unrealized_pnl||0)">{{ sign(row.unrealized_pnl||0) }}{{ fmt(row.unrealized_pnl) }}</span>
-                </template>
-              </el-table-column>
-            </el-table>
+            <el-tabs v-model="poolTab" class="pool-tabs">
+              <el-tab-pane label="持仓池" name="positions">
+                <el-table :data="(acc.positions || []).slice(0, 10)" size="small" max-height="250" @row-click="showPosChart">
+                  <el-table-column label="名称" min-width="110">
+                    <template #default="{ row }"><span class="fs12">{{ row.name || row.symbol }}</span></template>
+                  </el-table-column>
+                  <el-table-column prop="symbol" label="代码" width="96" />
+                  <el-table-column prop="quantity" label="股数" width="72" align="right" />
+                  <el-table-column label="盈亏%" align="right">
+                    <template #default="{ row }">
+                      <span class="mono" :class="pnlCls(pnlPct(row))">{{ pnlPct(row) >= 0 ? '+' : '' }}{{ pnlPct(row).toFixed(2) }}%</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="盈亏" align="right">
+                    <template #default="{ row }">
+                      <span class="mono" :class="pnlCls(row.unrealized_pnl||0)">{{ sign(row.unrealized_pnl||0) }}{{ fmt(row.unrealized_pnl) }}</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <div v-if="!(acc.positions || []).length" class="fs12" style="color:#909399;line-height:50px;text-align:center">暂无持仓</div>
+              </el-tab-pane>
+
+              <el-tab-pane label="追踪池" name="tracked">
+                <div class="fs12" style="color:#909399;margin-bottom:6px">手动跟踪（AI 买入重点关注，可增删）</div>
+                <div class="flex gap">
+                  <el-input v-model="trackInput[acc.id]" size="small" placeholder="如：600519" />
+                  <el-button size="small" type="primary" @click="addTrack(acc)">添加</el-button>
+                </div>
+                <div class="tracked-chips mt8">
+                  <span v-for="t in (acc.pool?.tracked || [])" :key="(t.symbol || t.name || '') + ''" class="log-chip">
+                    {{ t.name || t.symbol }}
+                    <el-tag size="small" type="info" style="margin-left:4px">{{ t.symbol }}</el-tag>
+                    <el-icon class="chip-close" @click="removeTrack(acc, t)"><Close /></el-icon>
+                  </span>
+                  <span v-if="!(acc.pool?.tracked || []).length" class="fs12" style="color:#c0c4cc">暂无跟踪标的</span>
+                </div>
+              </el-tab-pane>
+
+              <el-tab-pane :label="'观察池 ' + poolCount(acc, '观察池')" name="watch">
+                <div class="fs12" style="color:#909399;margin-bottom:6px">当日涨停/强势候选（按账户差异化轮转）</div>
+                <div class="chip-wrap">
+                  <span v-for="p in poolBy(acc, '观察池')" :key="p.symbol" class="log-chip">{{ p.name || p.symbol }}</span>
+                  <span v-if="!poolBy(acc, '观察池').length" class="fs12" style="color:#c0c4cc">暂无候选</span>
+                </div>
+              </el-tab-pane>
+
+              <el-tab-pane :label="'复盘池 ' + poolCount(acc, '复盘池')" name="replay">
+                <div class="fs12" style="color:#909399;margin-bottom:6px">最近复盘报告选出的强势标的（{{ poolSourceNote }}）</div>
+                <div class="chip-wrap">
+                  <span v-for="p in poolBy(acc, '复盘池')" :key="p.symbol" class="log-chip">{{ p.name || p.symbol }}</span>
+                  <span v-if="!poolBy(acc, '复盘池').length" class="fs12" style="color:#c0c4cc">暂无候选（运行每日复盘后生成）</span>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
+            <div class="fs12 mt8" style="color:#e6a23c">AI 账户禁止买入 ST / *ST 风险警示股</div>
           </el-col>
         </el-row>
 
@@ -125,18 +162,6 @@
         </el-table>
 
         <el-collapse class="mt8">
-          <el-collapse-item name="pool">
-            <template #title><span class="fs14 bold">选股池 / 观察池（{{ (acc.pool?.pool || []).length }}）</span></template>
-            <div class="fs12" style="color:#909399;margin-bottom:6px">
-              候选来源：复盘池（最近复盘报告）/ 持仓池 / 跟踪池（自选）/ 观察池（当日涨停/强势候选）
-            </div>
-            <div class="fs12">
-              <span v-for="p in (acc.pool?.pool || []).slice(0, 40)" :key="p.symbol + p.source" class="log-chip">
-                {{ p.name || p.symbol }}<span class="fs12" style="color:#909399">（{{ p.source || '' }}）</span>
-              </span>
-              <el-empty v-if="!(acc.pool?.pool || []).length" description="暂无候选，运行一次「执行当日交易」后自动生成" :image-size="40" />
-            </div>
-          </el-collapse-item>
           <el-collapse-item name="stats">
             <template #title><span class="fs14 bold">复盘与统计（盈亏比 / 纪律性 / 交易模式 / 选股能力）</span></template>
             <el-row :gutter="10">
@@ -264,8 +289,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Close } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import MainLayout from '../layout/MainLayout.vue'
 import LineChart from '../components/LineChart.vue'
@@ -288,6 +314,30 @@ const chartDialog = ref(false)
 const chartTitle = ref('个股分析')
 const posKline = ref([])
 const posCzsc = ref({})
+const poolTab = ref('positions')
+const trackInput = reactive({})
+const poolSourceNote = '来源于最近一次 18:00 每日复盘报告'
+
+const poolBy = (acc, src) => (acc.pool?.pool || []).filter((p) => p.source === src)
+const poolCount = (acc, src) => poolBy(acc, src).length
+
+async function addTrack(acc) {
+  const raw = (trackInput[acc.id] || '').trim()
+  if (!raw) { ElMessage.warning('请输入股票代码'); return }
+  const sym = /^\d{6}$/.test(raw) ? (raw.startsWith('6') ? 'SH' + raw : 'SZ' + raw) : raw.toUpperCase()
+  const tracked = [...(acc.pool?.tracked || [])]
+  if (tracked.some((t) => (t.symbol || '') === sym)) { ElMessage.warning('已在追踪池'); return }
+  tracked.push({ symbol: sym, name: raw.toUpperCase() })
+  acc.pool = await simulationApi.setPool(acc.id, tracked)
+  trackInput[acc.id] = ''
+  ElMessage.success('已加入追踪池')
+}
+
+async function removeTrack(acc, t) {
+  const tracked = (acc.pool?.tracked || []).filter((x) => (x.symbol || x.name) !== (t.symbol || t.name))
+  acc.pool = await simulationApi.setPool(acc.id, tracked)
+  ElMessage.success('已移除')
+}
 
 function logTypeName(t) {
   return t === 'run_start' ? '开始' : t === 'pool' ? '股池' : t === 'decision' ? '决策' : t === 'error' ? '降级' : t
@@ -460,3 +510,11 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onChartResize)
 })
 </script>
+
+<style scoped>
+.pool-tabs :deep(.el-tabs__header) { margin-bottom: 8px; }
+.chip-wrap { display: flex; flex-wrap: wrap; gap: 6px; max-height: 260px; overflow-y: auto; }
+.tracked-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 260px; overflow-y: auto; }
+.chip-close { margin-left: 4px; cursor: pointer; color: #c0c4cc; font-size: 13px; vertical-align: -2px; }
+.chip-close:hover { color: #f56c6c; }
+</style>

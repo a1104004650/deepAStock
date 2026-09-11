@@ -2,6 +2,7 @@
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import json
+import re
 from collections import defaultdict
 from zoneinfo import ZoneInfo
 from sqlalchemy import select, func
@@ -16,6 +17,13 @@ from app.utils.logger import logger
 
 FEE_RATE = 0.0003  # 手续费
 SHANGHAI = ZoneInfo("Asia/Shanghai")
+
+_ST_NAME_RE = re.compile(r"(?<![A-Za-z0-9])(?:S[*★]?ST|\*?ST)(?![A-Za-z0-9])", re.IGNORECASE)
+
+
+def _is_st_name(name: str) -> bool:
+    """ST / *ST / ★ST / S*ST 风险警示股识别"""
+    return bool(name) and bool(_ST_NAME_RE.search(name))
 
 
 def _local_to_utc_naive(local_dt: datetime) -> datetime:
@@ -464,6 +472,10 @@ class SimulationEngine:
         if quantity <= 0 or price <= 0:
             return None
         stock_name = await self._name_for(symbol)
+        if action == "buy" and _is_st_name(stock_name):
+            # AI 账户禁止买入 ST/*ST 风险警示股
+            logger.info(f"[sim][{account.id}] 禁止买入风险警示股 {symbol}({stock_name})")
+            return None
         rules = account.rules or {}
         max_pos = float(rules.get("max_position", 0.2))
         amount = price * quantity
@@ -607,7 +619,7 @@ class SimulationEngine:
 
     async def _candidate_pool(self, account=None):
         """AI 自身交易池（不依赖用户自选股）：
-        复盘池(最近复盘报告) + 持仓池(当前持仓) + 跟踪池(账户配置) + 观察池(真实涨停/强势候选)"""
+        复盘池(最近复盘报告) + 持仓池(当前持仓) + 跟踪池(账户配置) + 观察池(真实涨停/强势候选，按账户差异化轮转)"""
         pool = []
         seen = set()
 
@@ -615,6 +627,8 @@ class SimulationEngine:
             if not symbol:
                 return
             symbol = symbol.upper()
+            if _is_st_name(name):  # 风险警示股不入池（AI 禁买）
+                return
             if symbol in seen:
                 return
             seen.add(symbol)
@@ -644,7 +658,12 @@ class SimulationEngine:
                 pass
 
         try:
-            for it in (await self.dsm.get_limit_up()) or []:
+            items = (await self.dsm.get_limit_up()) or []
+            # 观察池按账户差异化：以 account.id 为种子轮转，不同账户看到不同观察顺序
+            if account and len(items) > 1:
+                start = int(account.id) % len(items)
+                items = items[start:] + items[:start]
+            for it in items:
                 add(it.get("symbol"), it.get("name"), "观察池")
         except Exception as e:
             logger.warning(f"limit-up pool failed: {e}")

@@ -5,7 +5,7 @@
 
 ## 项目目标
 构建个人深度 A 股 AI 交易平台（PC/H5），闭环：**看盘 → 选股 → 交易 → 复盘 → 进化**。
-项目名 **deepAStock（深度A股交易）**，版本 **1.0.0**。
+项目名 **deepAStock（深度A股交易）**，版本 **1.1.0**。
 需求来源：`提示词.txt`（功能要求）、`量化交易系统开发需求讨论.markdown`（工程文档）。
 
 ## 关键环境事实（务必遵守）
@@ -35,10 +35,10 @@
     - 财务 `RPT_LICO_FN_CPD`（`YSTZ/SJLTZ/MGJYXJJE/XSMLL/ASSIGNDSCRPT/...`）。
   - K线/自选已落库缓存（purge 过旧 mock 缓存后 MA 正常）。
 - 前端：Vue3 + Vite 5 + Element Plus + Pinia + vue-router + ECharts，`frontend/`，dev 端口 **5173**，`vite.config.js` 已把 `/api` 代理到 8000。所有页面级代码做 `npm run build` 已验证编译通过。
-- 定时任务：APScheduler（Asia/Shanghai，周一~五）**09:25/10:30/13:30/14:50 盘中决策、15:10 收盘决策**（当日已有成交的账户自动跳过）、**18:00 复盘**、20:00 进化。调度信息经 `/api/v1/system/status` 的 `jobs` 字段暴露。
+- 定时任务：APScheduler（Asia/Shanghai，周一~五）**10:25/13:30/14:50 交易窗口盘中决策、15:10 收盘决策**（当日已有成交的账户自动跳过）、**18:00 复盘**、20:00 进化；另有 **30s 一次 RSSHub 轮询**（单源限频按订阅间隔，微博/公众号/股吧等推送信息落库供「消息滚动」；`filter_st=True` 的源过滤 ST 标题）。调度信息经 `/api/v1/system/status` 的 `jobs` 字段暴露。settings 快照启动时从 DB 刷新（`refresh_settings`），PUT 时异步写回。
 
 ## 部署
-- **Docker 单容器**：根 `Dockerfile`（叠加 node 构建前端 + python 依赖 + nginx，supervisord 同容器跑 uvicorn+nginx）+ `nginx.conf`（`/api`→`127.0.0.1:8000`）+ `docker-compose.yml`（默认 SQLite 卷 `backend_data`，可选 `postgres` profile）。端口（宿主机）：18080 前端 / 18000 接口 / 15432 postgres。
+- **Docker 多服务**：根 `Dockerfile`（叠加 node 构建前端 + python 依赖 + nginx，supervisord 同容器跑 uvicorn+nginx）+ `nginx.conf`（`/api`→`127.0.0.1:8000`）+ `docker-compose.yml`（默认 SQLite 卷 `backend_data`，可选 `postgres` profile；**rsshub** 本地部署镜像 diygod/rsshub，宿主机 11200 映射，应用内部走 `http://rsshub:1200`，弱依赖不阻塞主业务）。端口（宿主机）：18080 前端 / 18000 接口 / 11200 rsshub / 15432 postgres。
 - **本地开发**：`start.bat`（chcp 65001）或手动。
 
 ## 模块与关键文件
@@ -46,11 +46,13 @@
 |---|---|---|
 | 智能体 | `app/core/agent/` | `base.py`(AgentContext/AgentResult/BaseAgent)、`llm_client.py`(OpenAI兼容)、3默认(registry)、`executor.py`。默认模型配置文件在 `registry.py`；**统一单智能体运行**（默认 research，个股分析只跑一次）。LLM 失败自动降级本地启发式，不会让接口 500 |
 | 缠论 | `app/core/czsc_engine/analyzer.py` | 内置简化缠论（分型/笔/中枢） |
-| 模拟交易 | `app/core/simulation/engine.py` | 账户/买卖/风控/绩效；无 API Key 时用本地启发式基于**真实行情**决策；候选池=最近复盘选股池，为空时回退到自选股；不满足买点则如实空仓 |
+| 模拟交易 | `app/core/simulation/engine.py` | 账户/买卖/风控/绩效；无 API Key 时用本地启发式基于**真实行情**决策；候选池=复盘池+持仓池+跟踪池+观察池（观察池按 `account.id % len(items)` 轮转差异化）；**禁止买入 ST/\*ST**（`_is_st_name` 正则候选池+`_exec` 终审双保险）；不满足买点则如实空仓 |
 | 复盘 | `app/core/replay/engine.py` | 数据采集+AI 解读+次日选股池+Markdown |
 | 实盘导入 | `app/core/trade_import/parser.py` | JSON/CSV→持仓重算+盈亏 |
 | 行情服务 | `app/core/market/quote_service.py` `kline_service.py` `stock_service.py` `watchlist_service.py` | 指数/板块/涨停/龙虎榜/个股详情 |
-| API | `app/api/v1/` 8 个路由模块 | market/watchlist/stock/replay/agent/simulation/trade/system |
+| 设置 | `app/core/settings/service.py` `api/v1/settings.py` `models/system.py` | DB 持久化覆盖 env 默认值（`Setting` 表 + `EFFECTIVE` 内存快照）；数据源主+备用1/2/3 顺序回退；数据库连接测试；`snapshot()` 只显示与默认值不同的覆盖项 |
+| RSSHub 订阅 | `app/core/rsshub/parser.py` `app/core/rsshub/service.py` `api/v1/rss.py` `models/rss.py` | 本地 RSSHub 自建实例；订阅源 CRUD（微博/公众号/股吧/自定义）、RSS/Atom/JSON Feed 解析（`fetch_feed`）、限频轮询去重落库（`rss_sources`/`rss_items` 表）；ST 标题过滤；`_upsert_items` 按 source+guid 去重；`_prune` 按天数/每源上限清理 |
+| API | `app/api/v1/` 10 个路由模块 | market/watchlist/stock/replay/agent/simulation/trade/system/settings/rss |
 
 ## 已修复的坑（避免重蹈）
 1. **`date: Optional[date] = None` 在 Python3.13 类字段上会解析成 NoneType** → 用 `from datetime import date as _date` 别名（见 `schemas/common.py`）。
@@ -69,11 +71,16 @@
 14. **`_EM_CHAIN_CACHE`/`_EM_FLOW_CACHE` 是类级缓存** → 调试接口数据变更需重启进程或清缓存；空结果也会缓存 600s。
 15. 复盘状态：`pending` = 交易日且今日尚未生成，`latest_date` 为最近已生成日期；新交易日不得展示昨日陈旧复盘。
 16. 排行源 `RPT_BILLBOARD_DAILYDETAILS` 按净额字段排序会报参数错 → 不排序，取回后内存排序。
+17. **`from app.api.v1 import settings` 遮蔽 `app.config.settings`** → main.py 中必须 `from app.api.v1 import settings as settings_api`，否则 `settings.APP_NAME` 触发 AttributeError 启动崩溃。
+18. **SQLite 存储的 DateTime 字段为 naive（无 tzinfo）** → `datetime.now(tz_aware)` 与 naive 相减报 TypeError；所有对比 DB 时间的代码必须 `.replace(tzinfo=None)` 使用 naive datetime。
+19. **ST 名称检测正则 `\bST\b` 在中文 CJK 场景失效**：Python `\b` 将 CJK 视为 word char，`ST慧球`（T后直接跟"慧"）无法触发边界 → 改用 `(?<![A-Za-z0-9])(?:S[*★]?ST|\*?ST)(?![A-Za-z0-9])` 显式排除前后 ASCII 字母数字，同步应用于 `engine._ST_NAME_RE` 与 `parser._ST_RE`。
+20. **`snapshot()["overridden"]` 原返回所有 DB 键** → 用户恢复默认值后 overridden 列表仍残留该项 → 改为 `EFFECTIVE[k] != DEFAULTS.get(k, "")` 比较。
 
-## 当前完成度（v1.0.0 发布状态）
-- 后端全部核心功能 + API 全链路可用：行情/自选(批量删除)/个股(资金流/财务/产业链/行业对比)/复盘(真实龙虎榜+板块资金流)/模拟/导入/智能体/系统。
-- 前端 7 页面完成，`npm run build` 成功；复盘 pending/ready/empty 状态、涨跌区间分布、批量删除等均已联调。
-- Docker 单容器镜像方案确定（compose config 校验通过，`docker compose build` 验证凭 Docker Desktop 可用）。
+## 当前完成度（v1.1.0 发布状态）
+- 后端全部核心功能 + API 全链路可用：行情/自选(批量删除)/个股(资金流/财务/产业链/行业对比)/复盘(真实龙虎榜+板块资金流)/模拟/导入/智能体/系统/设置/RSS订阅。
+- 前端 7 页面完成（大盘/自选/复盘/模拟/实盘导入/智能体/设置），`npm run build` 成功；复盘 pending/ready/empty 状态、涨跌区间分布、批量删除、消息滚动（平台新闻+RSS合并）等均已联调。
+- Docker 多服务部署方案确定（compose config 校验通过，含 rsshub 本地镜像）。
+- v1.1.0：RSSHub 订阅系统（本地实例+订阅源管理+轮询去重+ST过滤）、系统设置页（数据源链+数据库+RSSHub）、大盘看板四板块等高、模拟四池Tab切换、AI禁买ST/观察池差异化。
 
 ## 常用命令
 ```bash
@@ -82,12 +89,13 @@ python -m scripts.init_db                     # 重建数据库
 python scripts/run_server.py status|start|stop
 python scripts/run_frontend.py status|start|stop
 npm --prefix C:\aiStock\frontend run build    # 前端编译校验
-cd C:\aiStock && docker compose up -d --build # Docker 单容器部署
+cd C:\aiStock && docker compose up -d --build # Docker 多服务部署
 cd C:\aiStock && docker compose --profile postgres up -d --build  # 启用 PostgreSQL
+cd C:\aiStock && docker compose config --quiet  # 验证 compose 配置
 ```
 
 ## Roadmap / 未完成项
-- 发布准备已完成：`SECRET_KEY` 自动生成并持久化（`data/.secret_key`，环境变量 `SECRET_KEY` 可覆盖）、`DEBUG` 默认 `false`、favicon、前端 `manualChunks` 分包、`build_release.ps1` 打包脚本。
+- v1.1.0 发布准备已完成：版本号 1.1.0（compose / build_release / README / CHANGELOG），release zip 已打包验证。
 - 待优化：前端按需引入 (echarts/core、element-plus 按组件) 减少厂商包体积；release smoke 测试脚本（解压→compose→health 断言）。
 - 数据：恢复东财板块涨速/个股新闻/股东/情绪等（网络放开时）；复盘 Markdown 原文渲染；财务图表化。
 - 性能容量：SQLite→PostgreSQL（已支持）；TimescaleDB 预留。

@@ -663,3 +663,44 @@
 2026-09-11 14:13:24,279 [WARNING] quant: tencent kline failed SZ399006/day: HTTP Error 501: Not Implemented
 2026-09-11 14:18:21,759 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
 2026-09-11 14:18:24,238 [WARNING] quant: em fflow kline 1.000001 klt=1 failed: Remote end closed connection without response
+2026-09-11 14:22:30,111 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 14:22:43,717 [WARNING] quant: primary get_market_distribution failed/timeout: 
+2026-09-11 14:22:43,717 [WARNING] quant: primary get_limit_up failed/timeout: 
+2026-09-11 14:22:52,676 [WARNING] quant: tencent breadth failed: <urlopen error _ssl.c:1015: The handshake operation timed out>
+2026-09-11 14:25:42,069 [WARNING] quant: primary get_market_distribution failed/timeout: 
+2026-09-11 14:25:42,070 [WARNING] quant: primary get_limit_up failed/timeout: 
+2026-09-11 14:27:31,591 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 14:38:03,109 [WARNING] quant: tencent breadth failed: The read operation timed out
+2026-09-11 14:42:21,675 [INFO] quant: 初始化数据库...
+2026-09-11 14:42:21,728 [INFO] quant: 启动定时任务...
+2026-09-11 14:42:21,730 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 14:42:58,579 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 14:43:03,611 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 14:43:12,625 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 14:44:14,544 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 14:44:28,861 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 14:44:33,886 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 14:45:14,925 [WARNING] quant: [sina] get_hot_stocks failed/timeout: 
+2026-09-11 14:45:14,926 [WARNING] quant: [sina] get_market_distribution failed/timeout: 
+2026-09-11 14:45:14,941 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 14:47:53,564 [INFO] quant: 初始化数据库...
+2026-09-11 14:47:53,592 [INFO] quant: 启动定时任务...
+2026-09-11 14:47:53,594 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 14:48:40,673 [INFO] quant: 初始化数据库...
+2026-09-11 14:48:40,697 [INFO] quant: 启动定时任务...
+2026-09-11 14:48:40,699 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 14:48:48,289 [WARNING] quant: XML 解析失败: syntax error: line 1, column 0
+2026-09-11 14:48:51,961 [WARNING] quant: XML 解析失败: syntax error: line 1, column 0
+2026-09-11 14:49:04,849 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 14:50:29,007 [INFO] quant: 初始化数据库...
+2026-09-11 14:50:29,032 [INFO] quant: 启动定时任务...
+2026-09-11 14:50:29,033 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 14:50:38,773 [WARNING] quant: XML 解析失败: syntax error: line 1, column 0
+2026-09-11 14:56:43,645 [WARNING] quant: XML 解析失败: syntax error: line 1, column 0
+2026-09-11 14:57:09,519 [WARNING] quant: [sina] get_market_distribution failed/timeout: 
+2026-09-11 14:57:09,534 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 14:57:09,966 [WARNING] quant: [sina] get_hot_stocks failed/timeout: 
+2026-09-11 14:57:10,786 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 14:57:15,891 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 14:58:10,087 [WARNING] quant: sina index failed: The read operation timed out
+2026-09-11 14:58:12,074 [WARNING] quant: [sina] get_indices failed/timeout: 

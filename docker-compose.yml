@@ -16,7 +16,7 @@ services:
       # - USE_POSTGRES=true
       # ---------- 默认配置 ----------
       - APP_NAME=deepAStock 深度A股交易
-      - APP_VERSION=1.0.0
+      - APP_VERSION=1.1.0
       - DEBUG=false
       # SECRET_KEY 可选：不设置则首次启动自动生成并持久化到 data/.secret_key；
       # 如需固定密钥（多实例/回滚一致），取消下面一行注释并填入自己的随机串
@@ -27,11 +27,35 @@ services:
       - REPLAY_MINUTE=30
       - EVOLUTION_HOUR=20
       - EVOLUTION_MINUTE=0
+      # ---------- RSSHub（本地部署订阅源，见下方 rsshub 服务） ----------
+      - RSSHUB_BASE=http://rsshub:1200
+      - RSSHUB_ENABLED=true
     volumes:
       - backend_data:/app/backend/data
     ports:
       - "18080:80"    # 前端页面（Nginx 容器内 80，宿主机映射为 18080 避免占用常用端口）
       - "18000:8000"  # 后端接口（uvicorn 容器内 8000，宿主机映射为 18000；/docs 等）
+      # 说明：后端对 rsshub 服务是弱依赖（轮询失败会降级跳过，不影响主业务），
+      #       因此刻意不加 depends_on，避免 rsshub 拉取失败导致整个应用起不来。
+
+  # ============ RSSHub 本地部署（微博/公众号/股吧等订阅源，仅供本项目使用） ============
+  # 自建实例，绝不依赖/调用公网 RSSHub 服务；订阅路由在「设置 → RSSHub 订阅」里维护。
+  rsshub:
+    image: diygod/rsshub:latest
+    container_name: deepastock-rsshub
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - NODE_ENV=production
+      - CACHE_EXPIRE=300
+      - CACHE_CONTENT_EXPIRE=60
+      - CACHE_TYPE=memory
+      - LISTEN_INADDR_ANY=0
+      - PORT=1200
+      # 按需放行微博等第三方 Cookie（可忽略；未登录时公共接口亦可用）
+      # - WB_PUBSUB_SERVER=false
+    ports:
+      - "11200:1200"  # RSSHub 实例（宿主机映射 11200，供调试；应用内部走 rsshub:1200）
 
   # ============ 可选 PostgreSQL（默认不启动） ============
   # 需要数据库切换时：

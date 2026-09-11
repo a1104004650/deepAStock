@@ -47,7 +47,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import { DataBoard, Star, Document, TrendCharts, Upload, MagicStick, Close } from '@element-plus/icons-vue'
+import { DataBoard, Star, Document, TrendCharts, Upload, MagicStick, Setting, Close } from '@element-plus/icons-vue'
 import { systemApi, marketApi } from '../api'
 
 const route = useRoute()
@@ -104,7 +104,8 @@ const navItems = [
   { path: '/replay', label: '复盘', icon: Document },
   { path: '/simulation', label: '模拟', icon: TrendCharts },
   { path: '/trade', label: '实盘', icon: Upload },
-  { path: '/agents', label: '智能体', icon: MagicStick }
+  { path: '/agents', label: '智能体', icon: MagicStick },
+  { path: '/settings', label: '设置', icon: Setting }
 ]
 
 const desktopNav = navItems.map(({ path, label }) => ({ path, label }))

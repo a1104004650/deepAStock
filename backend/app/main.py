@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db.session import init_db
-from app.api.v1 import market, watchlist, stock, replay, agent, simulation, trade, system
+from app.api.v1 import market, watchlist, stock, replay, agent, simulation, trade, system, settings as settings_api, rss
 from app.tasks.scheduler import start_scheduler
 from app.utils.logger import logger
 
@@ -15,8 +15,12 @@ async def lifespan(app: FastAPI):
     logger.info("初始化数据库...")
     await init_db()
     from app.core.agent.registry import ensure_default_agents
+    from app.core.settings import refresh_settings
     from app.core.datasource.manager import DataSourceManager
     from app.db.session import SessionLocal
+
+    async with SessionLocal() as _db:
+        await refresh_settings(_db)
 
     async def _background_stock_names() -> None:
         try:
@@ -58,6 +62,8 @@ app.include_router(agent.router)
 app.include_router(simulation.router)
 app.include_router(trade.router)
 app.include_router(system.router)
+app.include_router(settings_api.router)
+app.include_router(rss.router)
 
 
 @app.get("/")

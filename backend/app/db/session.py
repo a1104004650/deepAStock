@@ -39,6 +39,8 @@ async def init_db():
         simulation,
         trade,
         replay,
+        system,
+        rss,
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # 应用
     APP_NAME: str = "deepAStock 深度A股交易"
-    APP_VERSION: str = "1.0.0"
+    APP_VERSION: str = "1.1.0"
     DEBUG: bool = False
 
     # 数据库 (默认 SQLite, 可切换 PostgreSQL)
@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     PRIMARY_SOURCE: str = "sina+tencent"
     BACKUP_SOURCE: str = "tencent"
     SOURCE_TIMEOUT: float = 5.0
+
+    # RSSHub（本地部署订阅源，仅走自建实例，不调用公网 RSSHub）
+    RSSHUB_BASE: str = "http://127.0.0.1:1200"
+    RSSHUB_ENABLED: bool = True
+    RSSHUB_POLL_SECONDS: int = 30   # 全局最小轮询步长（单源限频见 interval_sec）
+    RSSHUB_ITEM_RETENTION_DAYS: int = 30
 
     # 数据目录
     DATA_DIR: Path = BASE_DIR / "data"
