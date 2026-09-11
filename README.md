@@ -12,13 +12,13 @@
 ```bash
 # 开发者：自己打 release 包
 powershell -ExecutionPolicy Bypass -File build_release.ps1
-# 产出：release/deepAStock-v1.1.0.zip（含完整项目 + Docker 全家桶 + 文档）
+# 产出：release/deepAStock-v1.1.1.zip（含完整项目 + Docker 全家桶 + 文档）
 ```
 
 ### 2. 部署（使用者）
 ```bash
-unzip deepAStock-v1.1.0.zip
-cd deepAStock-v1.1.0
+unzip deepAStock-v1.1.1.zip
+cd deepAStock-v1.1.1
 docker compose up -d --build     # 首次构建约需数分钟，之后秒级
 # 打开浏览器 http://localhost:18080   （接口文档 http://localhost:18000/docs）
 docker compose logs -f app       # 看日志
@@ -51,9 +51,9 @@ docker compose up -d             # 再次启动（增量秒级）
 | `SECRET_KEY` | 自动生成并持久化到 `data/.secret_key` | 固定密钥勿留默认，可用环境变量显式覆盖 |
 | `DEBUG` | false | 生产安全默认关闭 |
 | `TZ` | Asia/Shanghai | 时区 |
-| `APP_VERSION` | 1.1.0 | 显示版本 |
+| `APP_VERSION` | 1.1.1 | 显示版本 |
 | `PRIMARY_SOURCE/BACKUP_SOURCE` | sina+tencent | 行情数据源 |
-| `RSSHUB_BASE` | http://rsshub:1200 | 本地 RSSHub 实例地址（容器内）；本机直接跑后端用 `http://127.0.0.1:1200` |
+| `RSSHUB_BASE` | http://rsshub:1200 | 本地 RSSHub 实例地址（容器内）；本机直接跑后端需在「设置 → RSSHub 订阅」填宿主机映射 `http://127.0.0.1:11200` |
 | `RSSHUB_ENABLED` | true | RSSHub 轮询总开关 |
 
 ## 本机开发（开发者）
@@ -88,7 +88,7 @@ python scripts/run_frontend.py  status|start|stop
 | 模拟交易 | `/simulation` | 多账户，AI 每日决策买卖（**禁买 ST/\*ST**），持仓/追踪/观察/复盘四池 Tab 切换，收益曲线 + 绩效统计（收益率/胜率/最大回撤） |
 | 实盘导入 | `/trade` | JSON/CSV 导入真实成交，持仓与盈亏汇总 |
 | 智能体中心 | `/agents` | 3 个默认智能体 + 自定义，配置 API/模型/提示词，大盘分析 |
-| 订阅消息 | `/rss` | 独立 RSS 栏位：消息流（来源/重要度/搜索/ST过滤）、订阅源状态与入库条数、新增/编辑/测试/立即轮询；内置雪球热帖/钛媒体/IT之家/爱范儿等已验证可直连的案例源 |
+| 订阅消息 | `/rss` | 导航「订阅」为**独立整页**（保留顶部导航栏），页内消息流（来源/重要度/搜索/ST过滤）+ **RSSHub 配置**（启用开关/实例地址/保存）+ 订阅源状态表；立即轮询、30s 自动刷新；轮询后重要消息全局推送 |
 | 系统设置 | `/settings` | 数据源（主+备用1/2/3顺序回退）、数据库配置/测试、RSSHub开关+订阅地址+间隔+订阅源管理 |
 
 ## 核心接口（节选）
@@ -134,6 +134,7 @@ python scripts/run_frontend.py  status|start|stop
 ### RSS 订阅源（预置案例，可直接请求）
 - **预置 4 个实测可直连解析的公开 RSS（无需 RSSHub）**：雪球每日热帖、钛媒体TMT、IT之家、爱范儿；在「订阅消息」页可一键案例速选新增，均已实测可拉取入库存库。
 - 微博 / 公众号 / 股吧 等平台推送走**本地 RSSHub 实例**（docker 中 11200 端口映射），应用内地址 `http://rsshub:1200`；rsshub 未启动时主业务不受影响（弱依赖）。
+- **微博用户订阅的正确姿势**：先 `docker compose up -d rsshub`，然后在「设置 → RSSHub 订阅」确认实例地址为本机映射 `http://127.0.0.1:11200`；新建订阅时选平台「微博」并填 RSSHub 路径 `/weibo/user/{uid}`（如 `https://weibo.com/u/1645823934` 的 uid 为 `1645823934`）。**不要把微博网页地址直接填为订阅地址**——解析器会提示「地址返回的是 HTML 网页，而是 RSS」并置为失败状态，不会静默。
 
 ## Roadmap（待优化 / 待完成）
 - **已完成发布准备**

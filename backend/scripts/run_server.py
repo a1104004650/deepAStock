@@ -71,7 +71,8 @@ def stop():
 
 
 def _find_by_port(port):
-    out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True).stdout
+    out = subprocess.run(["netstat", "-ano"], capture_output=True,
+                         encoding="gbk", errors="replace").stdout
     pids = set()
     for line in out.splitlines():
         if f":{port}" in line and "LISTENING" in line:
@@ -79,7 +80,8 @@ def _find_by_port(port):
     result = []
     for pid in pids:
         if pid.isdigit():
-            p = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True, text=True)
+            p = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True,
+                               encoding="gbk", errors="replace", text=True)
             if "python" in p.stdout.lower():
                 result.append(int(pid))
     return result

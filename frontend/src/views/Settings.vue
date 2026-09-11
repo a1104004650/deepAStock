@@ -74,7 +74,16 @@
             <el-tag :type="rssStatus.enabled ? 'success' : 'info'" size="small">
               {{ rssStatus.enabled ? 'RSSHub 已启用' : 'RSSHub 未启用' }}
             </el-tag>
-            <span class="form-tip">实例：{{ rssStatus.base || '未设置' }} · 订阅源 {{ sources.length }} 个 · 入库消息 {{ itemTotal }} 条 · 上次轮询结果：{{ lastPollText }}</span>
+            <div class="rss-base-line">
+              <span class="form-tip" style="margin-left:0">实例地址</span>
+              <el-input v-model="rssHubBase" size="small" style="width:240px" placeholder="http://127.0.0.1:11200" />
+              <el-button size="small" type="primary" :loading="savingRssHub" @click="saveRssHub">保存</el-button>
+            </div>
+            <span class="form-tip">订阅源 {{ sources.length }} 个 · 入库消息 {{ itemTotal }} 条 · 上次轮询：{{ lastPollText }}</span>
+          </div>
+          <div class="rss-tip">
+            提示：本机开发填宿主机映射地址 <code>http://127.0.0.1:11200</code>；Docker 容器内自动为 <code>http://rsshub:1200</code>（compose 已配置）。
+            新浪微博用户路由 <code>/weibo/user/{uid}</code>（如 <code>https://weibo.com/u/1645823934</code> 的 uid 为 <code>1645823934</code>）。
           </div>
 
           <el-table :data="sources" size="small" empty-text="暂无订阅源" class="rss-table">
@@ -211,8 +220,10 @@ const sources = ref([])
 const previewItems = ref([])
 const itemTotal = ref(0)
 const rssStatus = ref({ enabled: true, base: '' })
+const rssHubBase = ref('')
 const lastPollText = ref('待轮询')
 const polling = ref(false)
+const savingRssHub = ref(false)
 
 const dialogVisible = ref(false)
 const editing = ref(false)
@@ -234,6 +245,21 @@ async function loadSettings() {
   sourceTimeout.value = Number(eff.source_timeout || 5)
   dbForm.value.database_url = eff.database_url || ''
   rssStatus.value = { enabled: eff.rsshub_enabled === '1', base: eff.rsshub_base || '', poll: eff.rsshub_poll_seconds || '30' }
+  rssHubBase.value = eff.rsshub_base || ''
+}
+
+async function saveRssHub() {
+  savingRssHub.value = true
+  try {
+    const url = (rssHubBase.value || '').trim().replace(/\/+$/, '')
+    if (url && !/^https?:\/\//.test(url)) { ElMessage.warning('实例地址需以 http:// 或 https:// 开头'); return }
+    await settingsApi.save({ rsshub_base: url, rsshub_enabled: rssStatus.value.enabled ? '1' : '0' })
+    rssHubBase.value = url
+    ElMessage.success('RSSHub 实例地址已保存并生效')
+    await loadRss()
+  } finally {
+    savingRssHub.value = false
+  }
 }
 
 async function saveSource() {
@@ -344,6 +370,11 @@ async function removeSource(row) {
 async function pollNow() {
   polling.value = true
   try {
+    const url = (rssHubBase.value || '').trim().replace(/\/+$/, '')
+    if (rssHubBase.value && !/^https?:\/\//.test(url)) { ElMessage.warning('实例地址需以 http:// 或 https:// 开头'); return }
+    if (rssHubBase.value !== rssStatus.value.base) {
+      await settingsApi.save({ rsshub_base: url, rsshub_enabled: rssStatus.value.enabled ? '1' : '0' })
+    }
     const r = await rssApi.poll()
     lastPollText.value = `轮询 ${r.polled} 个源，新增 ${r.added} 条${r.errors && r.errors.length ? '，' + r.errors.length + ' 个失败' : ''}`
     ElMessage.success(lastPollText.value)
@@ -388,6 +419,8 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .form-tip.err { color: #f56c6c; }
 .form-tip.warn { color: #e6a23c; }
 .rss-status { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.rss-base-line { display: flex; align-items: center; gap: 6px; }
+.rss-tip { font-size: 12px; color: #e6a23c; background: #fdf6ec; border: 1px solid #f5dab1; border-radius: 6px; padding: 6px 10px; margin-bottom: 12px; line-height: 1.8; }
 .rss-table { margin-bottom: 12px; }
 .route { font-family: Consolas, monospace; font-size: 12px; color: #606266; word-break: break-all; }
 .tag-gap { margin-right: 4px; }

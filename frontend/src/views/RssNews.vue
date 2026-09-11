@@ -1,10 +1,11 @@
 <template>
-  <div class="page rss-page">
+  <MainLayout>
+    <div class="page rss-page">
     <div class="rss-head">
       <div>
         <h2 class="page-title">订阅消息</h2>
         <div class="rss-subtitle">
-          RSSHub / 自定义 RSS 推送，轮询去重后落库展示 · 定时轮询每 30s 调度（单源按间隔限频）
+          RSSHub / 自定义 RSS 推送，轮询去重后落库展示 · 定时轮询每 30s 调度（单源按间隔限频）· 重要消息同步全局推送
         </div>
       </div>
       <div class="action-bar">
@@ -23,11 +24,24 @@
       <el-tag type="success" effect="plain">已入库 {{ itemTotal }} 条</el-tag>
       <el-tag type="warning" effect="plain">今日新增 {{ todayCount }} 条</el-tag>
       <el-tag :type="rssStatus.enabled ? 'success' : 'info'">
-        {{ rssStatus.enabled ? 'RSSHub 启用' : 'RSSHub 关闭' }} · {{ rssStatus.base || '未设置' }}
+        {{ rssStatus.enabled ? 'RSSHub 启用' : 'RSSHub 关闭' }}
       </el-tag>
       <span v-if="lastPollText" class="last-poll">{{ lastPollText }}</span>
     </div>
 
+    <!-- RSSHub 配置（与「设置 → RSSHub 订阅」一致，此处可直接维护） -->
+    <el-card shadow="never" class="panel cfg-panel">
+      <div class="cfg-row">
+        <span class="cfg-title">RSSHub 配置</span>
+        <el-switch v-model="rssStatus.enabled" active-text="启用轮询" @change="saveCfg" />
+        <span class="form-tip" style="margin-left:4px">实例地址</span>
+        <el-input v-model="rssBase" size="small" placeholder="本机开发：http://127.0.0.1:11200" style="width:260px" />
+        <el-button size="small" type="primary" :loading="savingCfg" @click="saveCfg">保存配置</el-button>
+        <span class="cfg-hint">本机开发填宿主机映射 <code>http://127.0.0.1:11200</code>；Docker 容器内自动为 <code>http://rsshub:1200</code></span>
+      </div>
+    </el-card>
+
+    <div class="rss-grid">
     <el-card shadow="never" class="panel feed-panel">
       <template #header>
         <div class="panel-head">
@@ -76,7 +90,6 @@
       <template #header>
         <div class="panel-head">
           <span>订阅源状态（轮询结果与入库条数）</span>
-          <el-button link type="primary" size="small" @click="gotoSettings">前往「设置 → RSSHub 订阅」管理</el-button>
         </div>
       </template>
       <el-table :data="sources" size="small" empty-text="暂无订阅源">
@@ -114,6 +127,7 @@
         </el-table-column>
       </el-table>
     </el-card>
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="editing ? '编辑订阅源' : '新增订阅源'" width="560px">
       <el-form label-width="90px" label-position="left">
@@ -124,15 +138,19 @@
           <span class="form-tip">已实测可直连解析（无需 RSSHub）</span>
         </el-form-item>
         <el-form-item label="名称" required>
-          <el-input v-model="form.name" placeholder="如：雪球热帖 / 某公众号" />
-        </el-form-item>
-        <el-form-item label="完整 URL">
-          <el-input v-model="form.url" placeholder="RSS/Atom/JSON Feed 地址，如 https://xueqiu.com/hots/topic/rss" />
+          <el-input v-model="form.name" placeholder="如：雪球热帖 / 某公众号 / 李大霄" />
         </el-form-item>
         <el-form-item label="平台">
-          <el-select v-model="form.platform">
+          <el-select v-model="form.platform" @change="onPlatformChange">
             <el-option v-for="(p, key) in platformMap" :key="key" :label="p.label" :value="key" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="RSSHub 路径">
+          <el-input v-model="form.route" placeholder="/weibo/user/1645823934（拼接到上面实例地址）" />
+          <span class="form-tip" style="display:block;width:100%;margin-left:0">微博用户 <code>/weibo/user/{uid}</code> · 微博热搜 <code>/weibo/search/hot</code> · 公众号 <code>/wechat/sogou/{关键词}</code></span>
+        </el-form-item>
+        <el-form-item label="完整 URL">
+          <el-input v-model="form.url" placeholder="RSS/Atom/JSON Feed 地址；与 RSSHub 路径二选一" />
         </el-form-item>
         <el-form-item label="关注标签">
           <el-input v-model="form.tagsText" placeholder="逗号分隔，如：600519,茅台,热点" />
@@ -150,7 +168,7 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button v-if="form.url" @click="testFeed" :loading="testing">测试订阅地址</el-button>
+        <el-button v-if="form.url || form.route" @click="testFeed" :loading="testing">测试订阅地址</el-button>
         <span v-if="testResult" class="form-tip" :class="testResult.ok ? 'ok' : 'err'" style="margin-right:10px">
           {{ testResult.ok ? '可解析 ' + testResult.count + ' 条' : '失败：' + testResult.error }}
         </span>
@@ -158,20 +176,22 @@
         <el-button type="primary" @click="saveSourceDialog">保存</el-button>
       </template>
     </el-dialog>
-  </div>
+    </div>
+  </MainLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, RefreshRight, Search } from '@element-plus/icons-vue'
-import { rssApi, systemApi } from '../api'
+import { rssApi, systemApi, settingsApi } from '../api'
+import MainLayout from '../layout/MainLayout.vue'
 
-const router = useRouter()
 const sources = ref([])
 const items = ref([])
 const rssStatus = ref({ enabled: true, base: '' })
+const rssBase = ref('')
+const savingCfg = ref(false)
 const loading = ref(false)
 const refreshing = ref(false)
 const polling = ref(false)
@@ -226,8 +246,9 @@ const cases = [
   { name: '少数派（效率工具）', url: 'https://sspai.com/feed', platform: '数码' }
 ]
 const platformMap = {
-  '财经': { label: '财经' }, '科技': { label: '科技' }, '数码': { label: '数码' },
-  weibo: { label: '微博' }, wechat: { label: '微信公众号' }, guba: { label: '东方财富股吧' }, generic: { label: '其他 / 自定义' }
+  '财经': { label: '财经', route: '' }, '科技': { label: '科技', route: '' }, '数码': { label: '数码', route: '' },
+  weibo: { label: '微博', route: '/weibo/user/{uid}' }, wechat: { label: '微信公众号', route: '/wechat/sogou/{关键词}' },
+  guba: { label: '东方财富股吧', route: '/eastmoney/guba/{代码}' }, generic: { label: '其他 / 自定义', route: '' }
 }
 
 const quickCase = ref('')
@@ -236,13 +257,19 @@ function onQuickCase() {
   if (!c) return
   form.value.name = c.name
   form.value.url = c.url
+  form.value.route = ''
   form.value.platform = c.platform || 'generic'
   if (!editing.value) form.value.filter_st = c.url.includes('xueqiu')
 }
 
+function onPlatformChange() {
+  const p = platformMap[form.value.platform]
+  if (p && p.route) form.value.route = p.route
+}
+
 const dialogVisible = ref(false)
 const editing = ref(false)
-const form = ref({ name: '', platform: 'generic', url: '', tagsText: '', interval_sec: 180, enabled: true, filter_st: true })
+const form = ref({ name: '', platform: 'generic', route: '', url: '', tagsText: '', interval_sec: 180, enabled: true, filter_st: true })
 const testing = ref(false)
 const testResult = ref(null)
 
@@ -258,7 +285,10 @@ async function loadAll() {
   try {
     sources.value = await rssApi.sources()
     const sys = await systemApi.status().catch(() => null)
-    if (sys && sys.rsshub) rssStatus.value = { enabled: sys.rsshub.enabled, base: sys.rsshub.base }
+    if (sys && sys.rsshub) {
+      rssStatus.value = { enabled: sys.rsshub.enabled, base: sys.rsshub.base }
+      rssBase.value = sys.rsshub.base || ''
+    }
     items.value = await rssApi.items({ limit: 100 })
   } finally {
     refreshing.value = false
@@ -277,12 +307,22 @@ async function pollNow() {
   }
 }
 
+async function saveCfg() {
+  savingCfg.value = true
+  try {
+    await settingsApi.save({ rsshub_enabled: rssStatus.value.enabled, rsshub_base: rssBase.value })
+    await loadAll()
+    ElMessage.success('RSSHub 配置已保存')
+  } finally { savingCfg.value = false }
+}
+
 function openDialog(row) {
   editing.value = !!row
   testResult.value = null
   form.value = {
     name: row?.name || '',
     platform: row?.platform || 'generic',
+    route: row?.route || '',
     url: row?.url || '',
     tagsText: (row?.tags || []).join(','),
     interval_sec: row?.interval_sec || 180,
@@ -292,11 +332,16 @@ function openDialog(row) {
   dialogVisible.value = true
 }
 
+function testUrl() {
+  return form.value.url || ((rssStatus.value.base || '') + (form.value.route || ''))
+}
+
 async function testFeed() {
-  if (!form.value.url) { ElMessage.warning('请先填写完整 URL'); return }
+  const u = testUrl()
+  if (!u) { ElMessage.warning('请填写 RSSHub 路径或完整 URL'); return }
   testing.value = true
   try {
-    testResult.value = await rssApi.testFeed(form.value.url)
+    testResult.value = await rssApi.testFeed(u)
   } finally {
     testing.value = false
   }
@@ -304,11 +349,12 @@ async function testFeed() {
 
 async function saveSourceDialog() {
   if (!form.value.name) { ElMessage.warning('请填写订阅源名称'); return }
-  if (!form.value.url) { ElMessage.warning('请填写完整 URL'); return }
+  if (!form.value.route && !form.value.url) { ElMessage.warning('请填写 RSSHub 路径或完整 URL'); return }
   const payload = {
     name: form.value.name,
     platform: form.value.platform,
-    url: form.value.url,
+    route: form.value.route || null,
+    url: form.value.url || null,
     tags: form.value.tagsText.split(/[,，\s]+/).filter(Boolean),
     interval_sec: form.value.interval_sec,
     enabled: form.value.enabled,
@@ -338,10 +384,6 @@ async function removeSource(row) {
   await loadAll()
 }
 
-function gotoSettings() {
-  router.push('/settings')
-}
-
 let timer = null
 onMounted(() => {
   loadAll()
@@ -359,6 +401,13 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .stat-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .last-poll { color: #909399; font-size: 12px; }
 .panel { border-radius: 10px; margin-bottom: 14px; }
+.cfg-panel :deep(.el-card__body) { padding-top: 10px; }
+.cfg-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cfg-title { font-weight: 600; flex-shrink: 0; }
+.cfg-hint { color: #909399; font-size: 12px; }
+.cfg-hint code { background: #f5f7fa; padding: 0 4px; border-radius: 3px; font-size: 11px; }
+.rss-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .rss-grid { grid-template-columns: 1fr; } }
 .panel-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .feed-list { max-height: 520px; overflow-y: auto; }

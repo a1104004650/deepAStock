@@ -725,3 +725,30 @@
 2026-09-11 15:10:55,353 [WARNING] quant: [sina] get_market_distribution failed/timeout: 
 2026-09-11 15:10:55,354 [WARNING] quant: [sina] get_limit_up failed/timeout: 
 2026-09-11 15:10:55,354 [WARNING] quant: [sina] get_hot_stocks failed/timeout: 
+2026-09-11 15:15:11,739 [WARNING] quant: XML 解析失败: syntax error: line 1, column 0
+2026-09-11 15:19:10,606 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 15:19:18,509 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 15:20:07,391 [INFO] quant: 初始化数据库...
+2026-09-11 15:20:07,414 [INFO] quant: 启动定时任务...
+2026-09-11 15:20:07,416 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 15:20:11,368 [WARNING] quant: em boards m:90+t:3 p1: Remote end closed connection without response
+2026-09-11 15:20:13,914 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 15:28:25,867 [WARNING] quant: [sina] get_market_distribution failed/timeout: 
+2026-09-11 15:28:25,867 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 15:28:50,132 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 15:28:55,219 [INFO] quant: 初始化数据库...
+2026-09-11 15:28:55,245 [INFO] quant: 启动定时任务...
+2026-09-11 15:28:55,246 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 15:29:22,646 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 15:30:34,363 [WARNING] quant: [sina] get_sector_monitor failed/timeout: 
+2026-09-11 15:30:34,364 [WARNING] quant: sina realtime failed ['sh512800', 'sh512880', 'sh512480', 'sh512010', 'sh512200', 'sh518880', 'sh512660', 'sh516160', 'sh512690', 'sh512760', 'sh515790', 'sz159515', 'sh562500', 'sh515070', 'sh511010', 'sz159920', 'sh513130']: <urlopen error timed out>
+2026-09-11 15:34:48,014 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 15:35:51,329 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 15:36:32,316 [WARNING] quant: [sina] get_market_distribution failed/timeout: 
+2026-09-11 15:36:32,317 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 15:36:32,317 [WARNING] quant: [sina] get_hot_stocks failed/timeout: 
+2026-09-11 15:36:37,055 [WARNING] quant: tencent hot rank failed: <urlopen error _ssl.c:1015: The handshake operation timed out>
+2026-09-11 15:36:39,523 [WARNING] quant: tencent breadth failed: The read operation timed out
+2026-09-11 15:36:40,766 [WARNING] quant: tencent breadth failed: The read operation timed out
+2026-09-11 15:37:57,461 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 15:38:02,546 [WARNING] quant: [sina] get_limit_up failed/timeout: 

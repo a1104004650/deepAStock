@@ -56,6 +56,14 @@ def fetch_feed(url: str, timeout: float = 10.0) -> list[FeedItem]:
     content_type = resp.headers.get("Content-Type", "")
     text = _decode(raw, content_type)
 
+    # 明确的网页而非订阅源：直接报错，避免 silently 返回空导致「看起来没有同步」
+    head = text.lstrip()[:128].lower()
+    if (content_type.startswith("text/html")
+            or head.startswith("<!doctype html") or head.startswith("<html")):
+        raise ValueError(
+            f"地址返回的是 HTML 网页（{url}），不是 RSS/Atom/JSON 订阅；"
+            "微博等平台需使用 RSSHub 路径，如 /weibo/user/{uid}")
+
     if text.lstrip().startswith("{"):
         return _parse_json(text)
     return _parse_xml(text)

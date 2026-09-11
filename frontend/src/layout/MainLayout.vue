@@ -31,7 +31,7 @@
         <span>{{ item.label }}</span>
       </router-link>
     </nav>
-    <!-- 全局重要消息渐变通知（每条只提示一次，本地去重） -->
+    <!-- 全局重要消息渐变通知（每条只提示一次，本地去重；含平台新闻 + RSS 重要推送） -->
     <transition name="news-pop">
       <div v-if="currentNews" class="news-toast" @click="openNews(currentNews)">
         <div class="news-toast-text">
@@ -48,7 +48,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { DataBoard, Star, Document, TrendCharts, Upload, MagicStick, Promotion, Setting, Close } from '@element-plus/icons-vue'
-import { systemApi, marketApi } from '../api'
+import { systemApi, marketApi, rssApi } from '../api'
 
 const route = useRoute()
 const clockText = ref('')
@@ -66,8 +66,15 @@ function pollNewsInterval() {
 }
 async function pollImportantNews() {
   try {
-    const rows = (await marketApi.news(60)) || []
-    const imp = rows.find((n) => Number(n.importance) === 1)
+    const [platRows, rssRows] = await Promise.all([
+      marketApi.news(60).catch(() => []),
+      rssApi.items({ limit: 50, importance: 1 }).catch(() => [])
+    ])
+    const rows = []
+    for (const n of platRows || []) rows.push({ title: n.title, url: n.url, importance: Number(n.importance) || 3 })
+    for (const r of rssRows || []) rows.push({ title: r.title, url: r.link, importance: Number(r.importance) || 3 })
+    const imp = rows.filter((n) => Number(n.importance) === 1)
+      .sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')))[0]
     if (!imp || !imp.title) return
     const key = 'imp-news-' + (imp.title || '').slice(0, 40)
     try {
@@ -181,6 +188,9 @@ onBeforeUnmount(() => {
   cursor: pointer;
   text-decoration: none;
   transition: all .15s;
+  border: 0;
+  background: none;
+  font-family: inherit;
 }
 .nav-item:hover {
   color: #fff;
@@ -242,6 +252,10 @@ onBeforeUnmount(() => {
     font-size: 11px;
     color: #909399;
     text-decoration: none;
+    border: 0;
+    background: none;
+    font-family: inherit;
+    padding: 0;
   }
   .bn-item.active {
     color: #409eff;
