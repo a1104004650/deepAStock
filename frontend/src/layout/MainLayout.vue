@@ -31,17 +31,59 @@
         <span>{{ item.label }}</span>
       </router-link>
     </nav>
+    <!-- 全局重要消息渐变通知（每条只提示一次，本地去重） -->
+    <transition name="news-pop">
+      <div v-if="currentNews" class="news-toast" @click="openNews(currentNews)">
+        <div class="news-toast-text">
+          <span class="news-toast-tag">重要</span>
+          <span class="news-toast-title">{{ currentNews.title }}</span>
+        </div>
+        <el-icon class="news-toast-close" @click.stop="dismissNews"><Close /></el-icon>
+      </div>
+    </transition>
   </el-container>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import { DataBoard, Star, Document, TrendCharts, Upload, MagicStick } from '@element-plus/icons-vue'
-import { systemApi } from '../api'
+import { DataBoard, Star, Document, TrendCharts, Upload, MagicStick, Close } from '@element-plus/icons-vue'
+import { systemApi, marketApi } from '../api'
 
 const route = useRoute()
 const clockText = ref('')
+const currentNews = ref(null)
+
+function isTradingHours() {
+  const now = new Date()
+  const d = now.getDay()
+  if (d === 0 || d === 6) return false
+  const mins = now.getHours() * 60 + now.getMinutes()
+  return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 10
+}
+function pollNewsInterval() {
+  return isTradingHours() ? 2 * 60 * 1000 : 4 * 60 * 60 * 1000
+}
+async function pollImportantNews() {
+  try {
+    const rows = (await marketApi.news(60)) || []
+    const imp = rows.find((n) => Number(n.importance) === 1)
+    if (!imp || !imp.title) return
+    const key = 'imp-news-' + (imp.title || '').slice(0, 40)
+    try {
+      if (localStorage.getItem(key)) return
+      localStorage.setItem(key, '1')
+    } catch { /* storage disabled */ }
+    currentNews.value = imp
+  } catch { /* ignore */ }
+}
+function dismissNews() {
+  currentNews.value = null
+}
+function openNews(n) {
+  if (n && n.url) window.open(n.url, '_blank', 'noopener')
+  dismissNews()
+}
 
 function updateClock() {
   const now = new Date()
@@ -76,6 +118,7 @@ const isActive = (path) => {
 
 let timer = null
 let clockTimer = null
+let newsTimer = null
 
 function checkHealth() {
   systemApi
@@ -92,10 +135,13 @@ onMounted(() => {
   timer = setInterval(checkHealth, 30000)
   updateClock()
   clockTimer = setInterval(updateClock, 1000)
+  pollImportantNews()
+  newsTimer = setInterval(pollImportantNews, pollNewsInterval())
 })
 onBeforeUnmount(() => {
   clearInterval(timer)
   clearInterval(clockTimer)
+  if (newsTimer) clearInterval(newsTimer)
 })
 </script>
 
@@ -199,5 +245,56 @@ onBeforeUnmount(() => {
     color: #409eff;
     font-weight: 600;
   }
+}
+
+/* 全局重要消息渐变通知 */
+.news-toast {
+  position: fixed;
+  top: 66px;
+  right: 16px;
+  max-width: min(420px, calc(100vw - 32px));
+  z-index: 2200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(90deg, #ef232a 0%, #e6a23c 100%);
+  box-shadow: 0 6px 18px rgba(239, 35, 42, .35);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.news-toast-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.news-toast-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid rgba(255,255,255,.8);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.news-toast-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.news-toast-close {
+  flex-shrink: 0;
+  font-size: 15px;
+  opacity: .85;
+}
+.news-toast-close:hover { opacity: 1; }
+.news-pop-enter-active, .news-pop-leave-active { transition: all .3s ease; }
+.news-pop-enter-from, .news-pop-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
 }
 </style>

@@ -10,7 +10,7 @@
         type="success"
         :closable="false"
         show-icon
-        title="已预置 AMD DeepSeek-V4-Flash 端点，三个默认智能体（投研 / 短线 / 波段）可直接使用；如需换用其他 OpenAI 兼容 API（DeepSeek / 通义 / OpenRouter），在下方配置中填写即可。"
+        title="已预置 AMD DeepSeek-V4-Flash 端点，三个默认智能体（投研 / 短线 / 波段）可直接使用；如需换用其他 OpenAI 兼容 API（DeepSeek / 通义 / 智谱 / Ollama / OpenAI）或 Gemini / Claude，在下方配置中选择对应服务商并按格式填写即可。"
         class="mb8"
       />
 
@@ -63,6 +63,22 @@
         </el-table>
       </el-card>
 
+      <!-- 调用次数图表：周维度 / 小时维度 -->
+      <el-row :gutter="10" class="mt8" v-if="statsTotal > 0">
+        <el-col :xs="24" :sm="12">
+          <el-card shadow="never">
+            <template #header>近 {{ statsDays }} 天调用次数 · 按星期（共 {{ statsTotal }} 次）</template>
+            <BarChart :data="stats.by_weekday || []" height="220px" />
+          </el-card>
+        </el-col>
+        <el-col :xs="24" :sm="12">
+          <el-card shadow="never">
+            <template #header>近 {{ statsDays }} 天调用次数 · 按小时</template>
+            <BarChart :data="stats.by_hour || []" height="220px" />
+          </el-card>
+        </el-col>
+      </el-row>
+
       <!-- 配置弹窗 -->
       <el-dialog :title="editingId ? '编辑智能体配置' : '创建自定义智能体'" v-model="dialog" width="560">
         <el-form label-width="110px">
@@ -75,8 +91,20 @@
               <el-option value="custom" label="custom（自定义：全由你的系统提示词驱动）" />
             </el-select>
           </el-form-item>
+          <el-form-item label="服务商">
+            <el-select v-model="form.provider" style="width:100%" @change="applyProviderPreset">
+              <el-option value="" label="自动识别（按 API 地址/模型名推断）" />
+              <el-option value="deepseek" label="DeepSeek（api.deepseek.com）" />
+              <el-option value="qwen" label="通义千问 DashScope（dashscope.aliyuncs.com）" />
+              <el-option value="zhipu" label="智谱 GLM（open.bigmodel.cn）" />
+              <el-option value="openai" label="OpenAI / OpenRouter 兼容" />
+              <el-option value="ollama" label="Ollama 本地（无需 Key）" />
+              <el-option value="gemini" label="Google Gemini（原生接口）" />
+              <el-option value="claude" label="Anthropic Claude（原生接口）" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="API 地址 (Base URL)"><el-input v-model="form.api_base" placeholder="如 https://api.deepseek.com/v1" /></el-form-item>
-          <el-form-item label="API Key"><el-input v-model="form.api_key" type="password" show-password placeholder="sk-..." /></el-form-item>
+          <el-form-item label="API Key"><el-input v-model="form.api_key" type="password" show-password placeholder="sk-...（Ollama 可留空）" /></el-form-item>
           <el-form-item label="模型"><el-input v-model="form.model_name" placeholder="deepseek-chat" /></el-form-item>
           <el-form-item label="温度"><el-input-number v-model="form.temperature" :min="0" :max="2" :step="0.1" /></el-form-item>
           <el-form-item label="系统提示词">
@@ -93,21 +121,36 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import MainLayout from '../layout/MainLayout.vue'
+import BarChart from '../components/BarChart.vue'
 import { agentApi } from '../api'
 
 const agents = ref([])
 const runs = ref([])
+const stats = ref({ by_weekday: [], by_hour: [] })
+const statsTotal = computed(() => stats.value.total || 0)
+const statsDays = computed(() => stats.value.days || 30)
 const dialog = ref(false)
 const editingId = ref(null)
 const form = ref(defaultForm())
+
+const PROVIDER_PRESETS = {
+  deepseek: { api_base: 'https://api.deepseek.com/v1', model_name: 'deepseek-chat' },
+  qwen: { api_base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model_name: 'qwen-max' },
+  zhipu: { api_base: 'https://open.bigmodel.cn/api/paas/v4', model_name: 'glm-4-flash' },
+  openai: { api_base: 'https://api.openai.com/v1', model_name: 'gpt-4o-mini' },
+  ollama: { api_base: 'http://localhost:11434', model_name: 'qwen2.5:14b' },
+  gemini: { api_base: 'https://generativelanguage.googleapis.com', model_name: 'gemini-1.5-flash' },
+  claude: { api_base: 'https://api.anthropic.com', model_name: 'claude-sonnet-4-20250514' }
+}
 
 function defaultForm() {
   return {
     name: '',
     agent_type: 'custom',
+    provider: '',
     api_base: '',
     api_key: '',
     model_name: 'deepseek-chat',
@@ -116,10 +159,18 @@ function defaultForm() {
   }
 }
 
+function applyProviderPreset(p) {
+  const preset = PROVIDER_PRESETS[p]
+  if (!preset) return
+  form.value.api_base = preset.api_base
+  form.value.model_name = preset.model_name
+}
+
 async function load() {
   const list = await agentApi.list()
   agents.value = list.map((a) => ({ ...a, system_prompt_slice: (a.system_prompt || '').slice(0, 80) }))
   runs.value = await agentApi.runs()
+  try { stats.value = await agentApi.runsStats() } catch { stats.value = { by_weekday: [], by_hour: [] } }
 }
 
 function openCreate() {
@@ -133,6 +184,7 @@ function openEdit(a) {
   form.value = {
     name: a.name || '',
     agent_type: a.agent_type || 'custom',
+    provider: a.provider || '',
     api_base: a.api_base || '',
     api_key: a.api_key || '',
     model_name: a.model_name || 'deepseek-chat',
