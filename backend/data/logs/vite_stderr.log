@@ -1,0 +1,130 @@
+npm error code ENOENT
+npm error syscall open
+npm error path C:\aiStock\backend\package.json
+npm error errno -4058
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open 'C:\aiStock\backend\package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm error A complete log of this run can be found in: C:\Users\11040\AppData\Local\npm-cache\_logs\2026-09-10T02_22_06_276Z-debug-0.log
+[2m14:43:43[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/system/health[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m14:43:43[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/watchlist/groups[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:25:01[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SH000001[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:218:20)
+[2m15:25:01[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SH000688[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:218:20)
+[2m15:25:01[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SZ399006[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:218:20)
+[2m15:32:24[22m [31m[1m[vite][22m[39m [31mInternal server error: Invalid end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/aiStock/frontend/src/views/Simulation.vue[39m:170:9
+[33m  168|              </el-select>
+  169|            </el-form-item>
+  170|          </el-form>
+     |           ^
+  171|          <div class="fs12" style="color:#c26b0a">提示：交易决策基于真实行情（新浪/腾讯）；未配置 API Key 时使用内置本地决策（止损/止盈/均线）自动执行。</div>
+  172|          <template #footer>[39m
+      at createCompilerError (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at emitError (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3035:5)
+      at Object.onclosetag (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2412:9)
+      at Tokenizer.stateInClosingTagName (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1157:16)
+      at Object.baseParse (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3074:13)
+      at Object.parse (C:\aiStock\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:913:23)
+      at Object.parse$1 [as parse] (C:\aiStock\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1849:24)
+      at createDescriptor (file:///C:/aiStock/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/aiStock/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+[2m15:36:39[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/overview[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:36:39[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/distribution[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:36:39[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SH000001[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:36:39[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SZ399006[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:36:39[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SH000688[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:38:35[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/distribution[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:218:20)
+[2m15:38:35[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SH000001[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:38:35[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SZ399006[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:38:35[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SH000688[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m16:45:24[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/system/health[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m16:45:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/system/health[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m16:46:24[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/system/health[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m16:46:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/system/health[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m17:38:28[22m [31m[1m[vite][22m[39m [31mInternal server error: Error parsing JavaScript expression: Identifier directly after number. (1:39)[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/aiStock/frontend/src/views/Watchlist.vue[39m:231:41
+[33m  229|                        <el-table-column label="累计" align="right">
+  230|                          <template #default="{ row }">
+  231|                            <span :class="(row.net_5d||0) >= 0 ? 'up' : 'down'>5日 {{ fmtBig(row.net_5d) }}<br/><span class="fs11">1日 {{ fmtBig(row.net_1d) }}</span></span>
+     |                                           ^
+  232|                          </template>
+  233|                        </el-table-column>[39m
+      at createCompilerError (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at emitError (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3035:5)
+      at createExp (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3028:7)
+      at Object.onattribend (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2553:29)
+      at Tokenizer.handleInAttrValue (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:959:16)
+      at Tokenizer.stateInAttrValueDoubleQuotes (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:969:10)
+      at Tokenizer.parse (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1113:16)
+      at Object.baseParse (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3074:13)
+      at Object.parse (C:\aiStock\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:913:23)
+      at Object.parse$1 [as parse] (C:\aiStock\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1849:24)
+[2m11:15:29[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/sectors/monitor[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:218:20)
+[2m11:15:29[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/indices[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:218:20)
+[2m11:15:29[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SZ399006[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:218:20)
+[2m11:15:29[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SH000688[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:218:20)
+[2m11:15:32[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/news?limit=50[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m11:15:32[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/sectors/flow-top[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m11:15:32[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/etf/flow[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m11:15:32[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/hot-stocks[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m11:15:32[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/distribution[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m11:15:32[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/limit-up/ladder[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)

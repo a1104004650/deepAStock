@@ -1,0 +1,633 @@
+2026-09-09 19:10:11,375 [INFO] quant: 初始化数据库...
+2026-09-09 19:10:11,384 [INFO] quant: 启动定时任务...
+2026-09-09 19:10:11,386 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-09 21:32:00,986 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-09 21:32:07,322 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-09 21:32:13,758 [WARNING] quant: index 创业板指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-09 21:32:20,409 [WARNING] quant: index 科创50 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-09 21:32:26,889 [WARNING] quant: index 沪深300 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-09 21:34:50,328 [INFO] quant: 初始化数据库...
+2026-09-09 21:34:50,337 [INFO] quant: 启动定时任务...
+2026-09-09 21:34:50,338 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:07:47,336 [WARNING] quant: primary get_indices failed/timeout: 
+2026-09-10 10:07:53,350 [ERROR] quant: backup get_indices also failed: 
+2026-09-10 10:07:58,551 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:07:58,552 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 10:07:58,556 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:07:59,370 [WARNING] quant: primary get_indices failed/timeout: 
+2026-09-10 10:08:02,734 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:08:08,013 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:08:08,493 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:08:12,010 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:08:16,065 [WARNING] quant: index 创业板指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:08:16,601 [WARNING] quant: index 创业板指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:08:19,059 [WARNING] quant: index 创业板指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:08:24,513 [WARNING] quant: index 科创50 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:08:24,603 [WARNING] quant: index 科创50 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:08:27,006 [WARNING] quant: index 科创50 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:08:52,906 [INFO] quant: 初始化数据库...
+2026-09-10 10:08:52,917 [INFO] quant: 启动定时任务...
+2026-09-10 10:08:52,918 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:10:10,395 [WARNING] quant: primary get_indices failed/timeout: 
+2026-09-10 10:10:14,131 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:10:14,132 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 10:10:16,399 [ERROR] quant: backup get_indices also failed: 
+2026-09-10 10:10:19,108 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:10:22,268 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:10:30,163 [WARNING] quant: index 创业板指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:10:34,921 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:10:43,740 [WARNING] quant: index 科创50 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:10:43,948 [WARNING] quant: index 创业板指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:10:52,050 [WARNING] quant: index 科创50 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:10:52,299 [WARNING] quant: index 沪深300 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:10:59,747 [WARNING] quant: index 沪深300 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:13:55,315 [INFO] quant: 初始化数据库...
+2026-09-10 10:13:55,331 [INFO] quant: 启动定时任务...
+2026-09-10 10:13:55,332 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:15:09,664 [INFO] quant: 初始化数据库...
+2026-09-10 10:15:09,675 [INFO] quant: 启动定时任务...
+2026-09-10 10:15:09,675 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:15:24,474 [WARNING] quant: primary get_indices failed/timeout: 
+2026-09-10 10:15:25,650 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:15:25,650 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 10:15:30,488 [ERROR] quant: backup get_indices also failed: 
+2026-09-10 10:15:31,071 [WARNING] quant: sim agent LLM failed: Illegal header value b'Bearer '
+2026-09-10 10:15:31,120 [INFO] quant: === 开始复盘 2026-09-09 ===
+2026-09-10 10:15:42,811 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:15:42,899 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:15:49,722 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:15:54,095 [INFO] quant: 初始化数据库...
+2026-09-10 10:15:54,114 [INFO] quant: 启动定时任务...
+2026-09-10 10:15:54,115 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:16:06,706 [WARNING] quant: primary get_indices failed/timeout: 
+2026-09-10 10:16:07,476 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:16:07,476 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 10:16:12,717 [ERROR] quant: backup get_indices also failed: 
+2026-09-10 10:16:13,053 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:16:13,195 [WARNING] quant: sim agent LLM failed: Illegal header value b'Bearer '
+2026-09-10 10:16:13,220 [INFO] quant: === 开始复盘 2026-09-09 ===
+2026-09-10 10:16:14,272 [WARNING] quant: agent research predict failed: Illegal header value b'Bearer '
+2026-09-10 10:16:14,300 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:16:14,668 [WARNING] quant: agent short_term predict failed: Illegal header value b'Bearer '
+2026-09-10 10:16:14,953 [WARNING] quant: agent swing predict failed: Illegal header value b'Bearer '
+2026-09-10 10:16:14,983 [INFO] quant: === 复盘完成 2026-09-09, 选股池 8 只 ===
+2026-09-10 10:16:20,115 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:16:26,806 [WARNING] quant: index 创业板指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:16:29,004 [WARNING] quant: index 创业板指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:16:34,054 [WARNING] quant: index 科创50 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:16:35,792 [WARNING] quant: index 科创50 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:16:40,479 [WARNING] quant: index 沪深300 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:16:41,833 [WARNING] quant: index 沪深300 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:19:37,211 [WARNING] quant: money flow failed SH600519: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:24:33,911 [WARNING] quant: money flow failed SH600519: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:24:56,194 [INFO] quant: 初始化数据库...
+2026-09-10 10:24:56,205 [INFO] quant: 启动定时任务...
+2026-09-10 10:24:56,205 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:25:05,909 [WARNING] quant: money flow failed SH600519: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:25:06,326 [WARNING] quant: stock basic failed SH600519: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:25:06,609 [WARNING] quant: akshare kline failed SH600519: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:25:06,610 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 10:25:31,993 [INFO] quant: 初始化数据库...
+2026-09-10 10:25:32,004 [INFO] quant: 启动定时任务...
+2026-09-10 10:25:32,004 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:25:44,143 [WARNING] quant: stock basic failed SH600519: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:25:45,018 [WARNING] quant: agent research predict failed: Illegal header value b'Bearer '
+2026-09-10 10:25:58,801 [WARNING] quant: primary get_sector_money_flow failed/timeout: 
+2026-09-10 10:25:59,600 [WARNING] quant: sector money flow failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 10:26:04,803 [ERROR] quant: backup get_sector_money_flow also failed: 
+2026-09-10 10:26:05,241 [WARNING] quant: limit up failed: no data
+2026-09-10 10:26:05,659 [WARNING] quant: agent research predict failed: Illegal header value b'Bearer '
+2026-09-10 10:30:27,681 [INFO] quant: 初始化数据库...
+2026-09-10 10:30:27,695 [INFO] quant: 启动定时任务...
+2026-09-10 10:30:27,695 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:31:31,651 [WARNING] quant: money flow failed SH600519: HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/stock/fflow/daykline/get?lmt=0&klt=101&secid=1.600519&fields1=f1%2Cf2%2Cf3%2Cf7&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61%2Cf62%2Cf63%2Cf64%2Cf65&ut=b2884a393a59ad64002292a3e90d46a5&_=1789007490333 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:31:33,370 [WARNING] quant: stock basic failed SH600519: Expecting value: line 1 column 1 (char 0)
+2026-09-10 10:31:33,501 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:31:39,135 [WARNING] quant: money flow failed SH600519: HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/stock/fflow/daykline/get?lmt=0&klt=101&secid=1.600519&fields1=f1%2Cf2%2Cf3%2Cf7&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61%2Cf62%2Cf63%2Cf64%2Cf65&ut=b2884a393a59ad64002292a3e90d46a5&_=1789007497927 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:31:41,511 [WARNING] quant: stock basic failed SH600519: Expecting value: line 1 column 1 (char 0)
+2026-09-10 10:31:41,643 [WARNING] quant: agent short_term predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:31:47,041 [WARNING] quant: money flow failed SH600519: HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/stock/fflow/daykline/get?lmt=0&klt=101&secid=1.600519&fields1=f1%2Cf2%2Cf3%2Cf7&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61%2Cf62%2Cf63%2Cf64%2Cf65&ut=b2884a393a59ad64002292a3e90d46a5&_=1789007505610 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:31:49,992 [WARNING] quant: stock basic failed SH600519: Expecting value: line 1 column 1 (char 0)
+2026-09-10 10:31:50,131 [WARNING] quant: agent swing predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:31:56,174 [WARNING] quant: primary get_sector_money_flow failed/timeout: 
+2026-09-10 10:32:02,177 [ERROR] quant: backup get_sector_money_flow also failed: 
+2026-09-10 10:32:03,531 [WARNING] quant: limit up failed: no data
+2026-09-10 10:32:03,534 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:32:03,615 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:32:05,348 [WARNING] quant: akshare kline failed SH600005: no kline data
+2026-09-10 10:32:05,349 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 10:32:07,619 [INFO] quant: === 开始复盘 2026-09-09 ===
+2026-09-10 10:32:10,127 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:32:10,146 [WARNING] quant: agent short_term predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:32:10,161 [WARNING] quant: agent swing predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:32:16,696 [WARNING] quant: sector money flow failed: HTTPSConnectionPool(host='17.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=3&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m%3A90+t%3A2+f%3A%2150&fields=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf12%2Cf13%2Cf14%2Cf15%2Cf16%2Cf17%2Cf18%2Cf20%2Cf21%2Cf23%2Cf24%2Cf25%2Cf26%2Cf22%2Cf33%2Cf11%2Cf62%2Cf128%2Cf136%2Cf115%2Cf152%2Cf124%2Cf107%2Cf104%2Cf105%2Cf140%2Cf141%2Cf207%2Cf208%2Cf209%2Cf222 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:32:20,130 [WARNING] quant: sector money flow failed: HTTPSConnectionPool(host='17.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=5&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m%3A90+t%3A2+f%3A%2150&fields=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf12%2Cf13%2Cf14%2Cf15%2Cf16%2Cf17%2Cf18%2Cf20%2Cf21%2Cf23%2Cf24%2Cf25%2Cf26%2Cf22%2Cf33%2Cf11%2Cf62%2Cf128%2Cf136%2Cf115%2Cf152%2Cf124%2Cf107%2Cf104%2Cf105%2Cf140%2Cf141%2Cf207%2Cf208%2Cf209%2Cf222 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:32:35,551 [INFO] quant: 初始化数据库...
+2026-09-10 10:32:35,565 [INFO] quant: 启动定时任务...
+2026-09-10 10:32:35,565 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:32:52,730 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:33:03,261 [WARNING] quant: agent short_term predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:33:07,718 [WARNING] quant: money flow failed SH600519: HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/stock/fflow/daykline/get?lmt=0&klt=101&secid=1.600519&fields1=f1%2Cf2%2Cf3%2Cf7&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61%2Cf62%2Cf63%2Cf64%2Cf65&ut=b2884a393a59ad64002292a3e90d46a5&_=1789007586328 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:33:09,458 [WARNING] quant: stock basic failed SH600519: Expecting value: line 1 column 1 (char 0)
+2026-09-10 10:33:09,571 [WARNING] quant: agent swing predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:33:15,594 [WARNING] quant: primary get_sector_money_flow failed/timeout: 
+2026-09-10 10:33:20,115 [WARNING] quant: sector money flow failed: HTTPSConnectionPool(host='17.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m%3A90+t%3A2+f%3A%2150&fields=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf12%2Cf13%2Cf14%2Cf15%2Cf16%2Cf17%2Cf18%2Cf20%2Cf21%2Cf23%2Cf24%2Cf25%2Cf26%2Cf22%2Cf33%2Cf11%2Cf62%2Cf128%2Cf136%2Cf115%2Cf152%2Cf124%2Cf107%2Cf104%2Cf105%2Cf140%2Cf141%2Cf207%2Cf208%2Cf209%2Cf222 (Caused by ProxyError('Unable to connect to proxy', RemoteDisconnected('Remote end closed connection without response')))
+2026-09-10 10:33:21,603 [ERROR] quant: backup get_sector_money_flow also failed: 
+2026-09-10 10:33:23,920 [WARNING] quant: limit up failed: no data
+2026-09-10 10:33:23,924 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:33:26,214 [WARNING] quant: sector money flow failed: HTTPSConnectionPool(host='17.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m%3A90+t%3A2+f%3A%2150&fields=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf12%2Cf13%2Cf14%2Cf15%2Cf16%2Cf17%2Cf18%2Cf20%2Cf21%2Cf23%2Cf24%2Cf25%2Cf26%2Cf22%2Cf33%2Cf11%2Cf62%2Cf128%2Cf136%2Cf115%2Cf152%2Cf124%2Cf107%2Cf104%2Cf105%2Cf140%2Cf141%2Cf207%2Cf208%2Cf209%2Cf222 (Caused by ProxyError('Unable to connect to proxy', RemoteDisconnected('Remote end closed connection without response')))
+2026-09-10 10:33:29,973 [WARNING] quant: primary get_realtime failed/timeout: 
+2026-09-10 10:33:33,699 [WARNING] quant: akshare realtime failed SH600001: HTTPSConnectionPool(host='82.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf12%2Cf13%2Cf14%2Cf15%2Cf16%2Cf17%2Cf18%2Cf20%2Cf21%2Cf23%2Cf24%2Cf25%2Cf22%2Cf11%2Cf62%2Cf128%2Cf136%2Cf115%2Cf152 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:33:33,699 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 10:33:35,976 [ERROR] quant: backup get_realtime also failed: 
+2026-09-10 10:33:35,982 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:33:36,163 [WARNING] quant: sim trade failed SH600001: unsupported operand type(s) for +: 'decimal.Decimal' and 'float'
+2026-09-10 10:33:36,235 [INFO] quant: === 开始复盘 2026-09-09 ===
+2026-09-10 10:33:38,056 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:33:38,077 [WARNING] quant: agent short_term predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:33:38,096 [WARNING] quant: agent swing predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:33:38,135 [INFO] quant: === 复盘完成 2026-09-09, 选股池 8 只 ===
+2026-09-10 10:34:07,251 [WARNING] quant: akshare realtime failed SH600001: HTTPSConnectionPool(host='82.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=6&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf12%2Cf13%2Cf14%2Cf15%2Cf16%2Cf17%2Cf18%2Cf20%2Cf21%2Cf23%2Cf24%2Cf25%2Cf22%2Cf11%2Cf62%2Cf128%2Cf136%2Cf115%2Cf152 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:39:22,133 [INFO] quant: 初始化数据库...
+2026-09-10 10:39:22,144 [INFO] quant: 启动定时任务...
+2026-09-10 10:39:22,145 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:40:15,282 [WARNING] quant: primary get_indices failed/timeout: 
+2026-09-10 10:40:21,290 [ERROR] quant: backup get_indices also failed: 
+2026-09-10 10:40:21,334 [WARNING] quant: index 上证指数 failed: HTTPSConnectionPool(host='80.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=b%3AMK0010%2Cm%3A1%2Bt%3A1%2Cm%3A0+t%3A5%2Cm%3A1%2Bs%3A3%2Cm%3A0%2Bt%3A5%2Cm%3A2&fields=f3%2Cf12%2Cf13 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:40:21,334 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 10:40:24,867 [WARNING] quant: index 上证指数 failed: HTTPSConnectionPool(host='80.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=b%3AMK0010%2Cm%3A1%2Bt%3A1%2Cm%3A0+t%3A5%2Cm%3A1%2Bs%3A3%2Cm%3A0%2Bt%3A5%2Cm%3A2&fields=f3%2Cf12%2Cf13 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:40:27,301 [WARNING] quant: primary get_sector_money_flow failed/timeout: 
+2026-09-10 10:40:29,318 [WARNING] quant: money flow failed SH600519: HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/stock/fflow/daykline/get?lmt=0&klt=101&secid=1.600519&fields1=f1%2Cf2%2Cf3%2Cf7&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61%2Cf62%2Cf63%2Cf64%2Cf65&ut=b2884a393a59ad64002292a3e90d46a5&_=1789008027641 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:40:31,477 [WARNING] quant: index 深证成指 failed: HTTPSConnectionPool(host='80.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=b%3AMK0010%2Cm%3A1%2Bt%3A1%2Cm%3A0+t%3A5%2Cm%3A1%2Bs%3A3%2Cm%3A0%2Bt%3A5%2Cm%3A2&fields=f3%2Cf12%2Cf13 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:40:31,814 [WARNING] quant: money flow failed SH600519: HTTPSConnectionPool(host='push2his.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/stock/fflow/daykline/get?lmt=0&klt=101&secid=1.600519&fields1=f1%2Cf2%2Cf3%2Cf7&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61%2Cf62%2Cf63%2Cf64%2Cf65&ut=b2884a393a59ad64002292a3e90d46a5&_=1789008029449 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:40:31,854 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:40:31,891 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:40:34,984 [WARNING] quant: sector money flow failed: HTTPSConnectionPool(host='17.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=m%3A90+t%3A2+f%3A%2150&fields=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf12%2Cf13%2Cf14%2Cf15%2Cf16%2Cf17%2Cf18%2Cf20%2Cf21%2Cf23%2Cf24%2Cf25%2Cf26%2Cf22%2Cf33%2Cf11%2Cf62%2Cf128%2Cf136%2Cf115%2Cf152%2Cf124%2Cf107%2Cf104%2Cf105%2Cf140%2Cf141%2Cf207%2Cf208%2Cf209%2Cf222 (Caused by ProxyError('Unable to connect to proxy', RemoteDisconnected('Remote end closed connection without response')))
+2026-09-10 10:40:36,485 [WARNING] quant: index 深证成指 failed: HTTPSConnectionPool(host='80.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=b%3AMK0010%2Cm%3A1%2Bt%3A1%2Cm%3A0+t%3A5%2Cm%3A1%2Bs%3A3%2Cm%3A0%2Bt%3A5%2Cm%3A2&fields=f3%2Cf12%2Cf13 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:41:14,069 [WARNING] quant: index 创业板指 failed: HTTPSConnectionPool(host='80.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=6&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=b%3AMK0010%2Cm%3A1%2Bt%3A1%2Cm%3A0+t%3A5%2Cm%3A1%2Bs%3A3%2Cm%3A0%2Bt%3A5%2Cm%3A2&fields=f3%2Cf12%2Cf13 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:41:15,462 [WARNING] quant: index 创业板指 failed: HTTPSConnectionPool(host='80.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=6&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=b%3AMK0010%2Cm%3A1%2Bt%3A1%2Cm%3A0+t%3A5%2Cm%3A1%2Bs%3A3%2Cm%3A0%2Bt%3A5%2Cm%3A2&fields=f3%2Cf12%2Cf13 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:41:24,797 [WARNING] quant: index 科创50 failed: HTTPSConnectionPool(host='80.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=b%3AMK0010%2Cm%3A1%2Bt%3A1%2Cm%3A0+t%3A5%2Cm%3A1%2Bs%3A3%2Cm%3A0%2Bt%3A5%2Cm%3A2&fields=f3%2Cf12%2Cf13 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:41:26,927 [WARNING] quant: index 科创50 failed: HTTPSConnectionPool(host='80.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=b%3AMK0010%2Cm%3A1%2Bt%3A1%2Cm%3A0+t%3A5%2Cm%3A1%2Bs%3A3%2Cm%3A0%2Bt%3A5%2Cm%3A2&fields=f3%2Cf12%2Cf13 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:41:34,224 [WARNING] quant: index 沪深300 failed: HTTPSConnectionPool(host='80.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f3&fs=b%3AMK0010%2Cm%3A1%2Bt%3A1%2Cm%3A0+t%3A5%2Cm%3A1%2Bs%3A3%2Cm%3A0%2Bt%3A5%2Cm%3A2&fields=f3%2Cf12%2Cf13 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:42:02,057 [INFO] quant: 初始化数据库...
+2026-09-10 10:42:02,067 [INFO] quant: 启动定时任务...
+2026-09-10 10:42:02,068 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:42:12,483 [WARNING] quant: primary get_realtime failed/timeout: 
+2026-09-10 10:42:18,486 [ERROR] quant: backup get_realtime also failed: 
+2026-09-10 10:42:22,414 [WARNING] quant: akshare realtime failed SH600519: ('Connection aborted.', ConnectionResetError(10054, '远程主机强迫关闭了一个现有的连接。', None, 10054, None))
+2026-09-10 10:42:22,414 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 10:42:27,162 [WARNING] quant: akshare realtime failed SH600519: HTTPSConnectionPool(host='82.push2.eastmoney.com', port=443): Max retries exceeded with url: /api/qt/clist/get?pn=1&pz=100&po=1&np=1&ut=bd1d9ddb04089700cf9c27f6f7426281&fltt=2&invt=2&fid=f12&fs=m%3A0+t%3A6%2Cm%3A0+t%3A80%2Cm%3A1+t%3A2%2Cm%3A1+t%3A23%2Cm%3A0+t%3A81+s%3A2048&fields=f1%2Cf2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf7%2Cf8%2Cf9%2Cf10%2Cf12%2Cf13%2Cf14%2Cf15%2Cf16%2Cf17%2Cf18%2Cf20%2Cf21%2Cf23%2Cf24%2Cf25%2Cf22%2Cf11%2Cf62%2Cf128%2Cf136%2Cf115%2Cf152 (Caused by SSLError(SSLError(1, '[SSL: DECRYPTION_FAILED_OR_BAD_RECORD_MAC] decryption failed or bad record mac (_ssl.c:2657)')))
+2026-09-10 10:42:38,752 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:42:39,921 [WARNING] quant: sim trade failed SH600001: unsupported operand type(s) for +: 'decimal.Decimal' and 'float'
+2026-09-10 10:42:39,989 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:42:40,257 [WARNING] quant: sim trade failed SH600000: unsupported operand type(s) for +: 'decimal.Decimal' and 'float'
+2026-09-10 10:42:40,263 [WARNING] quant: sim trade failed SH600001: unsupported operand type(s) for +: 'decimal.Decimal' and 'float'
+2026-09-10 10:42:40,335 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:42:40,581 [WARNING] quant: sim trade failed SH600000: unsupported operand type(s) for +: 'decimal.Decimal' and 'float'
+2026-09-10 10:42:40,585 [WARNING] quant: sim trade failed SH600001: unsupported operand type(s) for +: 'decimal.Decimal' and 'float'
+2026-09-10 10:43:16,533 [INFO] quant: 初始化数据库...
+2026-09-10 10:43:16,542 [INFO] quant: 启动定时任务...
+2026-09-10 10:43:16,543 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 10:43:20,933 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:43:32,842 [WARNING] quant: primary get_klines failed/timeout: 
+2026-09-10 10:43:33,968 [WARNING] quant: akshare kline failed SH600001: no kline data
+2026-09-10 10:43:33,969 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 10:43:37,871 [WARNING] quant: akshare kline failed SH600001: no kline data
+2026-09-10 10:43:38,093 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:43:38,290 [WARNING] quant: sim trade failed SH600001: unsupported operand type(s) for +: 'decimal.Decimal' and 'float'
+2026-09-10 10:43:38,322 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:43:38,497 [WARNING] quant: sim trade failed SH600001: unsupported operand type(s) for +: 'decimal.Decimal' and 'float'
+2026-09-10 10:43:38,532 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 10:43:38,719 [WARNING] quant: sim trade failed SH600001: unsupported operand type(s) for +: 'decimal.Decimal' and 'float'
+2026-09-10 11:07:10,648 [WARNING] quant: money flow failed SH600519: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:11:11,865 [INFO] quant: 初始化数据库...
+2026-09-10 11:11:11,877 [INFO] quant: 启动定时任务...
+2026-09-10 11:11:11,877 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 11:11:22,252 [WARNING] quant: primary search_stocks failed/timeout: 
+2026-09-10 11:11:28,263 [ERROR] quant: backup search_stocks also failed: 
+2026-09-10 11:11:29,832 [WARNING] quant: stock basic failed SH600519: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:11:35,852 [WARNING] quant: primary get_realtime failed/timeout: 
+2026-09-10 11:11:39,086 [WARNING] quant: akshare realtime failed SH600519: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:11:39,086 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 11:11:41,872 [ERROR] quant: backup get_realtime also failed: 
+2026-09-10 11:11:54,575 [WARNING] quant: akshare realtime failed SH600519: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:14:43,144 [INFO] quant: 初始化数据库...
+2026-09-10 11:14:43,156 [INFO] quant: 启动定时任务...
+2026-09-10 11:14:43,156 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 11:14:56,462 [WARNING] quant: primary get_indices failed/timeout: 
+2026-09-10 11:14:56,872 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:14:56,872 [WARNING] quant: akshare 网络不可用，切换离线演示模式
+2026-09-10 11:15:02,465 [ERROR] quant: backup get_indices also failed: 
+2026-09-10 11:15:03,139 [WARNING] quant: index 上证指数 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:15:03,378 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:15:09,650 [WARNING] quant: index 创业板指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:15:10,865 [WARNING] quant: index 深证成指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:15:15,811 [WARNING] quant: index 科创50 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:15:17,798 [WARNING] quant: index 创业板指 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:15:21,880 [WARNING] quant: index 沪深300 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:15:24,697 [WARNING] quant: index 科创50 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:15:35,531 [WARNING] quant: index 沪深300 failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-09-10 11:23:31,155 [INFO] quant: 初始化数据库...
+2026-09-10 11:23:31,166 [INFO] quant: 启动定时任务...
+2026-09-10 11:23:31,166 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 11:25:12,301 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:25:12,340 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:32:10,082 [INFO] quant: 初始化数据库...
+2026-09-10 11:32:10,093 [INFO] quant: 启动定时任务...
+2026-09-10 11:32:10,093 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 11:34:34,110 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:35:46,747 [INFO] quant: 初始化数据库...
+2026-09-10 11:35:46,757 [INFO] quant: 启动定时任务...
+2026-09-10 11:35:46,758 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 11:36:31,540 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:36:31,722 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:36:31,925 [WARNING] quant: unknown agent_type analyst, fallback to research
+2026-09-10 11:36:31,925 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:36:41,362 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:36:42,048 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:36:42,683 [WARNING] quant: unknown agent_type analyst, fallback to research
+2026-09-10 11:36:42,683 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:36:42,729 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:37:00,982 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:37:01,439 [WARNING] quant: sim agent LLM failed, use local: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:37:33,754 [INFO] quant: === 开始复盘 2026-09-10 ===
+2026-09-10 11:37:34,374 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:37:34,386 [WARNING] quant: agent short_term predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:37:34,398 [WARNING] quant: agent swing predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:37:34,417 [INFO] quant: === 复盘完成 2026-09-10, 选股池 0 只 ===
+2026-09-10 11:37:40,627 [INFO] quant: === 开始复盘 2026-09-10 ===
+2026-09-10 11:37:41,195 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:37:41,219 [WARNING] quant: agent short_term predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:37:41,242 [WARNING] quant: agent swing predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:37:41,264 [INFO] quant: === 复盘完成 2026-09-10, 选股池 0 只 ===
+2026-09-10 11:37:48,285 [WARNING] quant: multi-period week failed: list assignment index out of range
+2026-09-10 11:38:03,927 [INFO] quant: 初始化数据库...
+2026-09-10 11:38:03,936 [INFO] quant: 启动定时任务...
+2026-09-10 11:38:03,937 [INFO] quant: 定时任务调度已配置 (每日17:30复盘, 20:00模拟交易/进化)
+2026-09-10 11:38:09,900 [INFO] quant: === 开始复盘 2026-09-10 ===
+2026-09-10 11:38:10,174 [WARNING] quant: agent research predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:38:10,186 [WARNING] quant: agent short_term predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:38:10,193 [WARNING] quant: agent swing predict failed: 未配置 API Key，已切换本地启发式分析
+2026-09-10 11:38:10,203 [INFO] quant: === 复盘完成 2026-09-10, 选股池 0 只 ===
+2026-09-10 11:38:10,976 [WARNING] quant: multi-period week failed: list assignment index out of range
+2026-09-10 11:45:46,934 [INFO] quant: 初始化数据库...
+2026-09-10 11:48:28,061 [INFO] quant: 初始化数据库...
+2026-09-10 11:48:28,088 [INFO] quant: 启动定时任务...
+2026-09-10 11:48:28,089 [INFO] quant: 定时任务调度已配置 (15:10自动模拟交易, 17:30复盘, 20:00进化)
+2026-09-10 12:03:17,484 [WARNING] quant: tencent kline failed HSI: 'list' object has no attribute 'get'
+2026-09-10 12:03:17,861 [WARNING] quant: tencent kline failed IXIC: 'list' object has no attribute 'get'
+2026-09-10 12:03:18,151 [WARNING] quant: tencent kline failed DJI: 'list' object has no attribute 'get'
+2026-09-10 12:03:19,131 [WARNING] quant: tencent kline failed HSI: 'list' object has no attribute 'get'
+2026-09-10 12:03:19,231 [WARNING] quant: tencent kline failed DJI: 'list' object has no attribute 'get'
+2026-09-10 12:03:19,271 [WARNING] quant: tencent kline failed IXIC: 'list' object has no attribute 'get'
+2026-09-10 12:03:20,069 [WARNING] quant: save kline cache failed SH000688: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SH000688', 'day', '2025-08-06 00:00:00.000000', 1051.87, 1060.4, 1049.6, 1059.76, 6070429, 0.0, None, '2026-09-10 04:03:19.227109')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-10 12:03:20,153 [WARNING] quant: save kline cache failed SZ399001: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ399001', 'day', '2025-08-06 00:00:00.000000', 11091.83, 11177.88, 11086.72, 11177.78, 695936984, 0.0, None, '2026-09-10 04:03:19.170059')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-10 12:03:20,261 [WARNING] quant: save kline cache failed SH000300: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SH000300', 'day', '2025-08-06 00:00:00.000000', 4100.43, 4116.71, 4098.35, 4113.49, 176676155, 0.0, None, '2026-09-10 04:03:17.640921')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-10 12:05:08,902 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 12:05:10,040 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 12:06:02,547 [WARNING] quant: tencent kline failed IXIC: 'list' object has no attribute 'get'
+2026-09-10 12:06:02,547 [WARNING] quant: tencent kline failed HSI: 'list' object has no attribute 'get'
+2026-09-10 12:06:02,752 [WARNING] quant: tencent kline failed DJI: 'list' object has no attribute 'get'
+2026-09-10 12:07:45,047 [WARNING] quant: tencent kline failed HSI: 'list' object has no attribute 'get'
+2026-09-10 12:07:45,358 [WARNING] quant: tencent kline failed DJI: 'list' object has no attribute 'get'
+2026-09-10 12:07:45,369 [WARNING] quant: tencent kline failed IXIC: 'list' object has no attribute 'get'
+2026-09-10 12:08:46,003 [WARNING] quant: tencent kline failed IXIC: 'list' object has no attribute 'get'
+2026-09-10 12:08:47,164 [WARNING] quant: tencent kline failed DJI: 'list' object has no attribute 'get'
+2026-09-10 12:08:49,619 [WARNING] quant: tencent kline failed HSI: 'list' object has no attribute 'get'
+2026-09-10 12:08:50,474 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 12:09:32,878 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 12:57:23,295 [INFO] quant: 初始化数据库...
+2026-09-10 12:57:23,346 [INFO] quant: 启动定时任务...
+2026-09-10 12:57:23,346 [INFO] quant: 定时任务调度已配置 (15:10自动模拟交易, 17:30复盘, 20:00进化)
+2026-09-10 12:59:19,907 [INFO] quant: 初始化数据库...
+2026-09-10 12:59:19,939 [INFO] quant: 启动定时任务...
+2026-09-10 12:59:19,939 [INFO] quant: 定时任务调度已配置 (15:10自动模拟交易, 17:30复盘, 20:00进化)
+2026-09-10 13:01:49,860 [INFO] quant: 初始化数据库...
+2026-09-10 13:01:49,891 [INFO] quant: 启动定时任务...
+2026-09-10 13:01:49,891 [INFO] quant: 定时任务调度已配置 (15:10自动模拟交易, 17:30复盘, 20:00进化)
+2026-09-10 13:03:06,303 [INFO] quant: 初始化数据库...
+2026-09-10 13:03:06,330 [INFO] quant: 启动定时任务...
+2026-09-10 13:03:06,330 [INFO] quant: 定时任务调度已配置 (15:10自动模拟交易, 17:30复盘, 20:00进化)
+2026-09-10 13:07:33,017 [WARNING] quant: tencent kline failed HSI/m60: 'list' object has no attribute 'get'
+2026-09-10 13:07:33,189 [WARNING] quant: tencent kline failed IXIC/m60: 'list' object has no attribute 'get'
+2026-09-10 13:07:33,416 [WARNING] quant: tencent kline failed DJI/m60: 'list' object has no attribute 'get'
+2026-09-10 13:32:02,852 [INFO] quant: 初始化数据库...
+2026-09-10 13:32:02,882 [INFO] quant: 启动定时任务...
+2026-09-10 13:32:02,883 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 13:33:08,597 [INFO] quant: 初始化数据库...
+2026-09-10 13:33:08,626 [INFO] quant: 启动定时任务...
+2026-09-10 13:33:08,627 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 13:34:16,247 [WARNING] quant: tencent kline failed 600519/day: 'list' object has no attribute 'get'
+2026-09-10 13:34:16,331 [WARNING] quant: tencent kline failed 600519/day: 'list' object has no attribute 'get'
+2026-09-10 13:34:16,475 [WARNING] quant: tencent kline failed 600519/day: 'list' object has no attribute 'get'
+2026-09-10 13:34:18,577 [WARNING] quant: tencent kline failed 600519/day: 'list' object has no attribute 'get'
+2026-09-10 13:34:18,623 [WARNING] quant: tencent kline failed 600519/day: 'list' object has no attribute 'get'
+2026-09-10 13:34:18,670 [WARNING] quant: tencent kline failed 600519/day: 'list' object has no attribute 'get'
+2026-09-10 13:37:14,061 [WARNING] quant: tencent kline failed 600519/day: 'list' object has no attribute 'get'
+2026-09-10 13:42:55,161 [WARNING] quant: tencent index failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)>
+2026-09-10 13:42:55,174 [WARNING] quant: tencent breadth failed: <urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)>
+2026-09-10 13:42:57,198 [WARNING] quant: sina FLJK failed class: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:42:59,240 [WARNING] quant: sina FLJK failed industry: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:42:59,551 [WARNING] quant: sina index failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:01,292 [WARNING] quant: sina FLJK failed class: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:01,603 [WARNING] quant: tencent index failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:03,337 [WARNING] quant: sina FLJK failed industry: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:03,633 [WARNING] quant: sina FLJK failed class: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:05,381 [WARNING] quant: tencent breadth failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:05,680 [WARNING] quant: sina FLJK failed industry: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:07,411 [WARNING] quant: sina news failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:07,723 [WARNING] quant: sina FLJK failed class: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:09,779 [WARNING] quant: sina FLJK failed industry: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:11,821 [WARNING] quant: tencent breadth failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:13,819 [WARNING] quant: sina index failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:13,851 [WARNING] quant: sina news failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:15,879 [WARNING] quant: tencent index failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:17,902 [WARNING] quant: sina FLJK failed class: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:19,950 [WARNING] quant: sina FLJK failed industry: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:21,992 [WARNING] quant: sina FLJK failed class: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:24,021 [WARNING] quant: sina FLJK failed industry: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:26,086 [WARNING] quant: tencent breadth failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:28,142 [WARNING] quant: sina news failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:30,199 [WARNING] quant: tencent breadth failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:30,215 [WARNING] quant: tencent breadth failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:39,838 [WARNING] quant: sina realtime failed ['SH600519', 'SZ300750', 'SH600036', 'SH601318']: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:41,888 [WARNING] quant: sina sector info failed SH600519: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:57,193 [WARNING] quant: sina index failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:43:59,240 [WARNING] quant: tencent index failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:01,294 [WARNING] quant: sina FLJK failed class: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:03,330 [WARNING] quant: sina FLJK failed industry: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:05,369 [WARNING] quant: sina FLJK failed class: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:07,425 [WARNING] quant: sina FLJK failed industry: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:09,465 [WARNING] quant: tencent breadth failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:11,503 [WARNING] quant: sina news failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:13,586 [WARNING] quant: tencent breadth failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:13,586 [WARNING] quant: tencent breadth failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:25,661 [WARNING] quant: sina realtime failed ['SH600519', 'SZ300750', 'SH600036', 'SH601318']: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:36,132 [WARNING] quant: sina search failed 楚天龙: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:36,257 [WARNING] quant: sina index failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:38,306 [WARNING] quant: tencent index failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:40,356 [WARNING] quant: sina FLJK failed class: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:42,388 [WARNING] quant: sina FLJK failed industry: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:44,436 [WARNING] quant: sina FLJK failed class: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:46,467 [WARNING] quant: sina FLJK failed industry: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:48,477 [WARNING] quant: tencent breadth failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:49,176 [WARNING] quant: sina search failed 60037: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:50,519 [WARNING] quant: sina news failed: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:55,703 [WARNING] quant: sina realtime failed ['SH600519', 'SZ300750', 'SH600036', 'SH601318']: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:44:58,886 [WARNING] quant: sina search failed 600737: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:45:13,925 [WARNING] quant: sina realtime failed ['SH600519']: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:45:15,969 [WARNING] quant: sina realtime failed ['SH600519']: <urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>
+2026-09-10 13:46:32,744 [INFO] quant: 初始化数据库...
+2026-09-10 13:46:32,783 [INFO] quant: 启动定时任务...
+2026-09-10 13:46:32,784 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 13:49:39,632 [INFO] quant: 初始化数据库...
+2026-09-10 13:49:39,669 [INFO] quant: 启动定时任务...
+2026-09-10 13:49:39,670 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 13:50:24,677 [WARNING] quant: tencent minute failed 600519: 'list' object has no attribute 'get'
+2026-09-10 13:51:19,888 [INFO] quant: 初始化数据库...
+2026-09-10 13:51:19,923 [INFO] quant: 启动定时任务...
+2026-09-10 13:51:19,924 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 14:18:40,351 [INFO] quant: 初始化数据库...
+2026-09-10 14:18:40,400 [INFO] quant: 启动定时任务...
+2026-09-10 14:18:40,401 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 14:21:54,132 [WARNING] quant: tencent breadth failed: <urlopen error _ssl.c:1015: The handshake operation timed out>
+2026-09-10 14:26:12,464 [WARNING] quant: agent swing predict failed: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 14:26:14,278 [WARNING] quant: agent short_term predict failed: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 14:27:20,967 [WARNING] quant: agent swing predict failed: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 14:30:42,517 [WARNING] quant: agent swing predict failed: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 14:30:42,618 [WARNING] quant: agent research predict failed: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 14:31:46,467 [WARNING] quant: agent research predict failed: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 14:31:57,304 [WARNING] quant: agent swing predict failed: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 14:31:59,210 [WARNING] quant: agent short_term predict failed: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 14:43:46,907 [INFO] quant: 初始化数据库...
+2026-09-10 14:43:46,945 [INFO] quant: 启动定时任务...
+2026-09-10 14:43:46,945 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 14:44:02,569 [WARNING] quant: czsc plugin fallback builtin for sh600519: format_standard_kline: missing column 'symbol'
+2026-09-10 14:54:52,197 [WARNING] quant: sina stock news failed SH600519: name 'html' is not defined
+2026-09-10 14:54:54,068 [WARNING] quant: sina stock news failed SZ300750: name 'html' is not defined
+2026-09-10 14:57:38,821 [INFO] quant: 初始化数据库...
+2026-09-10 14:57:38,853 [INFO] quant: 启动定时任务...
+2026-09-10 14:57:38,853 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 15:00:32,248 [INFO] quant: 初始化数据库...
+2026-09-10 15:00:32,286 [INFO] quant: 启动定时任务...
+2026-09-10 15:00:32,286 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 15:02:14,824 [INFO] quant: 初始化数据库...
+2026-09-10 15:02:14,875 [INFO] quant: 启动定时任务...
+2026-09-10 15:02:14,876 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 15:02:40,644 [WARNING] quant: agent research predict failed: LLM 连接失败: 
+2026-09-10 15:11:54,515 [INFO] quant: 初始化数据库...
+2026-09-10 15:11:54,548 [INFO] quant: 启动定时任务...
+2026-09-10 15:11:54,549 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 15:16:06,413 [WARNING] quant: primary get_limit_up failed/timeout: 
+2026-09-10 15:16:09,136 [WARNING] quant: tencent breadth failed: <urlopen error _ssl.c:1015: The handshake operation timed out>
+2026-09-10 15:19:33,833 [WARNING] quant: agent research predict failed: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 15:21:57,801 [WARNING] quant: primary get_market_distribution failed/timeout: 
+2026-09-10 15:22:43,797 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 15:22:49,463 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 15:22:54,719 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 15:25:05,595 [INFO] quant: 初始化数据库...
+2026-09-10 15:25:05,629 [INFO] quant: 启动定时任务...
+2026-09-10 15:25:05,630 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 15:29:06,237 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 15:29:08,626 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 15:30:36,702 [WARNING] quant: sina FLJK failed class: HTTP Error 502: Bad Gateway
+2026-09-10 15:35:43,726 [WARNING] quant: tencent minute failed SH000688: The read operation timed out
+2026-09-10 15:35:43,727 [WARNING] quant: primary get_limit_up failed/timeout: 
+2026-09-10 15:35:46,277 [WARNING] quant: tencent breadth failed: The read operation timed out
+2026-09-10 15:36:09,531 [INFO] quant: 初始化数据库...
+2026-09-10 15:36:09,565 [INFO] quant: 启动定时任务...
+2026-09-10 15:36:09,565 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 15:36:42,867 [INFO] quant: 初始化数据库...
+2026-09-10 15:36:42,899 [INFO] quant: 启动定时任务...
+2026-09-10 15:36:42,900 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 15:36:56,580 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 15:38:12,997 [WARNING] quant: agent research predict failed: API error 502: {"detail":"Model gateway is unavailable"}
+2026-09-10 15:38:38,965 [INFO] quant: 初始化数据库...
+2026-09-10 15:38:38,999 [INFO] quant: 启动定时任务...
+2026-09-10 15:38:38,999 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 15:38:52,137 [INFO] quant: === 开始复盘 2026-09-10 ===
+2026-09-10 15:38:57,866 [WARNING] quant: agent research predict failed: API error 400: {"error":{"message":"Requested model DeepSeek-V4-Flash not supported","type":"invalid_request_error","param":null,"code":null}}
+2026-09-10 15:38:58,522 [WARNING] quant: agent short_term predict failed: API error 400: {"error":{"message":"Unsupported model: DeepSeek-V4-Flash","type":"invalid_request_error","param":null,"code":null}}
+2026-09-10 15:38:59,214 [WARNING] quant: agent swing predict failed: API error 400: {"error":{"message":"Unsupported model: DeepSeek-V4-Flash","type":"invalid_request_error","param":null,"code":null}}
+2026-09-10 15:38:59,239 [INFO] quant: === 复盘完成 2026-09-10, 选股池 8 只 ===
+2026-09-10 16:45:09,507 [INFO] quant: 初始化数据库...
+2026-09-10 16:47:09,772 [INFO] quant: 初始化数据库...
+2026-09-10 16:47:09,800 [INFO] quant: 启动定时任务...
+2026-09-10 16:47:09,800 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 16:48:28,898 [INFO] quant: 初始化数据库...
+2026-09-10 16:48:28,927 [INFO] quant: 启动定时任务...
+2026-09-10 16:48:28,927 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 16:52:09,364 [INFO] quant: 初始化数据库...
+2026-09-10 16:52:09,399 [INFO] quant: 启动定时任务...
+2026-09-10 16:52:09,400 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 17:06:39,818 [WARNING] quant: save kline cache failed SZ002531: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ002531', 'day', '2025-08-06 00:00:00.000000', 6.58, 6.59, 6.53, 6.58, 100223, 0.0, None, '2026-09-10 09:06:39.765348')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-10 17:06:39,828 [WARNING] quant: save kline cache failed SZ002531: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ002531', 'day', '2025-08-06 00:00:00.000000', 6.58, 6.59, 6.53, 6.58, 100223, 0.0, None, '2026-09-10 09:06:39.776284')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-10 17:19:28,089 [INFO] quant: 初始化数据库...
+2026-09-10 17:19:28,123 [INFO] quant: 启动定时任务...
+2026-09-10 17:19:28,123 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 17:31:20,943 [INFO] quant: 初始化数据库...
+2026-09-10 17:31:20,984 [INFO] quant: 启动定时任务...
+2026-09-10 17:31:20,985 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-10 17:34:27,608 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-10 17:34:50,800 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model 'DeepSeek-V4-Flash' is at its concurrency limit (80); please retry later or use another model","type":"rate_limit_error","code":"model_concurrency_rate_limit_exceeded"}}}
+2026-09-11 10:18:57,722 [INFO] quant: 初始化数据库...
+2026-09-11 10:18:57,772 [INFO] quant: 启动定时任务...
+2026-09-11 10:18:57,773 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-11 10:22:48,238 [INFO] quant: 初始化数据库...
+2026-09-11 10:22:48,267 [INFO] quant: 启动定时任务...
+2026-09-11 10:22:48,267 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-11 10:24:01,504 [INFO] quant: 初始化数据库...
+2026-09-11 10:24:01,534 [INFO] quant: 启动定时任务...
+2026-09-11 10:24:01,535 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-11 10:24:43,500 [INFO] quant: 初始化数据库...
+2026-09-11 10:24:43,532 [INFO] quant: 启动定时任务...
+2026-09-11 10:24:43,533 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-11 10:26:58,630 [INFO] quant: 初始化数据库...
+2026-09-11 10:26:58,661 [INFO] quant: 启动定时任务...
+2026-09-11 10:26:58,662 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-11 10:31:05,448 [WARNING] quant: save kline cache failed SZ002498: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('SZ002498', 'day', '2026-09-11 00:00:00.000000', 6.77, 7.03, 6.77, 6.85, 1000068, 0.0, None, '2026-09-11 02:31:05.415753')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 10:31:05,536 [WARNING] quant: save kline cache failed SZ002498: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('SZ002498', 'day', '2026-09-11 00:00:00.000000', 6.77, 7.03, 6.77, 6.86, 999285, 0.0, None, '2026-09-11 02:31:05.422238')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 10:32:25,682 [WARNING] quant: sim agent LLM failed, use local: API error 429: {"detail":{"error":{"message":"Model API rate limit exceeded; please retry later","type":"rate_limit_error","code":"ip_rate_limit_exceeded"}}}
+2026-09-11 10:40:08,155 [WARNING] quant: primary get_market_distribution failed/timeout: 
+2026-09-11 10:43:02,446 [WARNING] quant: save kline cache failed SH600737: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('SH600737', 'day', '2026-09-11 00:00:00.000000', 17.33, 17.6, 16.38, 16.49, 1134747, 0.0, None, '2026-09-11 02:43:02.421837')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 10:43:02,467 [WARNING] quant: save kline cache failed SH600737: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('SH600737', 'day', '2026-09-11 00:00:00.000000', 17.33, 17.6, 16.38, 16.49, 1134747, 0.0, None, '2026-09-11 02:43:02.427047')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 10:53:01,937 [INFO] quant: === 开始复盘 2026-09-10 ===
+2026-09-11 10:53:05,168 [WARNING] quant: agent research predict failed: API error 429: {"detail":{"error":{"message":"Model API rate limit exceeded; please retry later","type":"rate_limit_error","code":"ip_rate_limit_exceeded"}}}
+2026-09-11 10:53:43,310 [INFO] quant: === 复盘完成 2026-09-10, 选股池 8 只 ===
+2026-09-11 10:59:37,900 [WARNING] quant: save kline cache failed SH601058: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SH601058', 'day', '2025-08-07 00:00:00.000000', 12.82, 12.83, 12.73, 12.77, 124651, 0.0, None, '2026-09-11 02:59:37.676894')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 10:59:37,932 [WARNING] quant: save kline cache failed SH601058: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SH601058', 'day', '2025-08-07 00:00:00.000000', 12.82, 12.83, 12.73, 12.77, 124651, 0.0, None, '2026-09-11 02:59:37.667035')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 10:59:42,740 [WARNING] quant: sina realtime failed ['sh601058']: <urlopen error _ssl.c:1015: The handshake operation timed out>
+2026-09-11 11:01:58,377 [WARNING] quant: agent research predict failed: API error 504: <html>
+<head><title>504 Gateway Time-out</title></head>
+<body>
+<center><h1>504 Gateway Time-out</h1></center>
+<hr><center>Microsoft-Azure-Application-Gateway/v2</center>
+</body>
+</html>
+
+2026-09-11 11:02:04,575 [WARNING] quant: agent swing predict failed: API error 429: {"detail":{"error":{"message":"Model API rate limit exceeded; please retry later","type":"rate_limit_error","code":"ip_rate_limit_exceeded"}}}
+2026-09-11 11:05:45,340 [INFO] quant: 初始化数据库...
+2026-09-11 11:05:45,371 [INFO] quant: 启动定时任务...
+2026-09-11 11:05:45,372 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-11 11:13:20,732 [INFO] quant: 初始化数据库...
+2026-09-11 11:13:20,864 [INFO] quant: 启动定时任务...
+2026-09-11 11:13:20,865 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-11 11:13:29,209 [WARNING] quant: em boards m:90+t:3 p1: Remote end closed connection without response
+2026-09-11 11:13:29,350 [WARNING] quant: em boards m:90+t:2 p1: Remote end closed connection without response
+2026-09-11 11:13:32,805 [WARNING] quant: em boards m:90+t:3 p1: Remote end closed connection without response
+2026-09-11 11:13:32,892 [WARNING] quant: em boards m:90+t:2 p1: Remote end closed connection without response
+2026-09-11 11:13:59,304 [INFO] quant: 初始化数据库...
+2026-09-11 11:13:59,367 [INFO] quant: 启动定时任务...
+2026-09-11 11:13:59,368 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-11 11:14:03,641 [WARNING] quant: em boards m:90+t:3 p1: Remote end closed connection without response
+2026-09-11 11:14:03,704 [WARNING] quant: em boards m:90+t:2 p1: Remote end closed connection without response
+2026-09-11 11:14:31,316 [WARNING] quant: em boards m:90+t:3 p1: Remote end closed connection without response
+2026-09-11 11:14:31,514 [WARNING] quant: em boards m:90+t:2 p1: Remote end closed connection without response
+2026-09-11 11:15:34,486 [INFO] quant: 初始化数据库...
+2026-09-11 11:15:34,524 [INFO] quant: 启动定时任务...
+2026-09-11 11:15:34,525 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-11 11:16:10,757 [INFO] quant: 初始化数据库...
+2026-09-11 11:16:10,789 [INFO] quant: 启动定时任务...
+2026-09-11 11:16:10,789 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-11 11:17:18,907 [INFO] quant: 初始化数据库...
+2026-09-11 11:17:18,939 [INFO] quant: 启动定时任务...
+2026-09-11 11:17:18,939 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 17:30复盘, 20:00进化)
+2026-09-11 11:20:05,836 [WARNING] quant: save kline cache failed SZ000759: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ000759', 'day', '2025-08-07 00:00:00.000000', 7.4, 7.46, 7.37, 7.43, 179580, 0.0, None, '2026-09-11 03:20:05.716186')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 11:20:05,867 [WARNING] quant: save kline cache failed SZ000759: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ000759', 'day', '2025-08-07 00:00:00.000000', 7.4, 7.46, 7.37, 7.43, 179580, 0.0, None, '2026-09-11 03:20:05.723770')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 11:22:09,319 [WARNING] quant: save kline cache failed SH605011: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SH605011', 'day', '2025-08-07 00:00:00.000000', 22.36, 22.45, 22.24, 22.29, 26999, 0.0, None, '2026-09-11 03:22:09.002653')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 11:22:09,417 [WARNING] quant: save kline cache failed SH605011: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SH605011', 'day', '2025-08-07 00:00:00.000000', 22.36, 22.45, 22.24, 22.29, 26999, 0.0, None, '2026-09-11 03:22:08.986740')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 11:36:45,791 [WARNING] quant: primary get_limit_up failed/timeout: 
+2026-09-11 11:36:46,384 [WARNING] quant: tencent breadth failed: The read operation timed out
+2026-09-11 11:47:18,459 [INFO] quant: 初始化数据库...
+2026-09-11 11:47:18,482 [INFO] quant: 启动定时任务...
+2026-09-11 11:47:18,483 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 18:00复盘, 20:00进化)
+2026-09-11 11:47:19,570 [ERROR] quant: sync stock names failed: type object 'StockName' has no attribute 'id'
+2026-09-11 11:49:02,934 [INFO] quant: 初始化数据库...
+2026-09-11 11:49:02,945 [INFO] quant: 启动定时任务...
+2026-09-11 11:49:02,945 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 18:00复盘, 20:00进化)
+2026-09-11 11:49:04,229 [ERROR] quant: sync stock names failed: type object 'StockName' has no attribute 'id'
+2026-09-11 11:50:50,357 [INFO] quant: 初始化数据库...
+2026-09-11 11:50:50,367 [INFO] quant: 启动定时任务...
+2026-09-11 11:50:50,367 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 18:00复盘, 20:00进化)
+2026-09-11 11:50:55,833 [INFO] quant: A股名称库同步 4602 条
+2026-09-11 12:11:25,987 [INFO] quant: 初始化数据库...
+2026-09-11 12:11:25,997 [INFO] quant: 启动定时任务...
+2026-09-11 12:11:25,997 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 18:00复盘, 20:00进化)
+2026-09-11 12:14:26,730 [INFO] quant: 初始化数据库...
+2026-09-11 12:14:26,740 [INFO] quant: 启动定时任务...
+2026-09-11 12:14:26,741 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 18:00复盘, 20:00进化)
+2026-09-11 12:31:38,903 [INFO] quant: 初始化数据库...
+2026-09-11 12:31:38,914 [INFO] quant: 启动定时任务...
+2026-09-11 12:31:38,914 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 18:00复盘, 20:00进化)
+2026-09-11 12:36:05,276 [INFO] quant: 初始化数据库...
+2026-09-11 12:36:05,287 [INFO] quant: 启动定时任务...
+2026-09-11 12:36:05,287 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 18:00复盘, 20:00进化)
+2026-09-11 12:46:54,846 [WARNING] quant: save kline cache failed SH601318: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('SH601318', 'day', '2026-09-11 00:00:00.000000', 55.4, 55.47, 54.35, 55.23, 384018, 0.0, None, '2026-09-11 04:46:54.722560')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 12:52:16,590 [WARNING] quant: save kline cache failed SH600036: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('SH600036', 'day', '2026-09-11 00:00:00.000000', 41.75, 41.75, 41.05, 41.5, 434539, 0.0, None, '2026-09-11 04:52:16.556697')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 13:16:36,402 [WARNING] quant: save kline cache failed SH603466: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SH603466', 'day', '2025-08-07 00:00:00.000000', 11.16, 11.22, 10.88, 10.94, 308706, 0.0, None, '2026-09-11 05:16:36.177881')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 13:16:36,450 [WARNING] quant: save kline cache failed SH603466: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SH603466', 'day', '2025-08-07 00:00:00.000000', 11.16, 11.22, 10.88, 10.94, 308706, 0.0, None, '2026-09-11 05:16:36.169246')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 13:20:50,430 [WARNING] quant: save kline cache failed SZ001369: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ001369', 'day', '2025-12-30 00:00:00.000000', 19.45, 24.85, 19.45, 19.53, 1459908, 0.0, None, '2026-09-11 05:20:50.311680')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 13:20:50,501 [WARNING] quant: save kline cache failed SZ001369: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ001369', 'day', '2025-12-30 00:00:00.000000', 19.45, 24.85, 19.45, 19.53, 1459908, 0.0, None, '2026-09-11 05:20:50.303202')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)

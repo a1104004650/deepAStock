@@ -1,0 +1,56 @@
+services:
+  # ============ 单容器：整个项目（前端 dist + 后端 API 一个镜像） ============
+  app:
+    build: .
+    container_name: deepastock-app
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      # ---------- 数据库选择（默认 SQLite，开箱即用） ----------
+      # SQLite: 数据文件保存在 Docker 卷 backend_data，零配置即可使用
+      - DATABASE_URL=sqlite+aiosqlite:////app/backend/data/quant.db
+      - USE_POSTGRES=false
+      # PostgreSQL（可选）：启用下面的 postgres 服务后，改用下述两行并重启
+      #   docker compose --profile postgres up -d --build
+      # - DATABASE_URL=postgresql+asyncpg://ai_stock:ai_stock@postgres:5432/ai_stock
+      # - USE_POSTGRES=true
+      # ---------- 默认配置 ----------
+      - APP_NAME=deepAStock 深度A股交易
+      - APP_VERSION=1.0.0
+      - DEBUG=false
+      # SECRET_KEY 可选：不设置则首次启动自动生成并持久化到 data/.secret_key；
+      # 如需固定密钥（多实例/回滚一致），取消下面一行注释并填入自己的随机串
+      # - SECRET_KEY=change-me-to-a-long-random-string
+      - PRIMARY_SOURCE=sina+tencent
+      - BACKUP_SOURCE=tencent
+      - REPLAY_HOUR=17
+      - REPLAY_MINUTE=30
+      - EVOLUTION_HOUR=20
+      - EVOLUTION_MINUTE=0
+    volumes:
+      - backend_data:/app/backend/data
+    ports:
+      - "80:80"      # 前端页面（Nginx，/api 反代到同容器 8000）
+      - "8000:8000"  # 后端接口（uvicorn，直接访问 /docs 等）
+
+  # ============ 可选 PostgreSQL（默认不启动） ============
+  # 需要数据库切换时：
+  #   1) 取消上面 DATABASE_URL/USE_POSTGRES 注释
+  #   2) docker compose --profile postgres up -d --build
+  postgres:
+    image: postgres:16-alpine
+    container_name: deepastock-postgres
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=ai_stock
+      - POSTGRES_USER=ai_stock
+      - POSTGRES_PASSWORD=ai_stock
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  backend_data:
+  postgres_data:

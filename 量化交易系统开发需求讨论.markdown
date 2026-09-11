@@ -1,0 +1,3106 @@
+# 🧠 量化交易自我进化系统 — 工程文档
+
+> **版本**：v1.0 | **后端**：Python 3.12+ | **前端**：Vue3 + ECharts | **数据库**：PostgreSQL + TimescaleDB  
+> **数据源**：akshare（主） + 腾讯财经（备） + 本地缓存 | **K线/缠论**：CZSC  
+> **目标**：构建一套「看盘 → 选股 → 交易 → 复盘 → 进化」闭环的PC/手机H5交易平台
+
+---
+
+## 目录
+
+1. [系统总览](#1-系统总览)
+2. [架构设计](#2-架构设计)
+3. [技术栈与项目结构](#3-技术栈与项目结构)
+4. [数据库设计](#4-数据库设计)
+5. [数据源与缓存策略](#5-数据源与缓存策略)
+6. [CZSC 集成方案](#6-czsc-集成方案)
+7. [页面与功能模块](#7-页面与功能模块)
+8. [API 接口规范](#8-api-接口规范)
+9. [定时任务调度](#9-定时任务调度)
+10. [AI 智能体系统](#10-ai-智能体系统)
+11. [模拟交易模块](#11-模拟交易模块)
+12. [实盘交易导入模块](#12-实盘交易导入模块)
+13. [复盘引擎](#13-复盘引擎)
+14. [AI 提示词模板](#14-ai-提示词模板)
+15. [开发里程碑](#15-开发里程碑)
+16. [附录：关键配置示例](#16-附录)
+
+---
+
+## 1. 系统总览
+
+### 1.1 核心愿景
+
+**用系统替代主观判断，用数据替代情绪驱动。**
+
+系统不是一个"自动赚钱机器"，而是一个"永远不会自我欺骗的交易员外骨骼"：
+- **盘前**：AI扫描全市场 → 生成观察池与作战计划
+- **盘中**：实时行情 + 指标信号 → 辅助决策（人做最终判断）
+- **盘后**：自动复盘 → 归因分析 → 策略进化 → 次日计划
+
+### 1.2 六大核心模块
+
+| 编号 | 模块 | 核心职责 |
+|------|------|---------|
+| M1 | 📊 **行情引擎** | K线/分时/资金流/板块轮动数据采集与缓存 |
+| M2 | 🎨 **可视化前端** | PC + H5 响应式看盘界面（ECharts + lightweight-charts） |
+| M3 | 📈 **CZSC 缠论引擎** | 缠论分析、技术指标、信号生成、多周期联立 |
+| M4 | 🤖 **AI 智能体系统** | 投研/短线/波段三个智能体 + 用户自定义 |
+| M5 | 📝 **复盘引擎** | 每日自动复盘 + 选股池生成 + 策略归因 |
+| M6 | 💰 **交易模块** | 模拟交易（AI自主） + 实盘交易导入（用户手动） |
+
+### 1.3 运行时序
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       每日运行流程                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  08:30  定时任务：盘前预热                                       │
+│          ├─ 更新隔夜美股/港股数据                                │
+│          ├─ 拉取最新公告/新闻                                    │
+│          └─ 刷新自选股基本面数据                                 │
+│                                                                 │
+│  09:15  开盘前5分钟：生成「今日作战计划」                         │
+│          ├─ AI投研智能体：筛选有逻辑的标的                       │
+│          ├─ AI短线智能体：识别今日概率形态                       │
+│          └─ AI波段智能体：确认趋势/震荡状态                      │
+│                                                                 │
+│  09:30─15:00  盘中实时                                           │
+│          ├─ WebSocket推送行情                                    │
+│          ├─ CZSC实时计算指标/信号                                │
+│          └─ 前端实时更新面板                                     │
+│                                                                 │
+│  15:00─15:30  收盘窗口                                           │
+│          └─ 固化当日K线数据 → 写入数据库                        │
+│                                                                 │
+│  17:30  定时任务：盘后复盘（核心）                               │
+│          ├─ 板块资金流统计                                       │
+│          ├─ 涨停梯队/龙虎榜分析                                  │
+│          ├─ 个股技术形态批量扫描                                 │
+│          ├─ 三个AI智能体独立复盘                                 │
+│          ├─ 生成次日选股池                                       │
+│          └─ 模拟交易AI执行当日买卖                               │
+│                                                                 │
+│  18:00  复盘报告推送至前端                                       │
+│                                                                 │
+│  20:00  AI智能体「自我进化」                                     │
+│          ├─ 分析当日交易记录                                     │
+│          ├─ 归因错误类型                                         │
+│          └─ 调整策略参数/提示词                                  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. 架构设计
+
+### 2.1 整体架构图
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                        前端层 (Frontend)                            │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐          │
+│  │  PC Web      │  │  H5 Mobile   │  │  Tablet          │          │
+│  │  Vue3 +      │  │  Vue3 +      │  │  Vue3 +          │          │
+│  │  ECharts     │  │  ECharts     │  │  ECharts         │          │
+│  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘          │
+│         │                 │                    │                     │
+│         └─────────────────┴────────────────────┘                     │
+│                       Axios / WebSocket                              │
+├──────────────────────────────────────────────────────────────────────┤
+│                        网关层 (Gateway)                             │
+│  ┌────────────┐  ┌─────────────┐  ┌────────────────────┐           │
+│  │ Nginx      │  │ JWT Auth    │  │ Rate Limiter       │           │
+│  │ 反向代理   │  │ Token验证   │  │ 接口限流           │           │
+│  └─────┬──────┘  └──────┬──────┘  └─────────┬──────────┘           │
+├──────────────────────────────────────────────────────────────────────┤
+│                        后端层 (Backend)                             │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                    FastAPI 主服务                            │   │
+│  ├──────────────────────────────────────────────────────────────┤   │
+│  │                                                              │   │
+│  │  ┌─────────┐ ┌──────────┐ ┌────────┐ ┌──────────────────┐  │   │
+│  │  │ Market  │ │ Watchlist│ │ Stock  │ │ ReplayEngine     │  │   │
+│  │  │ Router  │ │ Router   │ │ Router │ │ Router           │  │   │
+│  │  └────┬────┘ └────┬─────┘ └───┬────┘ └────────┬─────────┘  │   │
+│  │       │           │           │               │             │   │
+│  │  ┌────┴────┐ ┌────┴────┐ ┌────┴────┐  ┌──────┴──────┐     │   │
+│  │  │ Quote   │ │ Group   │ │ Detail  │  │ ReplayWorker │     │   │
+│  │  │ Service │ │ Service │ │ Service │  │ (Celery)     │     │   │
+│  │  └────┬────┘ └─────────┘ └────┬────┘  └──────┬──────┘     │   │
+│  │       │                       │               │             │   │
+│  │  ┌────┴─────┐ ┌────────────┐ ┌─┴──────────┐ ┌┴──────────┐ │   │
+│  │  │CZSC      │ │ DataSource │ │ Financial  │ │ AI Agent   │ │   │
+│  │  │Engine    │ │ Manager    │ │ Service    │ │ Service    │ │   │
+│  │  └────┬─────┘ └─────┬──────┘ └────┬──────┘ └─────┬──────┘ │   │
+│  │       │             │              │              │         │   │
+│  └───────┼─────────────┼──────────────┼──────────────┼─────────┘   │
+│          │             │              │              │             │
+│  ┌───────┴─────┐ ┌─────┴──────┐ ┌─────┴──────┐ ┌─────┴──────┐    │
+│  │ Celery Beat │ │ WebSocket  │ │ LLM API    │ │ Backtest   │    │
+│  │ 定时调度    │ │ Manager    │ │ Proxy      │ │ Engine     │    │
+│  │ (Redis)     │ │            │ │ (OpenAI格式)│ │ (CZSC)     │    │
+│  └─────────────┘ └────────────┘ └─────────────┘ └─────────────┘    │
+│                                                                      │
+├──────────────────────────────────────────────────────────────────────┤
+│                        数据层 (Data Layer)                          │
+│                                                                      │
+│  ┌──────────────────┐  ┌────────────────┐  ┌──────────────────┐    │
+│  │ PostgreSQL       │  │ TimescaleDB    │  │ Redis            │    │
+│  │ (业务/配置/      │  │ (时序行情数据) │  │ (缓存/WebSocket │    │
+│  │  财务/交易)       │  │                │  │  会话/任务队列)  │    │
+│  └──────────────────┘  └────────────────┘  └──────────────────┘    │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                  本地文件存储 (Local FS)                      │   │
+│  │  ├─ K线图表缓存 (HTML/JSON)                                 │   │
+│  │  ├─ 复盘报告 (Markdown/PDF)                                 │   │
+│  │  └─ CZSC 回测报告 (HTML)                                    │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+├──────────────────────────────────────────────────────────────────────┤
+│                        外部数据源 (External)                        │
+│                                                                      │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐      │
+│  │ akshare  │ │ 腾讯财经 │ │ Tushare  │ │ LLM API          │      │
+│  │ (主)     │ │ (备)     │ │ (财务)   │ │ (OpenAI/        │      │
+│  │          │ │          │ │          │ │  Anthropic/     │      │
+│  │          │ │          │ │          │ │  DeepSeek)      │      │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────────────┘      │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                CZSC 开源库 (核心分析引擎)                     │   │
+│  │  ├─ K线合成/多级别分析                                      │   │
+│  │  ├─ 缠论核心（分型/笔/线段/中枢）                            │   │
+│  │  ├─ 信号函数库（246+ 内置信号）                             │   │
+│  │  ├─ 权重回测 / 策略研究                                      │   │
+│  │  └─ 可视化报告                                               │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 核心设计原则
+
+| 原则 | 说明 |
+|------|------|
+| **缓存优先** | 历史数据一旦固化绝不重复请求，只有当日实时数据需要拉取 |
+| **异步驱动** | 数据采集/复盘/AI调用全部异步（Celery + Redis），不阻塞API |
+| **模块化** | 每个功能独立Router + Service，AI/数据源可插拔替换 |
+| **用户配置** | 所有AI参数（API/Key/模型/提示词）用户可自行配置 |
+| **自我进化** | 复盘结果反馈到策略参数，形成闭环优化 |
+
+---
+
+## 3. 技术栈与项目结构
+
+### 3.1 技术栈总览
+
+| 层级 | 技术选型 |
+|------|---------|
+| **前端框架** | Vue 3.4+ (Composition API) |
+| **UI 组件库** | Element Plus (PC) / Vant (H5) |
+| **K线图表** | lightweight-charts (TradingView) + ECharts 5 |
+| **状态管理** | Pinia |
+| **HTTP/WS** | Axios + Socket.IO Client |
+| **构建工具** | Vite 5 |
+| **响应式** | PostCSS + Flexible 适配（rem/vw） |
+| **后端框架** | Python 3.12+ / FastAPI 0.115+ |
+| **异步任务** | Celery 5 + Redis 7 |
+| **定时调度** | Celery Beat |
+| **WebSocket** | fastapi-socketio / uvicorn |
+| **ORM** | SQLAlchemy 2.0 (async) |
+| **数据库** | PostgreSQL 16 + TimescaleDB 2.14 |
+| **缓存** | Redis 7 |
+| **数据源** | akshare 1.14+ / 腾讯财经API / Tushare Pro |
+| **缠论引擎** | CZSC 0.9+ (github.com/waditu/czsc) |
+| **缠论Skills** | czsc_skills (github.com/zengbin93/czsc_skills) |
+| **LLM调用** | openai SDK / anthropic SDK（兼容格式） |
+| **容器化** | Docker + Docker Compose |
+| **部署** | Nginx + Gunicorn + Uvicorn Workers |
+
+### 3.2 项目目录结构
+
+```
+quant-system/
+├── docker-compose.yml              # 一键启动所有服务
+├── .env                            # 环境变量（数据库/Redis/API Key）
+├── .env.example                    # 环境变量模板
+├── requirements.txt                # Python依赖
+├── pyproject.toml                  # Python项目配置
+│
+├── backend/                        # ============ 后端 ============
+│   ├── app/
+│   │   ├── main.py                 # FastAPI入口
+│   │   ├── config.py               # 全局配置
+│   │   ├── database.py             # DB连接/会话管理
+│   │   ├── redis_client.py         # Redis客户端
+│   │   │
+│   │   ├── api/                    # API路由层
+│   │   │   ├── __init__.py
+│   │   │   ├── deps.py             # 公共依赖（鉴权/分页）
+│   │   │   ├── v1/
+│   │   │   │   ├── market.py       # 行情相关接口
+│   │   │   │   ├── watchlist.py    # 自选股管理
+│   │   │   │   ├── stock.py        # 个股详情
+│   │   │   │   ├── replay.py       # 复盘报告
+│   │   │   │   ├── agent.py        # AI智能体
+│   │   │   │   ├── simulation.py   # 模拟交易
+│   │   │   │   ├── trade.py        # 实盘交易导入
+│   │   │   │   ├── czsc.py         # CZSC缠论接口
+│   │   │   │   └── system.py       # 系统状态/健康检查
+│   │   │
+│   │   ├── core/                   # 核心业务逻辑
+│   │   │   ├── datasource/         # 数据源管理
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── base.py         # 抽象基类
+│   │   │   │   ├── akshare_source.py  # akshare实现
+│   │   │   │   ├── tencent_source.py  # 腾讯财经实现
+│   │   │   │   └── manager.py      # 数据源路由（主备切换+缓存）
+│   │   │   │
+│   │   │   ├── market/             # 行情引擎
+│   │   │   │   ├── quote_service.py    # 实时行情服务
+│   │   │   │   ├── kline_service.py    # K线数据服务
+│   │   │   │   ├── sector_service.py   # 板块资金流
+│   │   │   │   ├── index_service.py    # 指数数据
+│   │   │   │   └── hot_money.py        # 龙虎榜/涨停数据
+│   │   │   │
+│   │   │   ├── czsc_engine/       # CZSC缠论引擎封装
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── analyzer.py     # CZSC分析器封装
+│   │   │   │   ├── signals.py      # 自定义信号函数
+│   │   │   │   ├── strategies.py   # 策略定义
+│   │   │   │   ├── visualizer.py   # K线+信号可视化
+│   │   │   │   └── multi_period.py # 多周期联立分析
+│   │   │   │
+│   │   │   ├── replay/             # 复盘引擎
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── engine.py       # 复盘主引擎
+│   │   │   │   ├── sector_analyzer.py  # 板块分析
+│   │   │   │   ├── limit_analyzer.py   # 涨停梯队分析
+│   │   │   │   ├── stock_scanner.py     # 个股形态扫描
+│   │   │   │   ├── report_generator.py  # 报告生成
+│   │   │   │   └── templates/           # 报告模板
+│   │   │   │
+│   │   │   ├── agent/              # AI智能体系统
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── base.py         # 智能体基类
+│   │   │   │   ├── registry.py     # 智能体注册/管理
+│   │   │   │   ├── llm_client.py   # LLM API统一接口
+│   │   │   │   ├── prompts/        # 提示词模板
+│   │   │   │   │   ├── research.md     # 投研智能体
+│   │   │   │   │   ├── short_term.md   # 短线大师
+│   │   │   │   │   ├── swing.md        # 波段助手
+│   │   │   │   │   └── custom.md       # 自定义模板
+│   │   │   │   ├── research_agent.py
+│   │   │   │   ├── short_term_agent.py
+│   │   │   │   ├── swing_agent.py
+│   │   │   │   └── executor.py      # 智能体执行器（异步）
+│   │   │   │
+│   │   │   ├── simulation/         # 模拟交易
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── engine.py       # 模拟交易引擎
+│   │   │   │   ├── portfolio.py    # 持仓管理
+│   │   │   │   ├── executor.py     # AI买卖决策执行
+│   │   │   │   └── performance.py  # 绩效统计
+│   │   │   │
+│   │   │   └── trade_import/       # 实盘交易导入
+│   │   │       ├── parser.py       # CSV/Excel解析
+│   │   │       ├── calculator.py   # 盈亏计算
+│   │   │       └── reviewer.py     # AI点评
+│   │   │
+│   │   ├── models/                  # SQLAlchemy ORM模型
+│   │   │   ├── __init__.py
+│   │   │   ├── user.py
+│   │   │   ├── watchlist.py
+│   │   │   ├── market_data.py      # TimescaleDB超表模型
+│   │   │   ├── financial.py
+│   │   │   ├── replay.py
+│   │   │   ├── agent.py
+│   │   │   ├── simulation.py
+│   │   │   └── trade.py
+│   │   │
+│   │   ├── schemas/                 # Pydantic请求/响应模型
+│   │   │   ├── market.py
+│   │   │   ├── watchlist.py
+│   │   │   ├── stock.py
+│   │   │   ├── replay.py
+│   │   │   ├── agent.py
+│   │   │   └── ...
+│   │   │
+│   │   ├── tasks/                   # Celery异步任务
+│   │   │   ├── __init__.py
+│   │   │   ├── celery_app.py
+│   │   │   ├── pre_market.py        # 盘前任务
+│   │   │   ├── realtime.py          # 盘中任务
+│   │   │   ├── post_market.py       # 盘后任务（17:30）
+│   │   │   ├── evolution.py         # AI自我进化（20:00）
+│   │   │   └── maintenance.py       # 日常维护（清理/备份）
+│   │   │
+│   │   └── utils/
+│   │       ├── logger.py
+│   │       ├── cache.py
+│   │       ├── time_helper.py       # 交易日判断/时间窗口
+│   │       ├── indicators.py        # 技术指标计算
+│   │       └── validators.py
+│   │
+│   ├── tests/
+│   │   ├── unit/
+│   │   ├── integration/
+│   │   └── fixtures/
+│   │
+│   └── alembic/                     # 数据库迁移
+│       ├── env.py
+│       └── versions/
+│
+├── frontend/                        # ============ 前端 ============
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── index.html
+│   │
+│   ├── src/
+│   │   ├── main.ts
+│   │   ├── App.vue
+│   │   ├── router/index.ts
+│   │   ├── stores/                  # Pinia状态管理
+│   │   │   ├── user.ts
+│   │   │   ├── market.ts
+│   │   │   ├── watchlist.ts
+│   │   │   └── agent.ts
+│   │   │
+│   │   ├── api/                     # API请求封装
+│   │   │   ├── request.ts           # Axios实例+拦截器
+│   │   │   ├── market.ts
+│   │   │   ├── watchlist.ts
+│   │   │   ├── stock.ts
+│   │   │   ├── replay.ts
+│   │   │   ├── agent.ts
+│   │   │   └── trade.ts
+│   │   │
+│   │   ├── components/              # 公共组件
+│   │   │   ├── charts/
+│   │   │   │   ├── KLineChart.vue       # lightweight-charts封装
+│   │   │   │   ├── TimelineChart.vue    # ECharts分时图
+│   │   │   │   ├── SectorHeatmap.vue    # 板块热力图
+│   │   │   │   ├── MoneyFlowBar.vue     # 资金流柱状图
+│   │   │   │   └── ReplayRadar.vue      # 复盘雷达图
+│   │   │   ├── layout/
+│   │   │   │   ├── AppHeader.vue
+│   │   │   │   ├── AppSidebar.vue
+│   │   │   │   └── ResponsiveGrid.vue   # 响应式网格布局
+│   │   │   └── common/
+│   │   │       ├── StockSearch.vue
+│   │   │       ├── IndicatorPanel.vue   # 指标参数面板
+│   │   │       └── AIAnalysisCard.vue
+│   │   │
+│   │   ├── views/                   # 页面
+│   │   │   ├── Home/                # ① 主页（看盘面板）
+│   │   │   │   ├── index.vue
+│   │   │   │   ├── components/
+│   │   │   │   │   ├── IndexKLineGroup.vue   # 四大指数K线
+│   │   │   │   │   ├── WatchlistPreview.vue # 自选股概览
+│   │   │   │   │   ├── SectorMoneyFlow.vue  # 资金流入/流出Top5板块
+│   │   │   │   │   ├── SectorSpeed.vue      # 涨速最快板块
+│   │   │   │   │   ├── CustomSectorGroup.vue # 自选板块组
+│   │   │   │   │   ├── NewsTicker.vue        # 重要消息滚动
+│   │   │   │   │   └── WatchlistTimeline.vue # 自选股分时图
+│   │   │   │   └── layout.config.ts   # 面板布局配置（拖拽/缩放）
+│   │   │   │
+│   │   │   ├── Watchlist/           # ② 自选股页
+│   │   │   │   ├── index.vue        # 分组列表
+│   │   │   │   ├── components/
+│   │   │   │   │   ├── GroupManager.vue   # 添加/删除/分组
+│   │   │   │   │   └── AddStockDialog.vue
+│   │   │   │   └── Detail/          # 个股详情
+│   │   │   │       ├── index.vue
+│   │   │   │       ├── components/
+│   │   │   │       │   ├── BasicInfo.vue       # 基本面
+│   │   │   │       │   ├── KLinePanel.vue      # K线（带指标）
+│   │   │   │       │   ├── FinancialPanel.vue  # 财务
+│   │   │   │       │   ├── MoneyFlowPanel.vue  # 资金流
+│   │   │   │       │   ├── ShareholderPanel.vue# 股东
+│   │   │   │       │   ├── SentimentPanel.vue  # 情绪指标
+│   │   │   │       │   ├── TechFormPanel.vue   # 技术形态
+│   │   │   │       │   ├── SectorInfo.vue      # 所属板块
+│   │   │   │       │   ├── CZSCChart.vue       # 缠论分析图
+│   │   │   │       │   └── AIAnalysis.vue      # AI分析（支撑/压力/短中长期）
+│   │   │   │       └── tabs.config.ts
+│   │   │   │
+│   │   │   ├── Replay/              # ③ 复盘页
+│   │   │   │   ├── index.vue
+│   │   │   │   ├── components/
+│   │   │   │   │   ├── ReplayHeader.vue     # 日期/市场概况
+│   │   │   │   │   ├── SectorFlowPanel.vue  # 板块资金流
+│   │   │   │   │   ├── LimitLadder.vue      # 涨停梯队
+│   │   │   │   │   ├── DragonHead.vue       # 龙头分析
+│   │   │   │   │   ├── FirstBoard.vue       # 首板
+│   │   │   │   │   ├── SealRate.vue         # 封板率
+│   │   │   │   │   ├── ConsecutiveBoard.vue # 连板
+│   │   │   │   │   ├── MarketDistribution.vue# 涨跌家数分布
+│   │   │   │   │   ├── StockScanner.vue     # 形态选股结果
+│   │   │   │   │   ├── AgentSummary.vue     # 三智能体总结
+│   │   │   │   │   └── TomorrowWatch.vue    # 次日关注池
+│   │   │   │   └── history.vue              # 历史复盘查看
+│   │   │   │
+│   │   │   ├── Simulation/          # ④ 模拟交易页
+│   │   │   │   ├── index.vue        # 总览（收益率/回撤/明细）
+│   │   │   │   ├── Detail.vue       # 单个模拟账户详情
+│   │   │   │   ├── Setup.vue        # 创建/配置模拟账户
+│   │   │   │   └── components/
+│   │   │   │       ├── PerformanceChart.vue
+│   │   │   │       ├── TradeList.vue
+│   │   │   │       ├── AISummary.vue
+│   │   │   │       └── ConfigPanel.vue
+│   │   │   │
+│   │   │   ├── TradeImport/         # ⑤ 实盘交易导入页
+│   │   │   │   ├── index.vue
+│   │   │   │   ├── ImportDialog.vue
+│   │   │   │   └── components/
+│   │   │   │       ├── TradeTable.vue
+│   │   │   │       ├── PnLChart.vue
+│   │   │   │       └── AISReview.vue
+│   │   │   │
+│   │   │   └── Profile/            # ⑥ 个人中心
+│   │   │       ├── index.vue
+│   │   │       ├── AgentSettings.vue   # 智能体配置
+│   │   │       ├── DataSourceSettings.vue
+│   │   │       └── SystemSettings.vue
+│   │   │
+│   │   ├── composables/             # 组合式函数
+│   │   │   ├── useWebSocket.ts
+│   │   │   ├── useKLine.ts
+│   │   │   ├── useResponsive.ts
+│   │   │   └── useIndicator.ts
+│   │   │
+│   │   ├── styles/
+│   │   │   ├── global.scss
+│   │   │   ├── variables.scss
+│   │   │   └── dark-theme.scss      # 深色主题（交易软件标配）
+│   │   │
+│   │   └── types/                   # TypeScript类型定义
+│   │       ├── market.ts
+│   │       ├── stock.ts
+│   │       ├── replay.ts
+│   │       ├── agent.ts
+│   │       └── api.ts
+│   │
+│   └── public/
+│
+├── czsc_config/                      # ============ CZSC配置 ============
+│   ├── signals_config.yaml           # 信号函数配置
+│   ├── strategies/
+│   │   ├── short_term.yaml           # 短线策略
+│   │   ├── swing.yaml               # 波段策略
+│   │   └── research.yaml            # 投研策略
+│   ├── custom_signals/               # 自定义信号函数
+│   │   ├── __init__.py
+│   │   └── my_signals.py
+│   └── reports/                      # CZSC回测报告输出
+│
+├── agent_config/                     # ============ AI智能体配置 ============
+│   ├── agents.yaml                   # 智能体注册配置
+│   ├── default_prompts/              # 默认提示词
+│   │   ├── A_research.txt
+│   │   ├── B_short_term.txt
+│   │   └── C_swing.txt
+│   └── user_custom/                  # 用户自定义（覆盖默认）
+│       └── .gitkeep
+│
+├── data/                             # ============ 本地数据 ============
+│   ├── kline_cache/                  # K线缓存 (Parquet)
+│   ├── replay_reports/               # 复盘报告 (Markdown/HTML)
+│   ├── backtest_reports/             # 回测报告 (HTML)
+│   └── logs/                         # 运行日志
+│
+├── nginx/
+│   └── nginx.conf
+│
+├── scripts/
+│   ├── init_db.py                    # 初始化数据库
+│   ├── seed_data.py                  # 种子数据
+│   ├── backfill_klines.py            # 历史K线回填
+│   └── run_replay.py                 # 手动触发复盘（CLI）
+│
+└── docs/
+    ├── API.md                        # API文档
+    ├── DATABASE.md                   # 数据库设计文档
+    ├── DEPLOY.md                     # 部署文档
+    └── CHANGELOG.md
+```
+
+---
+
+## 4. 数据库设计
+
+### 4.1 TimescaleDB 超表设计（时序行情数据）
+
+```sql
+-- ============================================================
+-- 启用 TimescaleDB 扩展
+-- ============================================================
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+-- ============================================================
+-- K线数据（超表）- 按时间自动分区
+-- ============================================================
+CREATE TABLE klines (
+    symbol      VARCHAR(20)  NOT NULL,   -- 代码 e.g. 'SH600519'
+    period      VARCHAR(10)  NOT NULL,   -- 周期: 1m/5m/15m/30m/60m/day/week
+    timestamp   TIMESTAMPTZ  NOT NULL,   -- K线时间戳
+    open        DECIMAL(12,4),
+    high        DECIMAL(12,4),
+    low         DECIMAL(12,4),
+    close       DECIMAL(12,4),
+    volume      BIGINT,
+    amount      DECIMAL(20,2),          -- 成交额
+    turnover    DECIMAL(10,4),          -- 换手率
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (symbol, period, timestamp)
+);
+
+-- 转为超表，按天分区
+SELECT create_hypertable('klines', 'timestamp', chunk_time_interval => INTERVAL '7 days');
+
+-- 索引
+CREATE INDEX idx_klines_symbol_period ON klines(symbol, period, timestamp DESC);
+
+-- ============================================================
+-- 分时数据（超表）- 盘中实时
+-- ============================================================
+CREATE TABLE tick_data (
+    symbol      VARCHAR(20)  NOT NULL,
+    timestamp   TIMESTAMPTZ  NOT NULL,
+    price       DECIMAL(12,4),
+    volume      BIGINT,
+    amount      DECIMAL(20,2),
+    PRIMARY KEY (symbol, timestamp)
+);
+
+SELECT create_hypertable('tick_data', 'timestamp', chunk_time_interval => INTERVAL '1 day');
+
+-- ============================================================
+-- 资金流数据（超表）
+-- ============================================================
+CREATE TABLE money_flow (
+    symbol      VARCHAR(20)  NOT NULL,
+    date        DATE         NOT NULL,
+    timestamp   TIMESTAMPTZ  NOT NULL,
+    main_net    DECIMAL(20,2),   -- 主力净流入
+    retail_net  DECIMAL(20,2),   -- 散户净流入
+    big_net     DECIMAL(20,2),   -- 大单净流入
+    mid_net     DECIMAL(20,2),   -- 中单
+    small_net   DECIMAL(20,2),   -- 小单
+    PRIMARY KEY (symbol, timestamp)
+);
+
+SELECT create_hypertable('money_flow', 'timestamp', chunk_time_interval => INTERVAL '7 days');
+
+-- ============================================================
+-- 板块资金流（超表）
+-- ============================================================
+CREATE TABLE sector_money_flow (
+    sector_code VARCHAR(20)  NOT NULL,
+    date        DATE         NOT NULL,
+    timestamp   TIMESTAMPTZ  NOT NULL,
+    net_inflow  DECIMAL(20,2),   -- 净流入
+    outflow     DECIMAL(20,2),   -- 流出
+    total_amount DECIMAL(20,2),  -- 总成交额
+    leader_symbol VARCHAR(20),    -- 领涨股
+    PRIMARY KEY (sector_code, timestamp)
+);
+
+SELECT create_hypertable('sector_money_flow', 'timestamp', chunk_time_interval => INTERVAL '7 days');
+
+-- ============================================================
+-- 技术指标快照（超表）- CZSC计算结果缓存
+-- ============================================================
+CREATE TABLE indicator_snapshot (
+    symbol      VARCHAR(20)  NOT NULL,
+    period      VARCHAR(10)  NOT NULL,
+    indicator   VARCHAR(50)  NOT NULL,   -- MA20/RSI/MACD/CZSC_bi等
+    timestamp   TIMESTAMPTZ  NOT NULL,
+    value       JSONB,                   -- 指标值（支持复杂结构）
+    PRIMARY KEY (symbol, period, indicator, timestamp)
+);
+
+SELECT create_hypertable('indicator_snapshot', 'timestamp', chunk_time_interval => INTERVAL '7 days');
+
+-- ============================================================
+-- CZSC 缠论分析结果缓存
+-- ============================================================
+CREATE TABLE czsc_analysis (
+    symbol      VARCHAR(20)  NOT NULL,
+    period      VARCHAR(10)  NOT NULL,
+    date        DATE         NOT NULL,
+    fx_list     JSONB,       -- 分型列表
+    bi_list     JSONB,       -- 笔列表
+    xd_list     JSONB,       -- 线段列表
+    zs_list     JSONB,       -- 中枢列表
+    signals     JSONB,       -- 信号字典
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (symbol, period, date)
+);
+```
+
+### 4.2 PostgreSQL 业务表设计
+
+```sql
+-- ============================================================
+-- 用户表
+-- ============================================================
+CREATE TABLE users (
+    id              SERIAL PRIMARY KEY,
+    username        VARCHAR(50)  UNIQUE NOT NULL,
+    email           VARCHAR(100),
+    hashed_password VARCHAR(255),
+    avatar          VARCHAR(500),
+    settings        JSONB DEFAULT '{}',   -- 个性化设置
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- 自选股分组
+-- ============================================================
+CREATE TABLE watchlist_groups (
+    id          SERIAL PRIMARY KEY,
+    user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name        VARCHAR(50) NOT NULL,      -- 分组名
+    icon        VARCHAR(10),               -- 图标emoji
+    sort_order  INTEGER DEFAULT 0,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_watchlist_groups_user ON watchlist_groups(user_id);
+
+-- ============================================================
+-- 自选股
+-- ============================================================
+CREATE TABLE watchlist_items (
+    id          SERIAL PRIMARY KEY,
+    group_id    INTEGER REFERENCES watchlist_groups(id) ON DELETE CASCADE,
+    symbol      VARCHAR(20) NOT NULL,      -- e.g. 'SH600519'
+    name        VARCHAR(50),
+    note        TEXT,                      -- 用户备注
+    alert_price DECIMAL(12,4),             -- 价格提醒
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(group_id, symbol)
+);
+
+CREATE INDEX idx_watchlist_items_group ON watchlist_items(group_id);
+
+-- ============================================================
+-- 个股基础信息
+-- ============================================================
+CREATE TABLE stocks (
+    symbol          VARCHAR(20) PRIMARY KEY,   -- 'SH600519'
+    name            VARCHAR(50) NOT NULL,
+    market          VARCHAR(10),               -- A/港股/美股
+    list_date       DATE,
+    total_share     BIGINT,                    -- 总股本
+    float_share     BIGINT,                    -- 流通股本
+    industry        VARCHAR(50),               -- 所属行业
+    concept_tags    TEXT[],                    -- 概念标签
+    is_active       BOOLEAN DEFAULT TRUE,
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- 财务数据（季度）
+-- ============================================================
+CREATE TABLE financial_quarterly (
+    id              SERIAL PRIMARY KEY,
+    symbol          VARCHAR(20) REFERENCES stocks(symbol),
+    report_date     DATE        NOT NULL,      -- 报告期
+    revenue         DECIMAL(20,2),             -- 营收
+    revenue_yoy     DECIMAL(10,4),            -- 营收同比
+    net_profit      DECIMAL(20,2),            -- 净利润
+    net_profit_yoy  DECIMAL(10,4),            -- 净利润同比
+    gross_margin    DECIMAL(10,4),            -- 毛利率
+    roe             DECIMAL(10,4),            -- ROE
+    debt_ratio      DECIMAL(10,4),            -- 资产负债率
+    eps             DECIMAL(10,4),            -- 每股收益
+    bps             DECIMAL(10,4),            -- 每股净资产
+    ocf             DECIMAL(20,2),            -- 经营现金流
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(symbol, report_date)
+);
+
+CREATE INDEX idx_financial_symbol_date ON financial_quarterly(symbol, report_date DESC);
+
+-- ============================================================
+-- 股东数据
+-- ============================================================
+CREATE TABLE shareholders (
+    id              SERIAL PRIMARY KEY,
+    symbol          VARCHAR(20) REFERENCES stocks(symbol),
+    report_date     DATE        NOT NULL,
+    holder_name     VARCHAR(100),
+    hold_count      BIGINT,
+    hold_ratio      DECIMAL(10,4),
+    change_count    BIGINT,                   -- 较上期变动
+    is_major        BOOLEAN DEFAULT FALSE,    -- 是否十大股东
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_shareholders_symbol ON shareholders(symbol, report_date DESC);
+
+-- ============================================================
+-- 情绪指标
+-- ============================================================
+CREATE TABLE sentiment_daily (
+    symbol      VARCHAR(20) NOT NULL,
+    date        DATE        NOT NULL,
+    news_count  INTEGER,                      -- 新闻数量
+    positive_score DECIMAL(5,4),              -- 正面情绪分
+    negative_score DECIMAL(5,4),              -- 负面情绪分
+    attention_rank INTEGER,                   -- 关注度排名
+    forum_activity INTEGER,                   -- 股吧/论坛活跃度
+    PRIMARY KEY (symbol, date)
+);
+
+-- ============================================================
+-- 板块信息
+-- ============================================================
+CREATE TABLE sectors (
+    code        VARCHAR(20) PRIMARY KEY,
+    name        VARCHAR(50) NOT NULL,
+    type        VARCHAR(20),               -- industry/concept/region
+    parent_code VARCHAR(20),
+    stocks      TEXT[],                    -- 成分股
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- 龙虎榜数据
+-- ============================================================
+CREATE TABLE dragon_tiger (
+    id          SERIAL PRIMARY KEY,
+    symbol      VARCHAR(20) NOT NULL,
+    date        DATE        NOT NULL,
+    reason      VARCHAR(200),              -- 上榜原因
+    buy_amount  DECIMAL(20,2),            -- 买入额
+    sell_amount DECIMAL(20,2),            -- 卖出额
+    net_amount  DECIMAL(20,2),            -- 净额
+    buyer_list  JSONB,                    -- 买方营业部
+    seller_list JSONB,                    -- 卖方营业部
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(symbol, date)
+);
+
+CREATE INDEX idx_dragon_tiger_date ON dragon_tiger(date DESC);
+
+-- ============================================================
+-- 涨停分析
+-- ============================================================
+CREATE TABLE limit_up (
+    id          SERIAL PRIMARY KEY,
+    symbol      VARCHAR(20) NOT NULL,
+    date        DATE        NOT NULL,
+    open_price  DECIMAL(12,4),
+    high_price  DECIMAL(12,4),
+    close_price DECIMAL(12,4),
+    limit_time  TIME,                      -- 封板时间
+    first_limit BOOLEAN DEFAULT FALSE,     -- 是否首板
+    consecutive_days INTEGER DEFAULT 1,    -- 连板天数
+    reason      TEXT,                      -- 涨停原因
+    circulation DECIMAL(20,2),             -- 流通市值
+    PRIMARY KEY (id)
+);
+
+CREATE INDEX idx_limit_up_date ON limit_up(date DESC, consecutive_days DESC);
+
+-- ============================================================
+-- 复盘报告
+-- ============================================================
+CREATE TABLE replay_reports (
+    id              SERIAL PRIMARY KEY,
+    date            DATE        UNIQUE NOT NULL,
+    market_summary   JSONB,                -- 市场概况
+    sector_flow      JSONB,                -- 板块资金流
+    limit_analysis   JSONB,                -- 涨停分析
+    stock_pool       JSONB,                -- 次日选股池
+    agent_reviews    JSONB,                -- 三智能体点评
+    report_md        TEXT,                 -- Markdown报告
+    report_html      TEXT,                 -- HTML报告路径
+    created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- AI智能体配置
+-- ============================================================
+CREATE TABLE agent_configs (
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    agent_type      VARCHAR(20) NOT NULL,   -- research/short_term/swing/custom
+    name            VARCHAR(50),
+    system_prompt   TEXT,
+    model_name      VARCHAR(100),           -- gpt-4o/deepseek-v3等
+    api_base        VARCHAR(500),          -- 自定义API地址
+    api_key         VARCHAR(500),          -- 加密存储
+    temperature     DECIMAL(4,2) DEFAULT 0.3,
+    max_tokens      INTEGER DEFAULT 4000,
+    extra_params    JSONB DEFAULT '{}',
+    is_active       BOOLEAN DEFAULT TRUE,
+    is_default      BOOLEAN DEFAULT FALSE,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- AI智能体运行记录
+-- ============================================================
+CREATE TABLE agent_runs (
+    id              SERIAL PRIMARY KEY,
+    agent_config_id INTEGER REFERENCES agent_configs(id) ON DELETE CASCADE,
+    task_type       VARCHAR(50),            -- daily_replay/stock_analysis/pool_selection
+    input_data      JSONB,
+    output_data     JSONB,
+    tokens_used     INTEGER,
+    cost            DECIMAL(10,6),
+    status          VARCHAR(20) DEFAULT 'pending',
+    error_message   TEXT,
+    duration_ms     INTEGER,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_agent_runs_config ON agent_runs(agent_config_id, created_at DESC);
+
+-- ============================================================
+-- 模拟交易 - 账户
+-- ============================================================
+CREATE TABLE simulation_accounts (
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name            VARCHAR(100),
+    agent_config_id INTEGER REFERENCES agent_configs(id),
+    initial_capital DECIMAL(20,2) NOT NULL DEFAULT 100000,
+    current_capital DECIMAL(20,2) NOT NULL DEFAULT 100000,
+    total_return    DECIMAL(10,4) DEFAULT 0,    -- 总收益率
+    max_drawdown    DECIMAL(10,4) DEFAULT 0,    -- 最大回撤
+    total_trades    INTEGER DEFAULT 0,
+    win_rate        DECIMAL(5,4) DEFAULT 0,
+    prompt_template TEXT,                        -- 交易策略提示词
+    rules           JSONB,                       -- 交易规则（止损/仓位等）
+    is_active       BOOLEAN DEFAULT TRUE,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- 模拟交易 - 持仓
+-- ============================================================
+CREATE TABLE simulation_positions (
+    id              SERIAL PRIMARY KEY,
+    account_id      INTEGER REFERENCES simulation_accounts(id) ON DELETE CASCADE,
+    symbol          VARCHAR(20) NOT NULL,
+    quantity        INTEGER NOT NULL,
+    avg_cost        DECIMAL(12,4) NOT NULL,
+    current_price   DECIMAL(12,4),
+    unrealized_pnl  DECIMAL(20,2) DEFAULT 0,
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(account_id, symbol)
+);
+
+-- ============================================================
+-- 模拟交易 - 交易记录
+-- ============================================================
+CREATE TABLE simulation_trades (
+    id              SERIAL PRIMARY KEY,
+    account_id      INTEGER REFERENCES simulation_accounts(id) ON DELETE CASCADE,
+    symbol          VARCHAR(20) NOT NULL,
+    action          VARCHAR(10) NOT NULL,    -- buy/sell
+    quantity        INTEGER NOT NULL,
+    price           DECIMAL(12,4) NOT NULL,
+    amount          DECIMAL(20,2) NOT NULL,
+    fee             DECIMAL(10,2) DEFAULT 0,
+    reason          TEXT,                     -- AI决策理由
+    confidence      DECIMAL(5,4),             -- AI置信度
+    timestamp       TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_sim_trades_account ON simulation_trades(account_id, timestamp DESC);
+
+-- ============================================================
+-- 模拟交易 - AI复盘记录
+-- ============================================================
+CREATE TABLE simulation_reviews (
+    id              SERIAL PRIMARY KEY,
+    account_id      INTEGER REFERENCES simulation_accounts(id) ON DELETE CASCADE,
+    date            DATE NOT NULL,
+    summary         TEXT,                      -- AI总结
+    mistakes        JSONB,                    -- 错误归因
+    improvements    JSONB,                    -- 改进建议
+    param_adjustments JSONB,                  -- 参数调整
+    performance_snapshot JSONB,               -- 当日绩效快照
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(account_id, date)
+);
+
+-- ============================================================
+-- 实盘交易记录（用户导入）
+-- ============================================================
+CREATE TABLE user_trades (
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    symbol          VARCHAR(20) NOT NULL,
+    action          VARCHAR(10) NOT NULL,    -- buy/sell
+    quantity        INTEGER NOT NULL,
+    price           DECIMAL(12,4) NOT NULL,
+    fee             DECIMAL(10,2) DEFAULT 0,
+    trade_date      DATE NOT NULL,
+    trade_time      TIME,
+    note            TEXT,
+    imported_from   VARCHAR(50),              -- manual/csv/eastmoney
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_user_trades_user_date ON user_trades(user_id, trade_date DESC);
+
+-- ============================================================
+-- 实盘持仓汇总（计算字段）
+-- ============================================================
+CREATE TABLE user_positions (
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    symbol          VARCHAR(20) NOT NULL,
+    total_buy_qty   INTEGER DEFAULT 0,
+    total_sell_qty  INTEGER DEFAULT 0,
+    remaining_qty   INTEGER DEFAULT 0,
+    avg_cost        DECIMAL(12,4) DEFAULT 0,
+    total_cost      DECIMAL(20,2) DEFAULT 0,
+    total_return    DECIMAL(20,2) DEFAULT 0,
+    return_rate     DECIMAL(10,4) DEFAULT 0,
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, symbol)
+);
+
+-- ============================================================
+-- 系统配置
+-- ============================================================
+CREATE TABLE system_config (
+    key         VARCHAR(100) PRIMARY KEY,
+    value       JSONB,
+    description TEXT,
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- 数据缓存元数据（避免重复请求）
+-- ============================================================
+CREATE TABLE cache_metadata (
+    data_type   VARCHAR(50) NOT NULL,      -- kline/financial/dragon_tiger
+    symbol      VARCHAR(20) NOT NULL,
+    period      VARCHAR(10),
+    last_date   DATE,                       -- 最新已缓存日期
+    last_update TIMESTAMPTZ DEFAULT NOW(),
+    status      VARCHAR(20) DEFAULT 'ok',
+    PRIMARY KEY (data_type, symbol, COALESCE(period, ''))
+);
+```
+
+### 4.3 数据保留策略
+
+```sql
+-- 自动清理：分时数据保留30天
+SELECT add_retention_policy('tick_data', INTERVAL '30 days');
+
+-- 自动清理：资金流保留1年
+SELECT add_retention_policy('money_flow', INTERVAL '365 days');
+
+-- K线数据永久保留（历史数据不删除）
+-- 指标快照保留90天
+SELECT add_retention_policy('indicator_snapshot', INTERVAL '90 days');
+```
+
+---
+
+## 5. 数据源与缓存策略
+
+### 5.1 数据源路由架构
+
+```
+┌─────────────────────────────────────────────────────┐
+│              DataSourceManager (核心)                │
+│                                                     │
+│  调用方 ──→ get_klines(symbol, period, start, end) │
+│                                                     │
+│  ① 检查本地缓存（PostgreSQL/TimescaleDB）            │
+│     ├─ 命中 && 数据完整 && 非当日 → 直接返回        │
+│     ├─ 命中 && 数据不完整 → 计算缺失区间 → ②       │
+│     └─ 未命中 → ②                                   │
+│                                                     │
+│  ② 调用主源 (akshare)                               │
+│     ├─ 成功 → 写入缓存 → 返回                      │
+│     └─ 失败/超时(5s) → ③                           │
+│                                                     │
+│  ③ 调用备源 (腾讯财经)                              │
+│     ├─ 成功 → 写入缓存 → 返回                      │
+│     └─ 失败 → ④                                    │
+│                                                     │
+│  ④ 返回缓存中已有数据（降级）                       │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+### 5.2 缓存规则
+
+| 数据类型 | 缓存策略 | 更新频率 | 过期判断 |
+|---------|---------|---------|---------|
+| **日K线（历史）** | 永久缓存 | 每日收盘后更新 | `last_date < 昨日` 则需补 |
+| **分钟K线** | 保留30天 | 盘中实时写入 | 自动过期 |
+| **当日实时数据** | Redis (TTL 60s) | 盘中轮询 | 60秒过期 |
+| **财务数据** | 永久缓存 | 季报/年报发布后 | `report_date` 是否有更新 |
+| **龙虎榜** | 永久缓存 | 每日收盘后 | `last_date < 昨日` |
+| **板块资金流** | Redis (TTL 300s) | 盘中5分钟 | 5分钟过期 |
+| **新闻/公告** | Redis (TTL 600s) | 定时轮询 | 10分钟过期 |
+| **CZSC分析结果** | 永久缓存 | 每日收盘后 | `date < 昨日` 则重算 |
+| **自选股实时行情** | Redis (TTL 3s) | WebSocket推送 | 3秒刷新 |
+
+### 5.3 核心代码框架
+
+```python
+# backend/app/core/datasource/base.py
+from abc import ABC, abstractmethod
+from datetime import datetime, date
+from decimal import Decimal
+from typing import Optional
+
+class DataSourceBase(ABC):
+    """数据源抽象基类"""
+    
+    @abstractmethod
+    async def get_klines(
+        self, 
+        symbol: str, 
+        period: str,           # 1m/5m/15m/30m/60m/day/week/month
+        start: Optional[date] = None,
+        end: Optional[date] = None
+    ) -> list[dict]:
+        """获取K线数据"""
+        ...
+    
+    @abstractmethod
+    async def get_realtime(self, symbol: str) -> dict:
+        """获取实时行情"""
+        ...
+    
+    @abstractmethod
+    async def get_sector_list(self) -> list[dict]:
+        """获取板块列表"""
+        ...
+    
+    @abstractmethod
+    async def get_sector_money_flow(self, date: date) -> list[dict]:
+        """获取板块资金流"""
+        ...
+    
+    @abstractmethod
+    async def get_dragon_tiger(self, date: date) -> list[dict]:
+        """获取龙虎榜"""
+        ...
+    
+    @abstractmethod
+    async def get_financial(self, symbol: str) -> list[dict]:
+        """获取财务数据"""
+        ...
+    
+    @abstractmethod
+    async def get_news(self, symbol: str, limit: int = 20) -> list[dict]:
+        """获取个股新闻"""
+        ...
+
+
+# backend/app/core/datasource/manager.py
+import asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
+from .base import DataSourceBase
+from .akshare_source import AkshareSource
+from .tencent_source import TencentSource
+
+class DataSourceManager:
+    """数据源管理器 - 主备切换 + 缓存"""
+    
+    def __init__(self, db: AsyncSession, redis_client):
+        self.db = db
+        self.redis = redis_client
+        self.primary: DataSourceBase = AkshareSource()
+        self.backup: DataSourceBase = TencentSource()
+        self.timeout = 5.0  # 主源超时切换
+    
+    async def get_klines(self, symbol: str, period: str, start=None, end=None) -> list[dict]:
+        """核心方法：带缓存的多源获取"""
+        
+        # ① 检查数据库缓存
+        cached = await self._load_from_db(symbol, period, start, end)
+        cache_info = await self._get_cache_info("kline", symbol, period)
+        
+        today = date.today()
+        
+        # 判断是否需要更新
+        if cache_info and cache_info['last_date'] >= (today - timedelta(days=1)):
+            # 缓存已是最新（昨日前数据不会变）
+            if period == 'day' and cache_info['last_date'] >= today:
+                return cached  # 当日数据也有了，直接返回
+        
+        # ② 计算缺失区间
+        missing_start = (cache_info['last_date'] + timedelta(days=1)) if cache_info else start
+        
+        # ③ 尝试主源
+        try:
+            new_data = await asyncio.wait_for(
+                self.primary.get_klines(symbol, period, missing_start, end),
+                timeout=self.timeout
+            )
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.warning(f"Primary source failed for {symbol}: {e}")
+            # ④ 尝试备源
+            try:
+                new_data = await asyncio.wait_for(
+                    self.backup.get_klines(symbol, period, missing_start, end),
+                    timeout=self.timeout
+                )
+            except Exception as e2:
+                logger.error(f"Backup source also failed: {e2}")
+                new_data = []
+        
+        # ⑤ 写入缓存
+        if new_data:
+            await self._save_to_db(symbol, period, new_data)
+            await self._update_cache_info("kline", symbol, period, end or today)
+        
+        # ⑥ 合并返回
+        return cached + new_data
+    
+    async def get_realtime_batch(self, symbols: list[str]) -> dict[str, dict]:
+        """批量获取实时行情（盘中用）"""
+        # 先查Redis缓存
+        cached = await self.redis.mget([f"realtime:{s}" for s in symbols])
+        
+        # 过滤出需要更新的
+        need_update = [s for i, s in enumerate(symbols) if not cached[i]]
+        
+        if need_update:
+            try:
+                fresh = await asyncio.wait_for(
+                    self.primary.get_realtime_batch(need_update),
+                    timeout=self.timeout
+                )
+            except:
+                fresh = await self.backup.get_realtime_batch(need_update)
+            
+            # 写入Redis (TTL 3s)
+            for s, data in zip(need_update, fresh):
+                await self.redis.setex(f"realtime:{s}", 3, json.dumps(data))
+        
+        # 组装返回
+        return {s: json.loads(cached[i]) if cached[i] else fresh[i] for i, s in enumerate(symbols)}
+```
+
+---
+
+## 6. CZSC 集成方案
+
+### 6.1 CZSC 能力映射
+
+| CZSC能力 | 本系统用途 | 调用位置 |
+|---------|-----------|---------|
+| **K线合成** | 多周期数据统一 | K线服务 |
+| **分型/笔/线段/中枢** | 缠论结构展示 | 个股详情页 |
+| **信号函数库（246+）** | 技术指标/买卖信号 | 指标面板 + 复盘扫描 |
+| **多周期联立** | 大周期定方向 + 小周期找买卖点 | AI分析 |
+| **权重回测** | 策略验证 | 复盘引擎 |
+| **可视化报告** | K线+信号图导出 | 前端K线图 + 复盘报告 |
+
+### 6.2 集成架构
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   CZSC Engine (封装层)                   │
+│                                                         │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │ Analyzer    │  │ SignalGen    │  │ Visualizer   │  │
+│  │ 缠论分析    │  │ 信号生成     │  │ 可视化导出   │  │
+│  └──────┬──────┘  └──────┬───────┘  └──────┬───────┘  │
+│         │                │                  │           │
+│  ┌──────┴──────┐  ┌──────┴───────┐  ┌──────┴───────┐  │
+│  │ K线数据      │  │ signals_     │  │ plot_czsc_   │  │
+│  │ (DB/实时)   │  │ config.yaml  │  │ signals()    │  │
+│  └─────────────┘  └──────────────┘  └───────────────┘  │
+│                                                         │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │              Strategy Manager                    │   │
+│  │  ├─ short_term.yaml → 短线信号                   │   │
+│  │  ├─ swing.yaml → 波段信号                       │   │
+│  │  └─ research.yaml → 投研信号                    │   │
+│  └─────────────────────────────────────────────────┘   │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 6.3 核心封装代码
+
+```python
+# backend/app/core/czsc_engine/analyzer.py
+import czsc
+from czsc import CZSC, signals
+from czsc.traders import CzscTrader
+from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
+import json
+
+class CZSCAnalyzer:
+    """CZSC缠论分析器封装"""
+    
+    def __init__(self, db: AsyncSession, signals_config: str = None):
+        self.db = db
+        self.signals_config = signals_config or "czsc_config/signals_config.yaml"
+    
+    async def analyze(
+        self, 
+        symbol: str, 
+        period: str = "day",
+        include_intraday: bool = False
+    ) -> dict:
+        """
+        对单只股票进行完整缠论分析
+        
+        返回:
+        {
+            "fx_list": [...],      # 分型
+            "bi_list": [...],      # 笔
+            "xd_list": [...],      # 线段
+            "zs_list": [...],      # 中枢
+            "signals": {...},      # 信号字典
+            "current_state": {...} # 当前状态
+        }
+        """
+        
+        # ① 从数据库加载K线（已缓存）
+        klines = await self._load_klines(symbol, period)
+        
+        if not klines or len(klines) < 100:
+            raise ValueError(f"Insufficient kline data for {symbol}: {len(klines)} bars")
+        
+        # ② 构建CZSC对象
+        bars = [czsc.RawBar(
+            symbol=k['symbol'],
+            dt=k['timestamp'],
+            id=i,
+            freq=period,
+            open=k['open'],
+            close=k['close'],
+            high=k['high'],
+            low=k['low'],
+            vol=k['volume'],
+            amount=k.get('amount', 0)
+        ) for i, k in enumerate(klines)]
+        
+        # ③ 运行缠论分析
+        c = CZSC(bars, max_bi_num=50)
+        
+        # ④ 提取结构
+        result = {
+            "symbol": symbol,
+            "period": period,
+            "fx_list": [self._fx_to_dict(fx) for fx in c.fx_list],
+            "bi_list": [self._bi_to_dict(bi) for bi in c.bi_list],
+            "xd_list": [self._xd_to_dict(xd) for xd in c.xd_list] if c.xd_list else [],
+            "zs_list": [self._zs_to_dict(zs) for zs in c.zs_list] if hasattr(c, 'zs_list') else [],
+            "signals": dict(c.signals) if hasattr(c, 'signals') else {},
+            "current_state": self._get_current_state(c),
+            "analyzed_at": datetime.now().isoformat()
+        }
+        
+        # ⑤ 缓存结果
+        await self._cache_result(symbol, period, result)
+        
+        return result
+    
+    def _get_current_state(self, c: CZSC) -> dict:
+        """提取当前市场状态"""
+        last_bi = c.bi_list[-1] if c.bi_list else None
+        last_fx = c.fx_list[-1] if c.fx_list else None
+        
+        return {
+            "trend": self._judge_trend(c),           # 上涨/下跌/中枢震荡
+            "last_bi_direction": last_bi.direction if last_bi else None,
+            "last_bi_start": last_bi.fx_a.dt if last_bi else None,
+            "last_bi_end": last_bi.fx_b.dt if last_bi else None,
+            "in_central": self._is_in_central(c),     # 是否在中枢内
+            "central_high": self._get_central_high(c),
+            "central_low": self._get_central_low(c),
+        }
+    
+    @staticmethod
+    def _judge_trend(c: CZSC) -> str:
+        """判断趋势：基于最后3笔的方向"""
+        if len(c.bi_list) < 3:
+            return "unknown"
+        
+        last_3 = [bi.direction for bi in c.bi_list[-3:]]
+        
+        if last_3 == ['up', 'down', 'up']:
+            # 检查是否创新高
+            if c.bi_list[-1].fx_b.high > c.bi_list[-3].fx_b.high:
+                return "uptrend"
+        elif last_3 == ['down', 'up', 'down']:
+            if c.bi_list[-1].fx_b.low < c.bi_list[-3].fx_b.low:
+                return "downtrend"
+        
+        return "consolidation"
+    
+    async def multi_period_analysis(self, symbol: str) -> dict:
+        """
+        多周期联立分析
+        周线定方向 → 日线定结构 → 60分钟找买卖点
+        """
+        result = {}
+        
+        for period in ["week", "day", "60min"]:
+            try:
+                analysis = await self.analyze(symbol, period)
+                result[period] = analysis
+            except Exception as e:
+                logger.warning(f"Multi-period {period} failed for {symbol}: {e}")
+                result[period] = None
+        
+        # 联立判断
+        result["synthesis"] = self._synthesize(result)
+        
+        return result
+    
+    def _synthesize(self, multi: dict) -> dict:
+        """多周期联立结论"""
+        week = multi.get("week", {})
+        day = multi.get("day", {})
+        
+        week_trend = week.get("current_state", {}).get("trend") if week else None
+        day_trend = day.get("current_state", {}).get("trend") if day else None
+        
+        # 周线向上 + 日线回调 = 买点区域
+        if week_trend == "uptrend" and day_trend == "consolidation":
+            signal = "buy_zone"
+        elif week_trend == "uptrend" and day_trend == "downtrend":
+            signal = "watch_for_reversal"
+        elif week_trend == "downtrend":
+            signal = "avoid"
+        else:
+            signal = "neutral"
+        
+        return {
+            "week_trend": week_trend,
+            "day_trend": day_trend,
+            "signal": signal,
+            "confidence": self._calc_confidence(multi)
+        }
+```
+
+### 6.4 信号配置（signals_config.yaml）
+
+```yaml
+# czsc_config/signals_config.yaml
+# 参考 CZSC 246个信号函数，按策略组合
+
+# ==================== 短线策略信号 ====================
+short_term:
+  - name: "MA短线趋势"
+    module: "czsc.signals.tas"
+    function: "tas_ma"
+    params:
+      fast: 5
+      slow: 20
+      ma_type: "SMA"
+  
+  - name: "MACD金叉/死叉"
+    module: "czsc.signals.tas"
+    function: "tas_macd"
+    params:
+      fast: 12
+      slow: 26
+      signal: 9
+  
+  - name: "RSI超买超卖"
+    module: "czsc.signals.tas"
+    function: "tas_rsi"
+    params:
+      period: 14
+      overbought: 80
+      oversold: 20
+  
+  - name: "放量突破"
+    module: "czsc.signals.vol"
+    function: "vol_breakout"
+    params:
+      window: 20
+      multiplier: 2.0
+  
+  - name: "缠论笔信号"
+    module: "czsc.signals.cxt"
+    function: "cxt_bi_base"
+    params:
+      max_bi_num: 50
+  
+  - name: "缠论中枢突破"
+    module: "czsc.signals.cxt"
+    function: "cxt_zs_break"
+    params: {}
+
+# ==================== 波段策略信号 ====================
+swing:
+  - name: "均线多头排列"
+    module: "czsc.signals.tas"
+    function: "tas_ma_alignment"
+    params:
+      mas: [10, 20, 60]
+  
+  - name: "趋势强度"
+    module: "czsc.signals.tas"
+    function: "tas_adx"
+    params:
+      period: 14
+      threshold: 25
+  
+  - name: "周线缠论"
+    module: "czsc.signals.cxt"
+    function: "cxt_week_bi"
+    params: {}
+
+# ==================== 投研策略信号 ====================
+research:
+  - name: "基本面+技术共振"
+    module: "custom_signals"
+    function: "fundamental_tech_resonance"
+    params: {}
+  
+  - name: "机构资金流入"
+    module: "custom_signals"
+    function: "institutional_flow"
+    params:
+      window: 20
+```
+
+### 6.5 可视化集成
+
+```python
+# backend/app/core/czsc_engine/visualizer.py
+from czsc.chart import plot_czsc_signals
+from pathlib import Path
+import json
+
+class CZSCVisualizer:
+    """将CZSC分析结果导出为前端可用的图表数据"""
+    
+    def __init__(self, analyzer: CZSCAnalyzer):
+        self.analyzer = analyzer
+    
+    async def generate_chart_data(self, symbol: str, period: str = "day") -> dict:
+        """
+        生成前端K线图所需的所有数据
+        返回格式适配 lightweight-charts
+        """
+        analysis = await self.analyzer.analyze(symbol, period)
+        
+        # 构建K线数据（兼容 lightweight-charts candle series）
+        kline_data = [
+            {
+                "time": bar['timestamp'].strftime("%Y-%m-%d"),
+                "open": bar['open'],
+                "high": bar['high'],
+                "low": bar['low'],
+                "close": bar['close']
+            }
+            for bar in analysis.get('klines', [])
+        ]
+        
+        # 信号标记（买卖点）
+        markers = []
+        for signal_name, signal_value in analysis['signals'].items():
+            if 'buy' in signal_value.lower():
+                markers.append({
+                    "time": signal_value.get('bar_dt', ''),
+                    "position": "belowBar",
+                    "shape": "arrowUp",
+                    "color": "#26a69a",
+                    "text": signal_name
+                })
+            elif 'sell' in signal_value.lower():
+                markers.append({
+                    "time": signal_value.get('bar_dt', ''),
+                    "position": "aboveBar",
+                    "shape": "arrowDown",
+                    "color": "#ef5350",
+                    "text": signal_name
+                })
+        
+        # 中枢区域（矩形叠加层）
+        zs_regions = [
+            {
+                "from": zs['start_date'],
+                "to": zs['end_date'],
+                "high": zs['high'],
+                "low": zs['low']
+            }
+            for zs in analysis.get('zs_list', [])
+        ]
+        
+        # 分型标记
+        fx_markers = [
+            {
+                "time": fx['dt'].strftime("%Y-%m-%d"),
+                "position": "belowBar" if fx['mark'] == 'd' else "aboveBar",
+                "shape": "circle",
+                "color": "#ff9800" if fx['mark'] == 'g' else "#9c27b0",
+                "size": 8
+            }
+            for fx in analysis.get('fx_list', [])[-30:]  # 最近30个分型
+        ]
+        
+        return {
+            "symbol": symbol,
+            "period": period,
+            "kline": kline_data,
+            "markers": markers + fx_markers,
+            "zs_regions": zs_regions,
+            "signals": analysis['signals'],
+            "current_state": analysis['current_state']
+        }
+    
+    def export_html_report(self, symbol: str, output_dir: str = "data/reports") -> str:
+        """使用CZSC内置函数导出交互式HTML报告"""
+        # 参考：plot_czsc_signals 用法
+        # https://s0cqcxuy3p.feishu.cn/wiki/ULxhwFyVkiavqhkZ2Xkc0N3fnYc
+        
+        output_path = Path(output_dir) / f"{symbol}_czsc.html"
+        
+        # 调用CZSC可视化
+        # plot_czsc_signals(
+        #     c=czsc_obj,
+        #     signals_config=self.signals_config,
+        #     output=output_path
+        # )
+        
+        return str(output_path)
+```
+
+---
+
+## 7. 页面与功能模块
+
+### 7.1 页面路由总览
+
+| 路由 | 页面 | 说明 |
+|------|------|------|
+| `/` | **主页（看盘面板）** | 可拖拽/缩放的响应式面板布局 |
+| `/watchlist` | **自选股列表** | 分组管理、添加/删除/排序 |
+| `/watchlist/:symbol` | **个股详情** | K线+指标+基本面+AI分析 |
+| `/replay` | **复盘报告** | 当日/历史复盘 |
+| `/replay/:date` | **历史复盘详情** | 查看任意日期复盘 |
+| `/simulation` | **模拟交易** | 账户列表+总览 |
+| `/simulation/:id` | **模拟账户详情** | 持仓+交易+绩效+AI总结 |
+| `/trade-import` | **实盘交易导入** | 导入+盈亏+AI点评 |
+| `/profile` | **个人中心** | 账户/设置 |
+| `/profile/agents` | **智能体配置** | 三个默认+自定义 |
+
+### 7.2 主页（看盘面板）设计
+
+#### 布局结构（PC / H5 响应式）
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🔴 上证 3120.45 (+0.82%)  🔵 深证 9876.54 (+1.12%)  ...    🕐 14:32  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
+│  │  四大指数K线      │  │  自选股概览      │  │  重要消息滚动     │  │
+│  │  ┌────┐ ┌────┐  │  │  SH600519 +2.3% │  │  📰 证监会发布... │  │
+│  │  │上证│ │深证│  │  │  SZ000001 -0.8% │  │  📰 半导体板块... │  │
+│  │  └────┘ └────┘  │  │  SH600036 +1.1% │  │  📰 美联储加息... │  │
+│  │  ┌────┐ ┌────┐  │  │  ...            │  │  ...             │  │
+│  │  │创业│ │科创│  │  │                  │  │                  │  │
+│  │  └────┘ └────┘  │  │                  │  │                  │  │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘  │
+│                                                                     │
+│  ┌────────────────────────────┐  ┌──────────────────────────────┐  │
+│  │  板块资金流 Top5            │  │  自选板块组                   │  │
+│  │  ↑ 半导体  净流入 128亿    │  │  📁 核心资产                  │  │
+│  │  ↑ 光伏    净流入 85亿     │  │     SH600519 贵州茅台         │  │
+│  │  ↓ 银行    净流出 42亿     │  │     SH601318 中国平安         │  │
+│  │  ↓ 地产    净流出 38亿     │  │  📁 科技成长                  │  │
+│  │  ...                       │  │     SZ300750 宁德时代         │  │
+│  └────────────────────────────┘  └──────────────────────────────┘  │
+│                                                                     │
+│  ┌───────────────────────────────────────────────────────────────┐ │
+│  │  自选股分时图（可横向滚动）                                    │ │
+│  │  [贵州茅台 ▁▂▃▄▅▆▇] [宁德时代 ▂▃▄▃▂▁▂] [中国平安 ▁▂▃▄▃▄▅]    │ │
+│  └───────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│  ┌────────────────────────────┐  ┌──────────────────────────────┐  │
+│  │  涨速最快板块               │  │  涨停梯队（简版）             │  │
+│  │  1. 存储芯片  +4.2%  ↗     │  │  5连板: XX股份               │  │
+│  │  2. HBM     +3.8%  ↗      │  │  3连板: XX科技               │  │
+│  │  3. CPO     +3.5%  ↗      │  │  首  板: XX电子  XX光电 ...  │  │
+│  │  ...                       │  │                              │  │
+│  └────────────────────────────┘  └──────────────────────────────┘  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### 响应式适配
+
+```typescript
+// frontend/src/composables/useResponsive.ts
+export function useResponsive() {
+  const isMobile = ref(false)
+  const isTablet = ref(false)
+  const isDesktop = ref(true)
+  
+  const check = () => {
+    const w = window.innerWidth
+    isMobile.value = w < 768
+    isTablet.value = w >= 768 && w < 1200
+    isDesktop.value = w >= 1200
+  }
+  
+  onMounted(() => {
+    check()
+    window.addEventListener('resize', check)
+  })
+  
+  onUnmounted(() => {
+    window.removeEventListener('resize', check)
+  })
+  
+  return { isMobile, isTablet, isDesktop }
+}
+```
+
+**PC端**：12列网格，面板自由拖拽缩放（类似TradingView/同花顺布局）
+**H5端**：单列纵向滚动，面板折叠为卡片，关键数据优先展示
+
+### 7.3 个股详情页设计
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ← SH600519 贵州茅台  ¥1680.00  +2.35%  [+自选] [AI分析]   │
+├─────────────────────────────────────────────────────────────┤
+│  [K线] [基本面] [资金流] [财务] [股东] [情绪] [技术形态] [缠论] │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  K线图（lightweight-charts）                                │
+│  ┌───────────────────────────────────────────────────────┐ │
+│  │ ╱╲    ╱╲                                                │ │
+│  │╱  ╲  ╱  ╲     MA5 ────                                │ │
+│  │    ╲╱    ╲___  MA20 ──  ← 中枢区域(矩形)               │ │
+│  │                        ← 分型标记(圆点)                 │ │
+│  │                        ← 买卖信号(箭头)                 │ │
+│  └───────────────────────────────────────────────────────┘ │
+│  [1分] [5分] [15分] [30分] [60分] [日] [周] [月]          │
+│  [MA] [MACD] [RSI] [BOLL] [CZSC缠论] [自定义指标]         │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  AI分析卡片                                                  │
+│  ┌───────────────────────────────────────────────────────┐ │
+│  │ 🤖 短线大师 (DeepSeek-V3)                            │ │
+│  │ ─────────────────────────────────────────             │ │
+│  │ 支撑位: 1650 / 1620                                  │ │
+│  │ 压力位: 1720 / 1750                                  │ │
+│  │ 短期(1-5日): 震荡偏强，关注1680支撑                   │ │
+│  │ 中期(1-4周): 周线缠论上行，回踩是买点                 │ │
+│  │ 明日信号:                                             │ │
+│  │   ✓ 放量突破1720 → 关注买入                           │ │
+│  │   ✗ 跌破1650 → 观望                                  │ │
+│  │ 置信度: 72%                                           │ │
+│  └───────────────────────────────────────────────────────┘ │
+│                                                             │
+│  ┌───────────────────────────────────────────────────────┐ │
+│  │ 📊 技术形态                                             │ │
+│  │ CZSC缠论: 日线上升趋势，当前第3笔上行                   │ │
+│  │ 中枢: [1620, 1680] 已突破，回踩确认                    │ │
+│  │ MACD: 金叉，红柱放大                                   │ │
+│  │ 量价: 量价齐升 ✓                                       │ │
+│  └───────────────────────────────────────────────────────┘ │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 7.4 复盘页设计
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  复盘报告 - 2025-01-15 (周三)            [查看历史 ▾]       │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ 📊 市场概况                                            │ │
+│  │ 上证: 3120.45 (+0.82%)  深证: 9876.54 (+1.12%)        │ │
+│  │ 涨跌家数: 3852 ↑ / 1247 ↓  (75.5%上涨)               │ │
+│  │ 涨停: 68  跌停: 12  封板率: 72%                       │ │
+│  │ 成交额: 8900亿 (较前日 +12%)                           │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────┐  ┌────────────┐  ┌───────────────────────┐ │
+│  │ 板块资金流  │  │ 涨速排行   │  │ 涨停梯队               │ │
+│  │ ↑半导体 128│  │ 1.存储 +4.2│  │ 5连板: XX股份(半导体) │ │
+│  │ ↑光伏   85│  │ 2.HBM  +3.8│  │ 3连板: XX科技(光伏)   │ │
+│  │ ↓银行  -42│  │ 3.CPO  +3.5│  │ 首 板: 12只            │ │
+│  └────────────┘  └────────────┘  └───────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ 🐉 龙头分析                                             │ │
+│  │ 主线龙头: XX股份 (5连板, 半导体, 成交额45亿)            │ │
+│  │ 中军: XX科技 (趋势上行, 成交额120亿)                    │ │
+│  │ 跟风: XX电子, XX光电 ...                               │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ 🔍 形态选股结果                                         │ │
+│  │ [回踩20日线+放量]  12只                                 │ │
+│  │ [缠论三买]          5只                                  │ │
+│  │ [首板+板块联动]    8只                                  │ │
+│  │ [MACD底背离]       15只                                 │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ 🤖 AI智能体总结                                         │ │
+│  │ ┌────────────────────────────────────────────────────┐ │ │
+│  │ │ A. 投研智能体:                                      │ │ │
+│  │ │ "今日半导体板块资金净流入128亿，板块强度评分92..."   │ │ │
+│  │ │ 关注池: XX股份, XX科技, XX电子                      │ │ │
+│  │ ├────────────────────────────────────────────────────┤ │ │
+│  │ │ B. 短线大师:                                        │ │ │
+│  │ │ "涨停梯队完整，封板率72%，情绪偏暖..."              │ │ │
+│  │ │ 明日信号:                                           │ │ │
+│  │ │  - XX股份: 若高开<3%且板块强度>80 → 关注买入       │ │ │
+│  │ │  - XX科技: 若回踩10日线不破 → 低吸                  │ │ │
+│  │ ├────────────────────────────────────────────────────┤ │ │
+│  │ │ C. 波段助手:                                        │ │ │
+│  │ │ "半导体周线趋势向上，日线回调中..."                  │ │ │
+│  │ │ 建议: 等待日线企稳后再介入中军                      │ │ │
+│  │ └────────────────────────────────────────────────────┘ │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ 📋 明日作战计划                                         │ │
+│  │ ┌────────────────────────────────────────────────────┐ │ │
+│  │ │ 核心关注板块: 半导体(强度92), 光伏(85)             │ │ │
+│  │ │ 观察池:                                             │ │ │
+│  │ │  1. XX股份 - 5连板龙头，高开<3%关注                │ │ │
+│  │ │  2. XX科技 - 中军趋势，回踩10日线低吸              │ │ │
+│  │ │  3. XX电子 - 首板+板块联动，次日溢价预期            │ │ │
+│  │ │ 禁止操作:                                           │ │ │
+│  │ │  - 追高开盘涨幅>5%的票                              │ │ │
+│  │ │  - 买入成交额<5亿的票                               │ │ │
+│  │ │  - 板块强度<50时禁止买入                            │ │ │
+│  │ └────────────────────────────────────────────────────┘ │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 8. API 接口规范
+
+### 8.1 统一响应格式
+
+```json
+{
+    "code": 0,          // 0=成功, 非0=错误码
+    "message": "success",
+    "data": {},         // 业务数据
+    "trace_id": "uuid"  // 链路追踪
+}
+```
+
+### 8.2 接口清单
+
+#### 行情相关 (`/api/v1/market`)
+
+| 方法 | 路径 | 说明 | 参数 |
+|------|------|------|------|
+| GET | `/indices` | 主要指数 | `?market=A/HK/US` |
+| GET | `/kline` | K线数据 | `symbol, period, start, end` |
+| GET | `/realtime` | 实时行情 | `?symbols=SH600519,SZ000001` |
+| GET | `/sectors/money-flow` | 板块资金流 | `?date=2025-01-15&sort=net_inflow` |
+| GET | `/sectors/speed` | 板块涨速 | `?limit=10` |
+| GET | `/limit-up/ladder` | 涨停梯队 | `?date=2025-01-15` |
+| GET | `/dragon-tiger` | 龙虎榜 | `?date=2025-01-15` |
+| GET | `/market/distribution` | 涨跌家数分布 | `?date=2025-01-15` |
+| GET | `/news` | 重要新闻 | `?limit=50` |
+| WS  | `/ws/market` | 实时行情推送 | symbol列表 |
+
+#### 自选股 (`/api/v1/watchlist`)
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/groups` | 获取所有分组 |
+| POST | `/groups` | 创建分组 |
+| DELETE | `/groups/:id` | 删除分组 |
+| PUT | `/groups/:id` | 修改分组 |
+| GET | `/groups/:id/items` | 获取分组内股票 |
+| POST | `/items` | 添加自选股 |
+| DELETE | `/items/:id` | 删除自选股 |
+| PUT | `/items/:id/note` | 修改备注 |
+| GET | `/preview` | 自选股概览（批量实时数据） |
+
+#### 个股详情 (`/api/v1/stocks`)
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/:symbol/basic` | 基本信息 |
+| GET | `/:symbol/kline` | K线（带指标） |
+| GET | `/:symbol/financial` | 财务数据 |
+| GET | `/:symbol/money-flow` | 资金流 |
+| GET | `/:symbol/shareholders` | 股东数据 |
+| GET | `/:symbol/sentiment` | 情绪指标 |
+| GET | `/:symbol/forms` | 技术形态 |
+| GET | `/:symbol/sector` | 所属板块 |
+| GET | `/:symbol/czsc` | 缠论分析 |
+| GET | `/:symbol/czsc/multi` | 多周期联立 |
+| GET | `/:symbol/indicators` | 指标数据（按预设公式） |
+| WS  | `/:symbol/realtime` | 个股实时推送 |
+
+#### 复盘 (`/api/v1/replay`)
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/latest` | 最新复盘报告 |
+| GET | `/:date` | 指定日期复盘 |
+| GET | `/history` | 历史列表 |
+| POST | `/trigger` | 手动触发复盘（开发用） |
+| GET | `/:date/sector-flow` | 板块资金流详情 |
+| GET | `/:date/limit-up` | 涨停分析详情 |
+| GET | `/:date/stock-pool` | 次日选股池 |
+| GET | `/:date/agent-reviews` | 智能体点评 |
+
+#### AI智能体 (`/api/v1/agents`)
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/` | 获取所有智能体配置 |
+| POST | `/` | 创建自定义智能体 |
+| PUT | `/:id` | 修改配置（提示词/API/模型） |
+| DELETE | `/:id` | 删除 |
+| POST | `/:id/test` | 测试连通性 |
+| POST | `/analyze/stock` | 分析个股（支撑/压力/短中长期） |
+| POST | `/analyze/market` | 分析大盘 |
+| POST | `/replay/daily` | 执行每日复盘 |
+| POST | `/select/pool` | 生成选股池 |
+| GET | `/runs` | 运行记录 |
+| GET | `/runs/:id` | 运行详情 |
+
+#### 模拟交易 (`/api/v1/simulation`)
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/accounts` | 账户列表 |
+| POST | `/accounts` | 创建账户（设置API/模型/初始资金/提示词） |
+| DELETE | `/accounts/:id` | 删除账户 |
+| GET | `/accounts/:id/positions` | 持仓 |
+| GET | `/accounts/:id/trades` | 交易记录 |
+| GET | `/accounts/:id/performance` | 绩效（收益率/回撤/夏普） |
+| GET | `/accounts/:id/reviews` | AI复盘记录 |
+| POST | `/accounts/:id/run` | 手动触发AI交易（正常自动） |
+| GET | `/leaderboard` | 排行榜 |
+
+#### 实盘交易 (`/api/v1/trade`)
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/positions` | 当前持仓 |
+| GET | `/trades` | 交易记录 |
+| POST | `/import/csv` | 导入CSV |
+| POST | `/import/json` | 导入JSON |
+| POST | `/import/eastmoney` | 从东方财富导出格式导入 |
+| GET | `/pnl/summary` | 盈亏汇总 |
+| GET | `/pnl/chart` | 盈亏曲线 |
+| POST | `/review/ai` | AI点评交易 |
+
+#### 系统 (`/api/v1/system`)
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/health` | 健康检查 |
+| GET | `/status` | 系统状态（数据源/数据库/Redis） |
+| GET | `/config` | 系统配置 |
+| PUT | `/config` | 修改配置 |
+| GET | `/logs` | 运行日志 |
+
+### 8.3 WebSocket 事件
+
+```typescript
+// 前端订阅示例
+const socket = io('ws://localhost:8000/ws/market?token=xxx')
+
+// 订阅自选股实时行情
+socket.emit('subscribe', { symbols: ['SH600519', 'SZ300750'] })
+
+// 接收推送
+socket.on('realtime', (data) => {
+  console.log(data) // { symbol: 'SH600519', price: 1680, change: 2.35 }
+})
+
+// 盘前计划推送
+socket.on('pre_market_plan', (data) => {
+  // { date, plan: {...} }
+})
+
+// 复盘完成推送
+socket.on('replay_done', (data) => {
+  // { date, report_id }
+})
+```
+
+---
+
+## 9. 定时任务调度
+
+### 9.1 Celery Beat 配置
+
+```python
+# backend/app/tasks/celery_app.py
+from celery import Celery
+from celery.schedules import crontab
+
+celery_app = Celery(
+    "quant_system",
+    broker="redis://localhost:6379/1",
+    backend="redis://localhost:6379/2",
+    include=[
+        "app.tasks.pre_market",
+        "app.tasks.realtime",
+        "app.tasks.post_market",
+        "app.tasks.evolution",
+        "app.tasks.maintenance",
+    ]
+)
+
+celery_app.conf.update(
+    timezone="Asia/Shanghai",
+    enable_utc=True,
+    task_serializer="json",
+    accept_content=["json"],
+    result_expires=3600,
+    task_acks_late=True,
+    worker_prefetch_multiplier=1,
+)
+
+# ==================== 定时任务调度表 ====================
+celery_app.conf.beat_schedule = {
+    
+    # ─────────────────────────────────────────────────────
+    # 盘前：08:30 - 预热数据 + 生成作战计划
+    # ─────────────────────────────────────────────────────
+    "pre_market_warmup": {
+        "task": "app.tasks.pre_market.warmup",
+        "schedule": crontab(hour=8, minute=30, day_of_week="1-5"),
+    },
+    "pre_market_plan": {
+        "task": "app.tasks.pre_market.generate_plan",
+        "schedule": crontab(hour=9, minute=10, day_of_week="1-5"),
+    },
+    
+    # ─────────────────────────────────────────────────────
+    # 盘中：实时数据更新（短线实时/分时写入DB）
+    # ─────────────────────────────────────────────────────
+    "realtime_index": {
+        "task": "app.tasks.realtime.update_indices",
+        "schedule": crontab(minute="*/1", hour="9-15", day_of_week="1-5"),
+    },
+    "realtime_watchlist": {
+        "task": "app.tasks.realtime.update_watchlist",
+        "schedule": crontab(minute="*/1", hour="9-15", day_of_week="1-5"),
+    },
+    
+    # ─────────────────────────────────────────────────────
+    # 收盘后：17:30 - 核心复盘任务（最大任务）
+    # ─────────────────────────────────────────────────────
+    "post_market_replay": {
+        "task": "app.tasks.post_market.run_replay",
+        "schedule": crontab(hour=17, minute=30, day_of_week="1-5"),
+    },
+    
+    # ─────────────────────────────────────────────────────
+    # 晚间：20:00 - AI自我进化
+    # ─────────────────────────────────────────────────────
+    "ai_evolution": {
+        "task": "app.tasks.evolution.evolve",
+        "schedule": crontab(hour=20, minute=0, day_of_week="1-5"),
+    },
+    
+    # ─────────────────────────────────────────────────────
+    # 夜间：数据回填与维护
+    # ─────────────────────────────────────────────────────
+    "backfill_daily": {
+        "task": "app.tasks.maintenance.backfill_daily_data",
+        "schedule": crontab(hour=18, minute=0, day_of_week="1-5"),
+    },
+    "cleanup_cache": {
+        "task": "app.tasks.maintenance.cleanup_expired_cache",
+        "schedule": crontab(hour=23, minute=0, day_of_week="1-7"),
+    },
+    "backup_db": {
+        "task": "app.tasks.maintenance.backup_database",
+        "schedule": crontab(hour=23, minute=30, day_of_week="1-7"),
+    },
+}
+```
+
+### 9.2 复盘任务详细流程
+
+```python
+# backend/app/tasks/post_market.py
+from celery import current_task
+from datetime import date, timedelta
+
+@celery_app.task(bind=True, max_retries=3)
+async def run_replay(self, replay_date: str = None):
+    """
+    每日复盘主流程（17:30执行）
+    
+    步骤:
+    1. 数据固化（当日K线写入DB）
+    2. 板块资金流分析
+    3. 涨停梯队分析
+    4. 个股形态批量扫描
+    5. CZSC缠论批量分析
+    6. 三智能体独立复盘
+    7. 生成次日选股池
+    8. 模拟交易AI执行
+    9. 组装复盘报告
+    10. 推送前端
+    """
+    
+    target_date = date.fromisoformat(replay_date) if replay_date else date.today()
+    logger.info(f"=== 开始复盘 {target_date} ===")
+    
+    try:
+        # ── Step 1: 数据固化 ──────────────────────────
+        await self._solidify_daily_data(target_date)
+        
+        # ── Step 2: 板块资金流 ────────────────────────
+        sector_flow = await SectorAnalyzer().analyze(target_date)
+        
+        # ── Step 3: 涨停梯队 ──────────────────────────
+        limit_analysis = await LimitAnalyzer().analyze(target_date)
+        
+        # ── Step 4: 个股形态扫描 ──────────────────────
+        scanner = StockScanner()
+        form_results = await scanner.scan_all(
+            date=target_date,
+            strategies=["short_term", "swing", "research"]
+        )
+        
+        # ── Step 5: CZSC缠论批量分析（自选股 + 涨停股）──
+        czsc_engine = CZSCAnalyzer(db)
+        targets = await get_scan_targets(target_date)  # 自选股 + 涨停股 + 板块龙头
+        czsc_results = {}
+        for symbol in targets:
+            try:
+                czsc_results[symbol] = await czsc_engine.analyze(symbol, "day")
+            except Exception as e:
+                logger.warning(f"CZSC failed: {symbol} - {e}")
+        
+        # ── Step 6: 三智能体独立复盘 ──────────────────
+        agent_executor = AgentExecutor()
+        
+        # A. 投研智能体
+        research_review = await agent_executor.run(
+            agent_type="research",
+            task="daily_replay",
+            data={
+                "date": target_date,
+                "sector_flow": sector_flow,
+                "financial_data": await get_financial_snapshot(target_date),
+            }
+        )
+        
+        # B. 短线大师
+        short_term_review = await agent_executor.run(
+            agent_type="short_term",
+            task="daily_replay",
+            data={
+                "date": target_date,
+                "limit_analysis": limit_analysis,
+                "form_results": form_results,
+                "czsc_results": czsc_results,
+            }
+        )
+        
+        # C. 波段助手
+        swing_review = await agent_executor.run(
+            agent_type="swing",
+            task="daily_replay",
+            data={
+                "date": target_date,
+                "sector_flow": sector_flow,
+                "czsc_multi_period": await get_multi_period_results(targets),
+            }
+        )
+        
+        # ── Step 7: 生成次日选股池 ────────────────────
+        stock_pool = await generate_stock_pool(
+            sector_flow=sector_flow,
+            limit_analysis=limit_analysis,
+            form_results=form_results,
+            czsc_results=czsc_results,
+            agent_reviews=[research_review, short_term_review, swing_review]
+        )
+        
+        # ── Step 8: 模拟交易AI执行 ────────────────────
+        await run_simulation_trading(target_date, stock_pool)
+        
+        # ── Step 9: 组装复盘报告 ──────────────────────
+        report = ReplayReport(
+            date=target_date,
+            market_summary=await get_market_summary(target_date),
+            sector_flow=sector_flow,
+            limit_analysis=limit_analysis,
+            stock_pool=stock_pool,
+            agent_reviews={
+                "research": research_review,
+                "short_term": short_term_review,
+                "swing": swing_review,
+            }
+        )
+        
+        report_id = await save_replay_report(report)
+        
+        # ── Step 10: 推送前端 ─────────────────────────
+        await push_to_frontend(report_id, report)
+        
+        logger.info(f"=== 复盘完成 {target_date} ===")
+        return {"status": "success", "report_id": report_id}
+        
+    except Exception as e:
+        logger.error(f"Replay failed: {e}")
+        # 重试逻辑
+        raise self.retry(exc=e, countdown=60 * (self.request.retries + 1))
+
+
+async def _solidify_daily_data(self, target_date: date):
+    """固化当日数据 - 从缓存/实时源写入永久存储"""
+    
+    # 当日K线已经通过盘中实时写入
+    # 这里做数据完整性校验 + 标记
+    
+    symbols = await get_all_traded_symbols(target_date)
+    
+    for symbol in symbols:
+        # 校验最后一根日K是否存在
+        last_k = await db.fetch_one(
+            "SELECT timestamp FROM klines WHERE symbol=:s AND period='day' ORDER BY timestamp DESC LIMIT 1",
+            {"s": symbol}
+        )
+        
+        if not last_k or last_k['timestamp'].date() < target_date:
+            # 缺失，补拉
+            klines = await datasource.get_klines(symbol, "day", target_date, target_date)
+            if klines:
+                await save_klines(symbol, "day", klines)
+    
+    logger.info(f"Solidified {len(symbols)} symbols for {target_date}")
+```
+
+### 9.3 AI自我进化任务
+
+```python
+# backend/app/tasks/evolution.py
+
+@celery_app.task(bind=True)
+async def evolve(self):
+    """
+    AI自我进化 - 每天收盘后执行
+    
+    逻辑:
+    1. 收集所有模拟交易账户今日的交易
+    2. 对每笔交易做归因分析（赚钱/亏钱的真实原因）
+    3. 汇总错误模式
+    4. 调整策略参数/提示词
+    5. 记录进化日志
+    """
+    
+    logger.info("=== AI自我进化开始 ===")
+    
+    accounts = await get_active_simulation_accounts()
+    
+    for account in accounts:
+        # ① 获取今日交易
+        today_trades = await get_today_trades(account.id)
+        
+        if not today_trades:
+            continue
+        
+        # ② 获取当前策略配置
+        config = await get_agent_config(account.agent_config_id)
+        
+        # ③ 构建进化提示词
+        evolution_prompt = f"""
+        你是交易策略进化引擎。分析以下交易记录，找出错误模式，提出改进方案。
+        
+        # 当前策略参数
+        {json.dumps(config.rules, indent=2, ensure_ascii=False)}
+        
+        # 当前提示词
+        {config.prompt_template}
+        
+        # 今日交易记录
+        {json.dumps(today_trades, indent=2, ensure_ascii=False)}
+        
+        # 近期绩效
+        {json.dumps(account.performance_snapshot, indent=2, ensure_ascii=False)}
+        
+        # 要求
+        1. 逐笔分析盈亏原因（板块退潮/买在一致/止损不坚决/选股逻辑错误/执行偏差）
+        2. 找出重复出现的错误模式
+        3. 提出具体的策略参数调整建议（JSON格式）
+        4. 提出提示词优化建议
+        5. 给出置信度评分
+        
+        输出严格JSON:
+        {{
+            "trade_analysis": [...],
+            "error_patterns": [...],
+            "param_adjustments": {{...}},
+            "prompt_improvements": "...",
+            "confidence": 0.0-1.0
+        }}
+        """
+        
+        # ④ 调用LLM
+        llm = LLMClient(config)
+        result = await llm.complete(evolution_prompt, temperature=0.2)
+        
+        try:
+            evolution_data = json.loads(result)
+        except json.JSONDecodeError:
+            logger.error(f"Evolution parse failed for account {account.id}")
+            continue
+        
+        # ⑤ 应用调整（谨慎：参数变更需记录+可回滚）
+        adjustments = evolution_data.get("param_adjustments", {})
+        
+        # 不直接修改，而是保存为"建议"，用户确认后才生效
+        await save_evolution_proposal(
+            account_id=account.id,
+            proposal=evolution_data,
+            date=date.today()
+        )
+        
+        # ⑥ 如果置信度高且连续多日同类型错误，自动微调
+        if evolution_data.get("confidence", 0) > 0.8:
+            consecutive_errors = await check_consecutive_errors(account.id, pattern_window=5)
+            
+            if consecutive_errors > 3:
+                # 自动应用小幅度调整（如止损比例±1%）
+                await apply_minor_adjustment(account.id, adjustments)
+        
+        logger.info(f"Account {account.id} evolution done: {len(today_trades)} trades analyzed")
+    
+    logger.info("=== AI自我进化完成 ===")
+```
+
+---
+
+## 10. AI 智能体系统
+
+### 10.1 架构设计
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Agent Registry                             │
+│                                                                 │
+│  ┌────────────┐  ┌──────────────┐  ┌──────────────────┐       │
+│  │ Agent A    │  │ Agent B      │  │ Agent C          │       │
+│  │ 投研智能体  │  │ 短线大师     │  │ 波段助手         │       │
+│  │            │  │              │  │                  │       │
+│  │ • 基本面   │  │ • K线形态    │  │ • 趋势判断       │       │
+│  │ • 龙头定位 │  │ • 概率事件   │  │ • 中枢震荡       │       │
+│  │ • 资金回流 │  │ • 量价关系   │  │ • 波段高低点     │       │
+│  │ • 财务分析 │  │ • 主力意图   │  │ • 保守仓位       │       │
+│  │ • 红利估值 │  │ • 防守位置   │  │ • 耐心等待       │       │
+│  └─────┬──────┘  └──────┬───────┘  └────────┬─────────┘       │
+│        │                │                    │                  │
+│  ┌─────┴────────────────┴────────────────────┴─────────┐       │
+│  │              AgentExecutor (统一执行器)               │       │
+│  │  ├─ 异步调用LLM API                                  │       │
+│  │  ├─ 数据注入（行情/财务/CZSC/资金流）                │       │
+│  │  ├─ 结果解析 + 结构化                                │       │
+│  │  ├─ 失败重试 + 降级                                  │       │
+│  │  └─ 运行记录存储                                     │       │
+│  └────────────────────┬────────────────────────────────┘       │
+│                       │                                         │
+│  ┌────────────────────┴────────────────────────────────┐       │
+│  │              LLM Client (可插拔)                     │       │
+│  │  ├─ OpenAI (gpt-4o / gpt-4o-mini)                  │       │
+│  │  ├─ Anthropic (claude-sonnet-4.5)                   │       │
+│  │  ├─ DeepSeek (deepseek-v3 / deepseek-r1)            │       │
+│  │  ├─ 通义千问 / 智谱GLM                               │       │
+│  │  └─ 本地Ollama                                       │       │
+│  └──────────────────────────────────────────────────────┘       │
+│                                                                 │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │              自定义智能体 (用户创建)                     │    │
+│  │  ├─ 用户可以设置:                                      │    │
+│  │  │  • 名称/描述                                        │    │
+│  │  │  • System Prompt                                     │    │
+│  │  │  • 模型 + API Base + API Key                        │    │
+│  │  │  • Temperature / Max Tokens                          │    │
+│  │  │  • 交易规则 (JSON)                                   │    │
+│  │  │  • 指标偏好                                          │    │
+│  │  └─ 完全可插拔，和默认三个智能体同等地位                │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 智能体基类
+
+```python
+# backend/app/core/agent/base.py
+from abc import ABC, abstractmethod
+from pydantic import BaseModel
+from typing import Optional
+
+class AgentContext(BaseModel):
+    """智能体运行上下文 - 注入的数据"""
+    date: str
+    symbol: Optional[str] = None
+    market_data: dict = {}
+    financial_data: dict = {}
+    czsc_result: dict = {}
+    money_flow: dict = {}
+    sector_info: dict = {}
+    sentiment: dict = {}
+    news: list[dict] = []
+    historical_trades: list[dict] = []
+    user_rules: dict = {}
+
+class AgentResult(BaseModel):
+    """智能体输出 - 统一结构"""
+    agent_type: str
+    summary: str
+    signals: list[dict]       # 买卖信号
+    watch_list: list[dict]    # 关注池
+    risk_level: str           # low/medium/high
+    confidence: float         # 0-1
+    reasoning: str            # 推理过程
+    raw_output: str           # 原始LLM输出（调试用）
+
+class BaseAgent(ABC):
+    """智能体抽象基类"""
+    
+    agent_type: str = ""
+    default_model: str = "deepseek-v3"
+    
+    def __init__(self, config: dict):
+        self.config = config
+        self.llm = LLMClient(
+            api_base=config.get("api_base"),
+            api_key=config.get("api_key"),
+            model=config.get("model_name", self.default_model),
+            temperature=config.get("temperature", 0.3),
+            max_tokens=config.get("max_tokens", 4000),
+        )
+    
+    @abstractmethod
+    async def analyze_stock(self, context: AgentContext) -> AgentResult:
+        """分析单只股票"""
+        ...
+    
+    @abstractmethod
+    async def daily_replay(self, context: AgentContext) -> AgentResult:
+        """每日复盘"""
+        ...
+    
+    @abstractmethod
+    async def select_pool(self, context: AgentContext) -> AgentResult:
+        """生成选股池"""
+        ...
+    
+    async def _run(self, prompt: str) -> str:
+        """统一LLM调用入口（含重试/降级）"""
+        try:
+            return await self.llm.complete(prompt)
+        except Exception as e:
+            logger.error(f"LLM call failed: {e}")
+            # 降级：尝试备用模型
+            backup_model = self.config.get("backup_model")
+            if backup_model:
+                self.llm.model = backup_model
+                return await self.llm.complete(prompt)
+            raise
+    
+    def _build_system_prompt(self) -> str:
+        """构建系统提示词（子类可覆盖）"""
+        base = self.config.get("system_prompt", "")
+        rules = self.config.get("rules", {})
+        
+        return f"""
+{base}
+
+# 你的分析原则
+1. 永远基于数据说话，不要凭空猜测
+2. 给出明确信号（买/卖/观望），不要模棱两可
+3. 每个结论都要有推理过程
+4. 严格区分事实和推测
+5. 风险永远放在第一位
+
+# 交易规则（用户设定）
+{json.dumps(rules, indent=2, ensure_ascii=False)}
+
+# 输出格式
+严格输出JSON，不要有任何额外文字:
+{{
+    "summary": "一段话总结",
+    "signals": [
+        {{"type": "buy/sell/watch", "condition": "触发条件", "price": 0}}
+    ],
+    "watch_list": [
+        {{"symbol": "...", "reason": "...", "entry": 0, "stop_loss": 0}}
+    ],
+    "risk_level": "low/medium/high",
+    "confidence": 0.0-1.0,
+    "reasoning": "详细推理过程"
+}}
+"""
+```
+
+### 10.3 LLM客户端（统一接口）
+
+```python
+# backend/app/core/agent/llm_client.py
+import httpx
+import json
+from typing import Optional
+
+class LLMClient:
+    """
+    统一LLM调用接口 - 兼容OpenAI格式
+    支持: OpenAI / DeepSeek / Anthropic / 通义 / 智谱 / 本地Ollama
+    """
+    
+    def __init__(
+        self,
+        api_base: str = "https://api.deepseek.com/v1",
+        api_key: str = "",
+        model: str = "deepseek-chat",
+        temperature: float = 0.3,
+        max_tokens: int = 4000,
+        timeout: int = 60,
+    ):
+        self.api_base = api_base.rstrip('/')
+        self.api_key = api_key
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.timeout = timeout
+    
+    async def complete(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        response_format: str = "text",  # text / json
+    ) -> str:
+        """统一文本补全接口"""
+        
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+        }
+        
+        if response_format == "json":
+            payload["response_format"] = {"type": "json_object"}
+        
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            resp = await client.post(
+                f"{self.api_base}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+            
+            if resp.status_code != 200:
+                raise LLMError(f"API error {resp.status_code}: {resp.text}")
+            
+            data = resp.json()
+            
+            return data['choices'][0]['message']['content']
+    
+    async def complete_json(self, prompt: str, system_prompt: str = "") -> dict:
+        """直接返回解析后的JSON"""
+        raw = await self.complete(prompt, system_prompt, response_format="json")
+        
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            # 尝试提取JSON块
+            import re
+            match = re.search(r'```json\s*(.*?)\s*```', raw, re.DOTALL)
+            if match:
+                return json.loads(match.group(1))
+            raise
+```
+
+### 10.4 三个默认智能体详解
+
+#### Agent A — 投研智能体
+
+```python
+# backend/app/core/agent/research_agent.py
+class ResearchAgent(BaseAgent):
+    """投研智能体 - 基本面 + 行业 + 资金"""
+    
+    agent_type = "research"
+    default_model = "deepseek-v3"
+    
+    async def analyze_stock(self, ctx: AgentContext) -> AgentResult:
+        
+        prompt = f"""
+        # 投研智能体 - 基本面深度分析
+        
+        你是一个专业的股票研究员，从基本面角度分析个股投资价值。
+        
+        ## 分析框架
+        
+        ### 1. 公司基本面
+        - 营收/净利润增速（同比+环比）
+        - 毛利率/净利率趋势
+        - ROE/ROA水平
+        - 经营现金流质量
+        - 资产负债率
+        
+        ### 2. 行业地位
+        - 市占率/竞争优势（护城河）
+        - 行业景气周期位置
+        - 政策/技术催化剂
+        
+        ### 3. 资金面
+        - 主力资金净流入趋势
+        - 北向资金持股变化
+        - 机构持仓变化
+        
+        ### 4. 估值
+        - PE/PB/PS历史分位
+        - 股息率
+        - PEG
+        
+        ### 5. 风险点
+        - 财务异常/商誉/减持
+        - 行业下行风险
+        
+        ## 数据
+        - 个股: {ctx.symbol}
+        - 财务数据: {json.dumps(ctx.financial_data, ensure_ascii=False)}
+        - 资金流: {json.dumps(ctx.money_flow, ensure_ascii=False)}
+        - 所属行业: {json.dumps(ctx.sector_info, ensure_ascii=False)}
+        - 近期新闻: {json.dumps(ctx.news[:10], ensure_ascii=False)}
+        
+        ## 输出要求
+        {self._output_schema()}
+        """
+        
+        result = await self._run(prompt, self._build_system_prompt())
+        return AgentResult(agent_type=self.agent_type, **json.loads(result))
+    
+    async def daily_replay(self, ctx: AgentContext) -> AgentResult:
+        # 分析今日板块资金流 + 行业轮动
+        # 输出: 哪些行业在走强，哪些龙头值得关注
+        ...
+    
+    async def select_pool(self, ctx: AgentContext) -> AgentResult:
+        # 基于基本面 + 资金 + 行业景气度选股
+        ...
+```
+
+#### Agent B — 短线大师
+
+```python
+# backend/app/core/agent/short_term_agent.py
+class ShortTermAgent(BaseAgent):
+    """短线大师 - 游资视角 + 概率事件"""
+    
+    agent_type = "short_term"
+    default_model = "deepseek-r1"  # 推理模型更适合短线
+    
+    async def analyze_stock(self, ctx: AgentContext) -> AgentResult:
+        
+        prompt = f"""
+        # 短线大师 - 游资思维 + 概率博弈
+        
+        你是一个顶级游资操盘手，从短线概率角度分析个股的明日走势。
+        
+        ## 核心思维
+        
+        ### 1. K线形态（概率事件）
+        - 识别高概率形态：放量突破、缩量回踩、首板、二波、反包
+        - 形态的历史胜率统计
+        - 当前形态处于哪个阶段
+        
+        ### 2. 量价关系
+        - 量是价的先行指标
+        - 放量上涨 = 资金认可
+        - 缩量回调 = 洗盘（需验证）
+        - 放量下跌 = 出货信号
+        
+        ### 3. 主力行为意图
+        - 通过盘口/分时判断主力意图
+        - 吸筹/拉升/洗盘/出货
+        - 关键价位：支撑在哪里，压力在哪里
+        
+        ### 4. 板块联动
+        - 个股是否是板块龙头/中军/跟风
+        - 板块情绪周期：启动/发酵/高潮/退潮
+        - 龙头的带动效应
+        
+        ### 5. 明日信号（核心输出）
+        - 什么条件下买入（明确价格/形态触发条件）
+        - 什么条件下观望
+        - 防守位置（止损价）
+        
+        ## 数据
+        - 个股: {ctx.symbol}
+        - 缠论分析: {json.dumps(ctx.czsc_result, ensure_ascii=False)}
+        - 资金流: {json.dumps(ctx.money_flow, ensure_ascii=False)}
+        - 板块信息: {json.dumps(ctx.sector_info, ensure_ascii=False)}
+        - 技术形态: {ctx.market_data.get('forms', [])}
+        - 涨停梯队: {ctx.market_data.get('limit_ladder', {})}
+        
+        ## 输出要求
+        {self._output_schema()}
+        
+        ## 特别注意
+        - 你的目标是"越确定的事情，明日上涨概率越大"
+        - 不确定就输出"观望"，宁缺毋滥
+        - 必须给出明确的入场条件和防守位置
+        """
+        
+        result = await self._run(prompt, self._build_system_prompt())
+        return AgentResult(agent_type=self.agent_type, **json.loads(result))
+    
+    async def daily_replay(self, ctx: AgentContext) -> AgentResult:
+        # 分析今日涨停梯队/板块轮动/情绪周期
+        # 输出: 短线生态总结 + 明日策略
+        ...
+    
+    async def select_pool(self, ctx: AgentContext) -> AgentResult:
+        # 短线选股: 形态 + 量价 + 板块联动
+        ...
+```
+
+#### Agent C — 波段助手
+
+```python
+# backend/app/core/agent/swing_agent.py
+class SwingAgent(BaseAgent):
+    """波段助手 - 保守版短线大师"""
+    
+    agent_type = "swing"
+    default_model = "deepseek-v3"
+    
+    async def analyze_stock(self, ctx: AgentContext) -> AgentResult:
+        
+        prompt = f"""
+        # 波段助手 - 趋势 + 中枢 + 耐心
+        
+        你是一个波段交易者，追求"高胜率 + 较好盈亏比"的波段机会。
+        
+        ## 核心思维
+        
+        ### 1. 趋势判断（大周期定方向）
+        - 周线/月线趋势方向
+        - 当前是趋势初期/中期/末期
+        - 缠论多周期联立
+        
+        ### 2. 中枢分析
+        - 当前中枢区间
+        - 中枢震荡 → 等待突破
+        - 中枢上移 → 趋势延续
+        
+        ### 3. 买卖点
+        - 一买：趋势反转（高风险高收益）
+        - 二买：回踩确认（稳健）
+        - 三买：中枢突破（追势）
+        - 保守策略：只做二买和三买
+        
+        ### 4. 风险控制（比短线更严格）
+        - 单笔止损不超过5%
+        - 仓位随确定性调整
+        - 不确定就不动
+        
+        ## 数据
+        - 个股: {ctx.symbol}
+        - 缠论多周期: {json.dumps(ctx.czsc_result, ensure_ascii=False)}
+        - 资金流: {json.dumps(ctx.money_flow, ensure_ascii=False)}
+        - 板块信息: {json.dumps(ctx.sector_info, ensure_ascii=False)}
+        
+        ## 输出要求
+        {self._output_schema()}
+        
+        ## 特别注意
+        - 你比短线大师更保守，宁可错过不可做错
+        - 重点看趋势和结构，不看一日涨跌
+        - 持仓周期: 1-4周
+        """
+        
+        result = await self._run(prompt, self._build_system_prompt())
+        return AgentResult(agent_type=self.agent_type, **json.loads(result))
+```
+
+---
+
+## 11. 模拟交易模块
+
+### 11.1 核心设计
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    模拟交易引擎                                │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │              Simulation Account                         │ │
+│  │  ├─ 名称/描述                                           │ │
+│  │  ├─ AI智能体 (agent_config_id)                         │ │
+│  │  ├─ 初始资金 (默认10万)                                 │ │
+│  │  ├─ 当前资金/收益率/回撤                                │ │
+│  │  ├─ 交易规则 (JSON)                                     │ │
+│  │  │   {                                                  │ │
+│  │  │     "max_position": 0.2,    # 单票最大仓位20%        │ │
+│  │  │     "stop_loss": 0.05,      # 止损5%                 │ │
+│  │  │     "take_profit": 0.15,    # 止盈15%               │ │
+│  │  │     "max_daily_trades": 5,  # 每日最多5笔            │ │
+│  │  │     "min_confidence": 0.7,  # 最低置信度             │ │
+│  │  │     "sector_limit": 2        # 最多2个板块           │ │
+│  │  │   }                                                  │ │
+│  │  └─ 提示词模板                                          │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │              Daily Trading Loop (每日执行)              │ │
+│  │                                                        │ │
+│  │  09:10  盘前                                            │ │
+│  │  ├─ 加载昨日持仓                                       │ │
+│  │  ├─ 获取今日作战计划（复盘生成的选股池）                │ │
+│  │  ├─ AI分析每只候选股 → 输出买卖决策                    │ │
+│  │  └─ 生成今日交易清单                                   │ │
+│  │                                                        │ │
+│  │  09:30─11:30  上午盘                                    │ │
+│  │  ├─ 执行买入（按清单，分批/一次性）                    │ │
+│  │  ├─ 实时监控持仓                                       │ │
+│  │  └─ 触发止损/止盈 → 自动卖出                           │ │
+│  │                                                        │ │
+│  │  13:00─14:30  下午盘                                    │ │
+│  │  ├─ 继续监控                                           │ │
+│  │  ├─ 尾盘策略（14:30后不买入）                          │ │
+│  │  └─ 收盘前平仓（可选）                                 │ │
+│  │                                                        │ │
+│  │  15:00  收盘                                            │ │
+│  │  ├─ 计算当日盈亏                                       │ │
+│  │  ├─ 更新持仓/资金                                      │ │
+│  │  ├─ AI自我复盘                                         │ │
+│  │  └─ 保存交易记录                                       │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │              绩效统计                                    │ │
+│  │  ├─ 总收益率 = (当前资金 - 初始资金) / 初始资金        │ │
+│  │  ├─ 年化收益率                                          │ │
+│  │  ├─ 最大回撤 (峰值到谷底的最大跌幅)                     │ │
+│  │  ├─ 胜率 = 盈利交易数 / 总交易数                       │ │
+│  │  ├─ 盈亏比 = 平均盈利 / 平均亏损                       │ │
+│  │  ├─ 夏普比率                                            │ │
+│  │  ├─ 交易频率                                            │ │
+│  │  └─ 月度收益曲线                                        │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │              AI自我复盘                                  │ │
+│  │                                                        │ │
+│  │  每日收盘后:                                            │ │
+│  │  ① 回顾今日所有交易                                     │ │
+│  │  ② 逐笔归因:                                           │ │
+│  │     - 赚钱: 是策略有效 还是 运气?                      │ │
+│  │     - 亏钱: 是策略失效 还是 执行偏差?                  │ │
+│  │  ③ 错误模式识别:                                       │ │
+│  │     - 重复犯同一类错误?                                 │ │
+│  │     - 哪些参数需要调整?                                 │ │
+│  │  ④ 策略进化:                                           │ │
+│  │     - 微调提示词                                        │ │
+│  │     - 调整交易规则参数                                  │ │
+│  │     - 更新选股标准                                      │ │
+│  │  ⑤ 记录进化日志                                        │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 11.2 交易引擎核心代码
+
+```python
+# backend/app/core/simulation/engine.py
+
+class SimulationEngine:
+    """模拟交易引擎"""
+    
+    def __init__(self, account_id: int, db: AsyncSession):
+        self.account_id = account_id
+        self.db = db
+        self.account: SimulationAccount = None
+        self.agent: BaseAgent = None
+        self.portfolio = Portfolio(db, account_id)
+    
+    async def load_account(self):
+        """加载账户配置"""
+        self.account = await get_simulation_account(self.db, self.account_id)
+        
+        # 加载关联的AI智能体
+        agent_config = await get_agent_config(self.db, self.account.agent_config_id)
+        self.agent = create_agent(agent_config)
+    
+    async def daily_trade(self, trade_date: date):
+        """
+        每日交易主循环
+        """
+        
+        await self.load_account()
+        
+        # ── ① 盘前准备 ──────────────────────────────
+        plan = await self._pre_market_plan(trade_date)
+        
+        # ── ② 上午盘执行 ────────────────────────────
+        morning_trades = await self._execute_morning(plan)
+        
+        # ── ③ 下午盘执行 ────────────────────────────
+        afternoon_trades = await self._execute_afternoon()
+        
+        # ── ④ 收盘结算 ──────────────────────────────
+        await self._settle(trade_date, morning_trades + afternoon_trades)
+        
+        # ── ⑤ AI复盘 ────────────────────────────────
+        await self._ai_review(trade_date)
+    
+    async def _pre_market_plan(self, trade_date: date) -> dict:
+        """盘前计划 - AI基于复盘报告生成交易计划"""
+        
+        # 获取昨日复盘报告中的选股池
+        replay = await get_latest_replay(self.db)
+        stock_pool = replay.stock_pool if replay else []
+        
+        # 获取当前持仓
+        positions = await self.portfolio.get_positions()
+        
+        # 构建上下文
+        context = AgentContext(
+            date=trade_date.isoformat(),
+            market_data={
+                "stock_pool": stock_pool,
+                "positions": [p.dict() for p in positions],
+            },
+            user_rules=self.account.rules,
+        )
+        
+        # AI生成交易计划
+        # 这里调用智能体的 select_pool / analyze 能力
+        prompt = f"""
+        # 模拟交易 - 盘前计划
+        
+        你是模拟交易AI，基于以下信息制定今日交易计划。
+        
+        ## 账户信息
+        - 当前资金: {self.account.current_capital}
+        - 当前持仓: {json.dumps([p.dict() for p in positions], ensure_ascii=False)}
+        
+        ## 交易规则
+        {json.dumps(self.account.rules, indent=2, ensure_ascii=False)}
+        
+        ## 候选股票池（来自复盘报告）
+        {json.dumps(stock_pool, indent=2, ensure_ascii=False)}
+        
+        ## 要求
+        输出JSON:
+        {{
+            "actions": [
+                {{
+                    "symbol": "SH600519",
+                    "action": "buy/sell/hold",
+                    "quantity": 100,
+                    "price": 1680.00,
+                    "reason": "放量突破20日线，板块强度92",
+                    "confidence": 0.85,
+                    "stop_loss": 1620.00,
+                    "take_profit": 1800.00
+                }}
+            ],
+            "max_positions": 5,
+            "total_capital_used": 0.6
+        }}
+        """
+        
+        result = await self.agent._run(prompt, self.agent._build_system_prompt())
+        plan = json.loads(result)
+        
+        return plan
+    
+    async def _execute_morning(self, plan: dict) -> list[dict]:
+        """上午盘执行交易"""
+        
+        trades = []
+        actions = plan.get("actions", [])
+        
+        for action in actions:
+            # 检查交易规则
+            if not self._check_rules(action):
+                logger.info(f"Rule check failed: {action['symbol']}")
+                continue
+            
+            # 检查置信度
+            if action.get("confidence", 0) < self.account.rules.get("min_confidence", 0.7):
+                continue
+            
+            # 执行交易
+            if action["action"] == "buy":
+                trade = await self._buy(
+                    symbol=action["symbol"],
+                    price=action["price"],
+                    quantity=action["quantity"],
+                    reason=action.get("reason", ""),
+                    confidence=action.get("confidence", 0.5),
+                )
+                if trade:
+                    trades.append(trade)
+            
+            elif action["action"] == "sell":
+                trade = await self._sell(
+                    symbol=action["symbol"],
+                    price=action["price"],
+                    quantity=action["quantity"],
+                    reason=action.get("reason", ""),
+                )
+                if trade:
+                    trades.append(trade)
+        
+        return trades
+    
+    async def _execute_afternoon(self) -> list[dict]:
+        """下午盘 - 主要是止损/止盈监控"""
+        
+        trades = []
+        positions = await self.portfolio.get_positions()
+        
+        for pos in positions:
+            current_price = await get_realtime_price(pos.symbol)
+            pnl_pct = (current_price - pos.avg_cost) / pos.avg_cost
+            
+            # 止损检查
+            stop_loss = self.account.rules.get("stop_loss", 0.05)
+            if pnl_pct <= -stop_loss:
+                trade = await self._sell(
+                    symbol=pos.symbol,
+                    price=current_price,
+                    quantity=pos.quantity,
+                    reason=f"触发止损 {pnl_pct:.2%}",
+                    is_stop_loss=True,
+                )
+                if trade:
+                    trades.append(trade)
+            
+            # 止盈检查
+            take_profit = self.account.rules.get("take_profit", 0.15)
+            if pnl_pct >= take_profit:
+                trade = await self._sell(
+                    symbol=pos.symbol,
+                    price=current_price,
+                    quantity=pos.quantity,
+                    reason=f"触发止盈 {pnl_pct:.2%}",
+                    is_take_profit=True,
+                )
+                if trade:
+                    trades.append(trade)
+        
+        return trades
+    
+    async def _buy(self, symbol: str, price: float, quantity: int, 
+                   reason: str, confidence: float = 0.5,
+                   stop_loss: float = None, take_profit: float = None) -> dict:
+        """执行买入"""
+        
+        # 检查资金
+        amount = price * quantity
+        fee = amount * 0.0003  # 手续费
+        
+        if amount + fee > self.account.current_capital:
+            logger.warning(f"Insufficient funds: {symbol}")
+            return None
+        
+        # 检查单票仓位限制
+        max_pos = self.account.rules.get("max_position", 0.2)
+        if amount > self.account.current_capital * max_pos:
+            quantity = int(self.account.current_capital * max_pos / price / 100) * 100
+            amount = price * quantity
+            fee = amount * 0.0003
+        
+        # 更新持仓
+        await self.portfolio.add_position(symbol, quantity, price)
+        
+        # 扣减资金
+        self.account.current_capital -= (amount + fee)
+        await self._update_account()
+        
+        # 记录交易
+        trade = {
+            "account_id": self.account_id,
+            "symbol": symbol,
+            "action": "buy",
+            "quantity": quantity,
+            "price": price,
+            "amount": amount,
+            "fee": fee,
+            "reason": reason,
+            "confidence": confidence,
+        }
+        await save_trade(self.db, trade)
+        
+        return trade
+    
+    async def _sell(self, symbol: str, price: float, quantity: int, 
+                    reason: str, **kwargs) -> dict:
+        """执行卖出"""
+        
+        # 检查持仓
+        position = await self.portfolio.get_position(symbol)
+        if not position or position.remaining_qty < quantity:
+            logger.warning(f"Insufficient position: {symbol}")
+            return None
+        
+        amount = price * quantity
+        fee = amount * 0.0003
+        
+        # 计算盈亏
+        pnl = (price - position.avg_cost) * quantity - fee
+        
+        # 更新持仓
+        await self.portfolio.reduce_position(symbol, quantity)
+        
+        # 增加资金
+        self.account.current_capital += (amount - fee)
+        await self._update_account()
+        
+        # 记录交易
+        trade = {
+            "account_id": self.account_id,
+            "symbol": symbol,
+            "action
