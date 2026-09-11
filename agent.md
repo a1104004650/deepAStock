@@ -51,7 +51,7 @@
 | 实盘导入 | `app/core/trade_import/parser.py` | JSON/CSV→持仓重算+盈亏 |
 | 行情服务 | `app/core/market/quote_service.py` `kline_service.py` `stock_service.py` `watchlist_service.py` | 指数/板块/涨停/龙虎榜/个股详情 |
 | 设置 | `app/core/settings/service.py` `api/v1/settings.py` `models/system.py` | DB 持久化覆盖 env 默认值（`Setting` 表 + `EFFECTIVE` 内存快照）；数据源主+备用1/2/3 顺序回退；数据库连接测试；`snapshot()` 只显示与默认值不同的覆盖项 |
-| RSSHub 订阅 | `app/core/rsshub/parser.py` `app/core/rsshub/service.py` `api/v1/rss.py` `models/rss.py` | 本地 RSSHub 自建实例；订阅源 CRUD（微博/公众号/股吧/自定义）、RSS/Atom/JSON Feed 解析（`fetch_feed`）、限频轮询去重落库（`rss_sources`/`rss_items` 表）；ST 标题过滤；`_upsert_items` 按 source+guid 去重；`_prune` 按天数/每源上限清理 |
+| RSSHub 订阅 | `app/core/rsshub/parser.py` `app/core/rsshub/service.py` `api/v1/rss.py` `models/rss.py` 前端 `views/RssNews.vue` | 本地 RSSHub 自建实例；订阅源 CRUD（微博/公众号/股吧/自定义）、RSS/Atom/JSON Feed 解析（`fetch_feed`）、限频轮询去重落库（`rss_sources`/`rss_items` 表）；ST 标题过滤；`_upsert_items` 按 source+guid 去重；`_prune` 按天数/每源上限清理。前端「订阅消息」页 `/rss` 作为独立 RSS 栏位（消息流 + 来源状态 + 新增/编辑/测试/轮询）；已预置 4 个**实测可直连解析**的案例源（雪球热帖/钛媒体/IT之家/爱范儿） |
 | API | `app/api/v1/` 10 个路由模块 | market/watchlist/stock/replay/agent/simulation/trade/system/settings/rss |
 
 ## 已修复的坑（避免重蹈）
@@ -78,9 +78,9 @@
 
 ## 当前完成度（v1.1.0 发布状态）
 - 后端全部核心功能 + API 全链路可用：行情/自选(批量删除)/个股(资金流/财务/产业链/行业对比)/复盘(真实龙虎榜+板块资金流)/模拟/导入/智能体/系统/设置/RSS订阅。
-- 前端 7 页面完成（大盘/自选/复盘/模拟/实盘导入/智能体/设置），`npm run build` 成功；复盘 pending/ready/empty 状态、涨跌区间分布、批量删除、消息滚动（平台新闻+RSS合并）等均已联调。
+- 前端 8 页面完成（大盘/自选/复盘/模拟/实盘导入/智能体/订阅消息/设置），`npm run build` 成功；复盘 pending/ready/empty 状态、涨跌区间分布、批量删除、消息滚动（平台新闻+RSS合并）、订阅消息独立页等均已联调。
 - Docker 多服务部署方案确定（compose config 校验通过，含 rsshub 本地镜像）。
-- v1.1.0：RSSHub 订阅系统（本地实例+订阅源管理+轮询去重+ST过滤）、系统设置页（数据源链+数据库+RSSHub）、大盘看板四板块等高、模拟四池Tab切换、AI禁买ST/观察池差异化。
+- v1.1.0：RSSHub 订阅系统（本地实例+订阅源管理+轮询去重+ST过滤+独立「订阅消息」页+内置 4 个可直连案例源）、系统设置页（数据源链+数据库+RSSHub）、大盘看板四板块等高、模拟四池Tab切换、AI禁买ST/观察池差异化。
 
 ## 常用命令
 ```bash

@@ -704,3 +704,24 @@
 2026-09-11 14:57:15,891 [WARNING] quant: [sina] get_limit_up failed/timeout: 
 2026-09-11 14:58:10,087 [WARNING] quant: sina index failed: The read operation timed out
 2026-09-11 14:58:12,074 [WARNING] quant: [sina] get_indices failed/timeout: 
+2026-09-11 14:59:54,206 [WARNING] quant: XML 解析失败: not well-formed (invalid token): line 9, column 542
+2026-09-11 14:59:56,425 [WARNING] quant: XML 解析失败: not well-formed (invalid token): line 40, column 258
+2026-09-11 14:59:58,810 [WARNING] quant: XML 解析失败: no element found: line 1, column 0
+2026-09-11 15:00:26,952 [WARNING] quant: XML 解析失败: not well-formed (invalid token): line 40, column 258
+2026-09-11 15:01:43,710 [WARNING] quant: XML 解析失败: syntax error: line 1, column 0
+2026-09-11 15:02:07,138 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 15:03:09,287 [WARNING] quant: [sina] get_market_distribution failed/timeout: 
+2026-09-11 15:03:29,064 [WARNING] quant: [sina] get_market_distribution failed/timeout: 
+2026-09-11 15:03:29,080 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 15:07:48,279 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 15:09:11,924 [WARNING] quant: XML 解析失败: syntax error: line 1, column 0
+2026-09-11 15:09:42,447 [WARNING] quant: XML 解析失败: syntax error: line 1, column 0
+2026-09-11 15:10:07,344 [WARNING] quant: [sina] get_market_distribution failed/timeout: 
+2026-09-11 15:10:07,345 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 15:10:07,360 [WARNING] quant: [sina] get_hot_stocks failed/timeout: 
+2026-09-11 15:10:09,519 [WARNING] quant: [sina] get_market_distribution failed/timeout: 
+2026-09-11 15:10:09,520 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 15:10:09,535 [WARNING] quant: [sina] get_hot_stocks failed/timeout: 
+2026-09-11 15:10:55,353 [WARNING] quant: [sina] get_market_distribution failed/timeout: 
+2026-09-11 15:10:55,354 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-11 15:10:55,354 [WARNING] quant: [sina] get_hot_stocks failed/timeout: 

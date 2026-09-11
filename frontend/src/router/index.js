@@ -8,6 +8,7 @@ const routes = [
   { path: '/simulation', name: 'simulation', component: () => import('../views/Simulation.vue'), meta: { title: '模拟交易' } },
   { path: '/trade', name: 'trade', component: () => import('../views/TradeImport.vue'), meta: { title: '实盘导入' } },
   { path: '/agents', name: 'agents', component: () => import('../views/Agents.vue'), meta: { title: '智能体中心' } },
+  { path: '/rss', name: 'rss', component: () => import('../views/RssNews.vue'), meta: { title: '订阅消息' } },
   { path: '/settings', name: 'settings', component: () => import('../views/Settings.vue'), meta: { title: '系统设置' } }
 ]
 
