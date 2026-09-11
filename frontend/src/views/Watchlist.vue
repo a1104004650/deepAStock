@@ -16,7 +16,7 @@
                 <el-icon><Plus /></el-icon>新建
               </el-button>
             </div>
-            <el-scrollbar max-height="140">
+            <el-scrollbar max-height="140" ref="groupScroll">
               <div class="group-item" :class="{ active: showRecent }" @click="showRecentViewed">
                 <span>🕐 最近查看</span>
                 <span class="fs12" style="color:#909399">{{ recentList.length }}</span>
@@ -149,6 +149,40 @@
                     20日涨幅: {{ czsc.current_state.yangjia_stage.chg_20d }}%
                   </div>
                 </div>
+                <!-- AI分析 -->
+                <el-divider content-position="left">AI分析</el-divider>
+                <div v-if="brain.agents?.length">
+                  <div class="flex gap fs12 mb8" style="flex-wrap:wrap">
+                    <span>综合建议：<el-tag size="small" :type="overallRatingTag">{{ overallRatingText }}</el-tag></span>
+                    <span class="flex gap" style="flex-wrap:wrap;justify-content:center">
+                      <el-button v-for="a in agentList" :key="a.agent_type" size="small" link :loading="brainLoading === a.agent_type" @click="runBrainOne(a.agent_type)">
+                        {{ a.agent_type === 'research' ? '投研' : a.agent_type === 'short_term' ? '短线' : '波段' }}
+                      </el-button>
+                    </span>
+                  </div>
+                  <el-row :gutter="10">
+                    <el-col :xs="24" :sm="8" v-for="a in brain.agents" :key="a.agent_type">
+                      <div class="brain-card">
+                        <div class="flex between" style="align-items:center">
+                          <span class="fs13 bold">{{ agentLabel(a.agent_type) }}</span>
+                          <el-tag size="small" :type="scoreTag(a)">{{ scoreLabel(a) }}</el-tag>
+                        </div>
+                        <div class="fs12 mt8 brain-text">{{ a.summary || '暂无结论' }}</div>
+                      </div>
+                    </el-col>
+                  </el-row>
+                </div>
+                <div v-else>
+                  <div class="flex gap mb8" style="align-items:center;flex-wrap:wrap">
+                    <span class="fs12" style="color:#909399">选择智能体单独分析：</span>
+                    <el-button v-for="a in agentList" :key="a.agent_type" size="small" plain
+                      :type="a.agent_type === 'research' ? 'danger' : a.agent_type === 'short_term' ? 'warning' : 'info'"
+                      :loading="brainLoading === a.agent_type" @click="runBrainOne(a.agent_type)">
+                      {{ a.name || agentLabel(a.agent_type) }}
+                    </el-button>
+                  </div>
+                  <div class="fs11" style="color:#909399">每次只运行所选智能体（避免多智能体并行超时），当日结果自动缓存，可点击重跑</div>
+                </div>
                 <!-- 布林带 -->
                 <div v-if="czsc.current_state?.boll?.mid" class="mb8">
                   <el-divider content-position="left">布林带</el-divider>
@@ -161,6 +195,23 @@
                       {{ czsc.current_state.boll.position }}
                     </el-tag>
                   </div>
+                </div>
+                <!-- RSI -->
+                <div v-if="czsc.current_state?.rsi?.rsi6 != null" class="mb8">
+                  <el-divider content-position="left">RSI (6/12/24)</el-divider>
+                  <div class="fs12">
+                    <span>RSI6: <b :class="(czsc.current_state.rsi.rsi6||0) >= 70 ? 'down' : (czsc.current_state.rsi.rsi6||0) <= 30 ? 'up' : ''">{{ czsc.current_state.rsi.rsi6 }}</b></span>
+                    <span class="ml8">RSI12: <b :class="(czsc.current_state.rsi.rsi12||0) >= 70 ? 'down' : (czsc.current_state.rsi.rsi12||0) <= 30 ? 'up' : ''">{{ czsc.current_state.rsi.rsi12 }}</b></span>
+                    <span class="ml8">RSI24: <b :class="(czsc.current_state.rsi.rsi24||0) >= 70 ? 'down' : (czsc.current_state.rsi.rsi24||0) <= 30 ? 'up' : ''">{{ czsc.current_state.rsi.rsi24 }}</b></span>
+                    <el-tag size="small" :type="(czsc.current_state.rsi.superposition||'').includes('超') ? 'danger' : 'info'" class="ml4">{{ czsc.current_state.rsi.superposition }}</el-tag>
+                    <el-tag v-if="czsc.current_state.rsi.cross && czsc.current_state.rsi.cross !== '—'" size="small" :type="(czsc.current_state.rsi.cross||'').includes('金叉') ? 'danger' : 'success'" class="ml4">{{ czsc.current_state.rsi.cross }}</el-tag>
+                  </div>
+                </div>
+                <!-- 板块 -->
+                <div v-if="sectorDetail.industry || (sectorDetail.concepts||[]).length" class="mb8">
+                  <el-divider content-position="left">板块</el-divider>
+                  <el-tag size="small" type="warning" style="margin:2px">行业: {{ sectorDetail.industry }}</el-tag>
+                  <el-tag v-for="c in (sectorDetail.concepts||[])" :key="c" size="small" type="info" style="margin:2px">{{ c }}</el-tag>
                 </div>
                 <!-- 主力控盘度 -->
                 <div v-if="czsc.current_state?.control?.score != null" class="mb8">
@@ -219,48 +270,6 @@
                   </div>
                 </div>
                 <el-empty v-else description="暂无相关新闻" :image-size="40" />
-                <el-divider content-position="left">情绪</el-divider>
-                <div v-if="sentiment.news_count" class="fs12">
-                  <div>新闻 {{ sentiment.news_count }} 条 · 论坛活跃度 {{ sentiment.forum_activity || 0 }}</div>
-                  <div v-if="sentiment.sentiment_score != null" class="mt4">
-                    情绪评分: <el-progress :percentage="Math.min(100, Math.max(0, (sentiment.sentiment_score || 0) * 100))" :stroke-width="14" :text-inside="true"
-                      :color="sentiment.sentiment_score > 0.6 ? '#ef232a' : sentiment.sentiment_score < 0.4 ? '#14b143' : '#f59e0b'" style="width:200px;display:inline-flex" />
-                  </div>
-                </div>
-                <el-empty v-else description="暂无情绪数据" :image-size="40" />
-                <el-divider content-position="left">AI分析</el-divider>
-                <div v-if="brain.agents?.length">
-                  <div class="flex gap fs12 mb8" style="flex-wrap:wrap">
-                    <span>综合建议：<el-tag size="small" :type="overallRatingTag">{{ overallRatingText }}</el-tag></span>
-                    <span class="flex gap" style="flex-wrap:wrap;justify-content:center">
-                      <el-button v-for="a in agentList" :key="a.agent_type" size="small" link :loading="brainLoading === a.agent_type" @click="runBrainOne(a.agent_type)">
-                        {{ a.agent_type === 'research' ? '投研' : a.agent_type === 'short_term' ? '短线' : '波段' }}
-                      </el-button>
-                    </span>
-                  </div>
-                  <el-row :gutter="10">
-                    <el-col :xs="24" :sm="8" v-for="a in brain.agents" :key="a.agent_type">
-                      <div class="brain-card">
-                        <div class="flex between" style="align-items:center">
-                          <span class="fs13 bold">{{ agentLabel(a.agent_type) }}</span>
-                          <el-tag size="small" :type="scoreTag(a)">{{ scoreLabel(a) }}</el-tag>
-                        </div>
-                        <div class="fs12 mt8 brain-text">{{ a.summary || '暂无结论' }}</div>
-                      </div>
-                    </el-col>
-                  </el-row>
-                </div>
-                <div v-else>
-                  <div class="flex gap mb8" style="align-items:center;flex-wrap:wrap">
-                    <span class="fs12" style="color:#909399">选择智能体单独分析：</span>
-                    <el-button v-for="a in agentList" :key="a.agent_type" size="small" plain
-                      :type="a.agent_type === 'research' ? 'danger' : a.agent_type === 'short_term' ? 'warning' : 'info'"
-                      :loading="brainLoading === a.agent_type" @click="runBrainOne(a.agent_type)">
-                      {{ a.name || agentLabel(a.agent_type) }}
-                    </el-button>
-                  </div>
-                  <div class="fs11" style="color:#909399">每次只运行所选智能体（避免多智能体并行超时），当日结果自动缓存，可点击重跑</div>
-                </div>
                 <el-divider content-position="left">资金流</el-divider>
                 <div v-if="flowSummary || moneyFlow.length" class="fs12">
                   <div class="flex gap mb8" style="flex-wrap:wrap;align-items:center">
@@ -390,11 +399,13 @@
                     </div>
                   </div>
                 </div>
+                <template v-if="false"><!-- 板块已上移到布林带附近 -->
                 <el-divider content-position="left">板块</el-divider>
                 <div v-if="sectorDetail.industry || (sectorDetail.concepts||[]).length">
                   <el-tag size="small" type="warning" style="margin:2px">行业: {{ sectorDetail.industry }}</el-tag>
                   <el-tag v-for="c in (sectorDetail.concepts||[])" :key="c" size="small" type="info" style="margin:2px">{{ c }}</el-tag>
                 </div>
+                </template>
                 <el-empty v-else description="暂无板块信息" :image-size="40" />
               </el-tab-pane>
             </el-tabs>
@@ -432,7 +443,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, reactive, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -610,6 +621,17 @@ function showRecentViewed() {
   loadRecentPrices()
 }
 
+const groupScroll = ref(null)
+
+function anchorGroup(id) {
+  currentGroupId.value = id
+  showRecent.value = false
+  nextTick(() => {
+    const el = groupScroll.value?.$el?.querySelector('.group-item.active')
+    if (el) el.scrollIntoView({ block: 'nearest' })
+  })
+}
+
 function selectGroup(id) {
   showRecent.value = false
   currentGroupId.value = id
@@ -725,7 +747,12 @@ async function loadWithSymbol(sym) {
   await load(true)
   if (!sym) return
   const item = groups.value.flatMap(g => g.items || []).find(i => i.symbol === sym)
-  if (item) { selectItem(item); return }
+  if (item) {
+    const g = groups.value.find(gr => (gr.items || []).some(i => i.symbol === sym))
+    if (g) anchorGroup(g.id)
+    selectItem(item)
+    return
+  }
   try {
     const basic = await stockApi.basic(sym)
     if (basic) {

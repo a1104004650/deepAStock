@@ -75,7 +75,7 @@ def setup_scheduler() -> AsyncIOScheduler:
             return await ReplayEngine(db).run()
 
     async def run_auto_trade(window: str):
-        # 关键决策窗口：9:25竞价 / 10:30(9:30-10:30) / 13:30(13:00-13:30) / 14:50(14:30-14:50)
+        # 交易时段：9:30-10:25 / 13:00-13:30 / 14:30-14:50 末点触发（10:25 / 13:30 / 14:50）
         async with SessionLocal() as db:
             if not await _is_trading_day(db):
                 logger.info(f"非交易日，跳过[{window}]")
@@ -102,8 +102,8 @@ def setup_scheduler() -> AsyncIOScheduler:
         CronTrigger(day_of_week="mon-fri", hour=15, minute=10, timezone="Asia/Shanghai"),
         id="auto_trade_close", replace_existing=True,
     )
-    # 盘中关键决策窗口：9:25竞价 / 9:30-10:30 / 13:00-13:30 / 14:30-14:50
-    for hour, minute, label in [(9, 25, "竞价"), (10, 30, "早盘"), (13, 30, "午盘"), (14, 50, "尾盘")]:
+    # 盘中交易窗口末点：10:25(9:30-10:25) / 13:30(13:00-13:30) / 14:50(14:30-14:50)
+    for hour, minute, label in [(10, 25, "早盘"), (13, 30, "午盘"), (14, 50, "尾盘")]:
         scheduler.add_job(
             lambda lbl=label: _job_wrapper(f"盘中模拟交易[{lbl}]", lambda lb=lbl: run_auto_trade(lb)),
             CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute, timezone="Asia/Shanghai"),
@@ -115,7 +115,7 @@ def setup_scheduler() -> AsyncIOScheduler:
         CronTrigger(day_of_week="mon-fri", hour=20, minute=0, timezone="Asia/Shanghai"),
         id="ai_evolution", replace_existing=True,
     )
-    logger.info("定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 18:00复盘, 20:00进化)")
+    logger.info("定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化)")
     return scheduler
 
 

@@ -317,8 +317,18 @@ function pnlPct(row) {
   return ((cur - cost) / cost) * 100
 }
 
+function onChartResize() { barChart && barChart.resize() }
+function ensureBarChart() {
+  if (barChart || !barEl.value) return
+  try {
+    barChart = echarts.init(barEl.value)
+    window.addEventListener('resize', onChartResize)
+  } catch { /* DOM 尚不可用时等待下一次 renderBar */ }
+}
 function renderBar() {
-  if (!barChart || !accounts.value.length) return
+  if (!accounts.value.length) return
+  ensureBarChart()
+  if (!barChart) return
   const names = accounts.value.map((a) => a.name || ('账户#' + a.id))
   const returns = accounts.value.map((a) => Number(a.performance?.total_return || 0) * 100)
   const today = accounts.value.map((a) => Number(a.performance?.today_pnl || 0))
@@ -440,9 +450,6 @@ async function runAll() {
 
 onMounted(async () => {
   agents.value = await agentApi.list()
-  await nextTick()
-  barChart = echarts.init(barEl.value)
-  window.addEventListener('resize', () => barChart && barChart.resize())
   await load()
 })
 onBeforeUnmount(() => {
@@ -450,5 +457,6 @@ onBeforeUnmount(() => {
     barChart.dispose()
     barChart = null
   }
+  window.removeEventListener('resize', onChartResize)
 })
 </script>

@@ -47,22 +47,6 @@
         </el-col>
       </el-row>
 
-      <el-card shadow="never" class="mt8">
-        <template #header>运行记录</template>
-        <el-table :data="runs" size="small">
-          <el-table-column prop="id" label="ID" width="60" />
-          <el-table-column prop="agent_config_id" label="Agent ID" width="90" />
-          <el-table-column prop="task_type" label="任务" width="130" />
-          <el-table-column label="状态" width="90">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.status === 'success' ? 'success' : 'danger'">{{ row.status }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="duration_ms" label="耗时(ms)" width="100" align="right" />
-          <el-table-column prop="created_at" label="时间" />
-        </el-table>
-      </el-card>
-
       <!-- 调用次数图表：周维度 / 小时维度 -->
       <el-row :gutter="10" class="mt8" v-if="statsTotal > 0">
         <el-col :xs="24" :sm="12">
@@ -78,6 +62,22 @@
           </el-card>
         </el-col>
       </el-row>
+
+      <el-card shadow="never" class="mt8">
+        <template #header>运行记录</template>
+        <el-table :data="runs" size="small" max-height="420">
+          <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column prop="agent_config_id" label="Agent ID" width="90" />
+          <el-table-column prop="task_type" label="任务" width="130" />
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.status === 'success' ? 'success' : 'danger'">{{ row.status }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="duration_ms" label="耗时(ms)" width="100" align="right" />
+          <el-table-column prop="created_at" label="时间" />
+        </el-table>
+      </el-card>
 
       <!-- 配置弹窗 -->
       <el-dialog :title="editingId ? '编辑智能体配置' : '创建自定义智能体'" v-model="dialog" width="560">

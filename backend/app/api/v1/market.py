@@ -72,6 +72,28 @@ async def get_dragon_tiger(db: AsyncSession = Depends(get_db)):
     return await svc.get_dragon_tiger()
 
 
+@router.get("/dragon-tiger/seats")
+async def get_dragon_tiger_seats(trade_date: str = None, db: AsyncSession = Depends(get_db)):
+    svc = MarketService(db)
+    return await svc.get_dragon_tiger_seats(trade_date)
+
+
+@router.get("/regulatory")
+async def get_regulatory(db: AsyncSession = Depends(get_db)):
+    """监管异动：重点监控池 + 日内严重异常波动"""
+    svc = MarketService(db)
+    return {
+        "monitor": await svc.get_stock_monitor(),
+        "anomaly": await svc.get_price_anomaly(),
+    }
+
+
+@router.get("/invest-calendar")
+async def get_invest_calendar(days: int = 45, db: AsyncSession = Depends(get_db)):
+    svc = MarketService(db)
+    return await svc.get_invest_calendar(days)
+
+
 @router.get("/distribution")
 async def get_distribution(db: AsyncSession = Depends(get_db)):
     svc = MarketService(db)

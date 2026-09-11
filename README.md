@@ -20,7 +20,7 @@ powershell -ExecutionPolicy Bypass -File build_release.ps1
 unzip deepAStock-v1.0.0.zip
 cd deepAStock-v1.0.0
 docker compose up -d --build     # 首次构建约需数分钟，之后秒级
-# 打开浏览器 http://localhost   （接口文档 http://localhost:8000/docs）
+# 打开浏览器 http://localhost:18080   （接口文档 http://localhost:18000/docs）
 docker compose logs -f app       # 看日志
 docker compose down              # 停止
 docker compose up -d             # 再次启动（增量秒级）

@@ -5,9 +5,16 @@
         <h2 style="font-size:18px">每日复盘</h2>
         <el-button size="small" type="primary" :loading="loading" @click="load">刷新</el-button>
         <el-select v-model="triggerDate" size="small" style="width:150px;margin-left:8px">
-          <el-option v-for="i in 30" :key="i" :label="dateStr(i)" :value="dateStr(i)" />
+          <el-option v-for="i in 30" :key="i" :label="dateStr(i) + (i === 0 ? '（今日）' : '')" :value="dateStr(i)" />
         </el-select>
-        <el-button size="small" :loading="triggering" @click="trigger" :type="status === 'pending' ? 'danger' : 'warning'">生成复盘</el-button>
+        <el-button size="small" :loading="triggering" @click="trigger"
+          :type="status === 'pending' ? 'danger' : 'warning'"
+          :disabled="triggerDisabled">
+          {{ triggerDisabled ? '今日复盘需 17:00 后' : '生成复盘' }}
+        </el-button>
+        <el-tooltip v-if="triggerDisabled" effect="dark" content="非交易日或 17:00(北京时间)前，默认生成上一交易日复盘" placement="bottom">
+          <el-tag size="small" type="info">{{ prevTradingDate }}</el-tag>
+        </el-tooltip>
         <el-tag v-if="status === 'pending'" size="small" type="warning">今日尚未生成，交易日 18:00 自动复盘</el-tag>
         <el-tag v-if="status === 'empty'" size="small" type="info">暂无复盘记录</el-tag>
         <el-tag v-if="rpt?.date" size="small" type="info">{{ rpt.date }}</el-tag>
@@ -148,6 +155,16 @@
                 </el-table-column>
               </el-table>
               <el-empty v-if="!arr(rpt.limit_analysis?.dragon_tiger).length" description="当日龙虎榜数据为空（收盘后才发布）" :image-size="50" />
+              <div v-if="seats.length" class="mt8" style="border-top:1px dashed #f0f0f0;padding-top:6px">
+                <div class="fs12 bold" style="color:#e6a23c">席位游资（{{ seats.length }}条，按净值）</div>
+                <div v-for="s in seats" :key="s.seat + s.symbol" class="seat-row">
+                  <el-tag v-if="s.tag" size="small" type="warning" effect="plain">{{ s.tag }}</el-tag>
+                  <el-tag v-else size="small" type="info" effect="plain">营业部</el-tag>
+                  <el-link type="primary" :underline="false" @click="goStock(s.symbol, s.stock_name)">{{ s.stock_name }}</el-link>
+                  <span class="mono fs12" :class="(s.net||0) >= 0 ? 'up' : 'down'">{{ fmtBig(s.net) }}</span>
+                  <span class="fs11" style="color:#909399;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.seat_name }}</span>
+                </div>
+              </div>
             </div>
             <div class="card mt8">
               <div class="fs14 bold">次日选股池（{{ arr(rpt.stock_pool).length }}）</div>
@@ -180,6 +197,42 @@
           </el-col>
         </el-row>
 
+        <!-- 投资日历（未来45天 解禁 / 分红除权） -->
+        <el-row :gutter="10" class="mt8">
+          <el-col :span="24">
+            <div class="card">
+              <div class="flex between" style="align-items:center">
+                <span class="fs14 bold">投资日历 <span class="fs12" style="color:#909399">（未来45天 解禁 / 分红除权）</span></span>
+                <el-button size="small" :loading="calLoading" @click="loadCalendar">刷新</el-button>
+              </div>
+              <div class="split-grid mt8">
+                <div class="cal-scroll">
+                  <div class="fs12 bold" style="color:#f56c6c;margin:2px 0">🛡 限售解禁 <span class="fs11" style="color:#909399">（{{ calendar.unlocks.length }}笔，TOP解禁市值）</span></div>
+                  <div v-for="(u, i) in topUnlocks" :key="'u' + i" class="cal-row">
+                    <span class="cal-date">{{ (u.date || '').slice(5) }}</span>
+                    <el-link v-if="u.symbol" class="cal-name" type="danger" :underline="false" @click="goStock(u.symbol, u.name)">{{ u.name }}</el-link>
+                    <span v-else class="fs12 cal-name">{{ u.name }}</span>
+                    <span class="cal-val mono fs12" style="color:#f56c6c">{{ u.market_cap_yi }}亿</span>
+                    <span class="cal-sub">{{ u.type }}</span>
+                  </div>
+                  <el-empty v-if="!topUnlocks.length" description="未来45天无解禁" :image-size="30" />
+                </div>
+                <div class="cal-scroll">
+                  <div class="fs12 bold" style="color:#67c23a;margin:2px 0">💰 分红除权 <span class="fs11" style="color:#909399">（{{ calendar.dividends.length }}笔）</span></div>
+                  <div v-for="(d, i) in topDividends" :key="'d' + i" class="cal-row">
+                    <span class="cal-date">{{ (d.date || '').slice(5) }}</span>
+                    <el-link v-if="d.symbol" class="cal-name" type="success" :underline="false" @click="goStock(d.symbol, d.name)">{{ d.name }}</el-link>
+                    <span v-else class="fs12 cal-name">{{ d.name }}</span>
+                    <span class="cal-val mono fs12" style="color:#67c23a">{{ (d.record_date || '').slice(5) }}除权</span>
+                    <span class="cal-sub">{{ d.plan }}</span>
+                  </div>
+                  <el-empty v-if="!topDividends.length" description="未来45天无分红除权" :image-size="30" />
+                </div>
+              </div>
+            </div>
+          </el-col>
+        </el-row>
+
         <el-row :gutter="10" class="mt8">
           <el-col v-for="(rv, at) in (rpt.agent_reviews || {})" :key="at" :xs="24" :sm="8">
             <div class="card">
@@ -203,7 +256,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import MainLayout from '../layout/MainLayout.vue'
-import { replayApi } from '../api'
+import { replayApi, marketApi } from '../api'
 
 const router = useRouter()
 const loading = ref(false)
@@ -211,9 +264,51 @@ const triggering = ref(false)
 const report = ref(null)
 const triggerDate = ref('')
 const mdDialog = ref(false)
+const calendar = ref({ date: '', unlocks: [], dividends: [] })
+const calLoading = ref(false)
+const seats = ref([])
+const topUnlocks = computed(() => [...(calendar.value.unlocks || [])]
+  .sort((a, b) => b.market_cap_yi - a.market_cap_yi).slice(0, 6))
+const topDividends = computed(() => [...(calendar.value.dividends || [])]
+  .sort((a, b) => (a.date || '').localeCompare(b.date || '')).slice(0, 6))
+
+async function loadCalendar() {
+  calLoading.value = true
+  try { calendar.value = (await marketApi.investCalendar()) || { date: '', unlocks: [], dividends: [] } } catch { /* 保留旧数据 */ }
+  calLoading.value = false
+}
+
+async function loadSeats() {
+  const d = rpt.value?.date
+  if (!d) { seats.value = []; return }
+  try {
+    const rows = (await marketApi.dragonTigerSeats(d)) || []
+    seats.value = rows.sort((a, b) => Math.abs(b.net || 0) - Math.abs(a.net || 0)).slice(0, 10)
+  } catch { seats.value = [] }
+}
 
 const rpt = computed(() => report.value?.status === 'ready' ? (report.value.data || null) : null)
 const status = computed(() => report.value?.status || '')
+
+function toAsiaShanghai() {
+  return new Date(Date.now() + 8 * 3600 * 1000 - new Date().getTimezoneOffset() * 60000)
+}
+function isWeekday(d) {
+  const w = d.getUTCDay()
+  return w >= 1 && w <= 5
+}
+const prevTradingDate = computed(() => {
+  const d = toAsiaShanghai()
+  d.setUTCDate(d.getUTCDate() - 1)
+  while (!isWeekday(d)) d.setUTCDate(d.getUTCDate() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+})
+const triggerDisabled = computed(() => {
+  const now = toAsiaShanghai()
+  if (triggerDate.value !== dateStr(0)) return false
+  if (!isWeekday(now)) return true
+  return now.getUTCHours() * 60 + now.getUTCMinutes() < 17 * 60
+})
 
 function goStock(symbol, name) {
   if (!symbol) return
@@ -263,6 +358,7 @@ async function load() {
   loading.value = true
   try {
     report.value = await replayApi.latest()
+    await loadSeats()
   } catch {
     report.value = null
   } finally {
@@ -281,8 +377,12 @@ async function trigger() {
 }
 
 onMounted(() => {
-  triggerDate.value = dateStr(0)
+  const now = toAsiaShanghai()
+  triggerDate.value = isWeekday(now) && now.getUTCHours() * 60 + now.getUTCMinutes() >= 17 * 60
+    ? dateStr(0)
+    : prevTradingDate.value
   load()
+  loadCalendar()
 })
 </script>
 
@@ -313,4 +413,16 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 4px;
 }
+.split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.cal-scroll { max-height: 260px; overflow: auto; }
+.cal-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px dashed #f5f5f5; }
+.cal-date { color: #c0c4cc; font-size: 11px; flex-shrink: 0; width: 42px; }
+.cal-name { flex-shrink: 0; }
+.cal-val { flex-shrink: 0; }
+.cal-sub { flex: 1; min-width: 0; text-align: right; color: #909399; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat-row { display: flex; align-items: center; gap: 5px; padding: 3px 0; border-bottom: 1px dashed #f5f5f5; font-size: 12px; }
 </style>

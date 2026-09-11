@@ -60,3 +60,19 @@ class DataSourceBase(ABC):
 
     def get_stock_sector(self, symbol: str) -> dict:
         return {"symbol": symbol, "industry": None, "concepts": []}
+
+    def get_stock_monitor(self) -> list[dict]:
+        """东财重点监控池（风险警示名单）"""
+        return []
+
+    def get_price_anomaly(self) -> dict:
+        """东财日内严重异常波动"""
+        return {"date": "", "items": [], "count": []}
+
+    def get_invest_calendar(self, days_ahead: int = 45) -> dict:
+        """未来解禁 + 分红除权日历"""
+        return {"date": "", "unlocks": [], "dividends": []}
+
+    def get_dragon_tiger_seats(self, trade_date: str = None) -> list[dict]:
+        """龙虎榜营业部席位明细（本地游资打标）"""
+        return []

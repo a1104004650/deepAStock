@@ -54,8 +54,18 @@ class ReplayEngine:
         raise ReplayGateError("未能解析出最近交易日，请手动选择历史日期")
 
     async def run(self, target_date: date = None) -> dict:
+        auto = target_date is None
         target_date = await self.resolve_target(target_date)
         logger.info(f"=== 开始复盘 {target_date} ===")
+
+        # 自动任务（定时器 18:00）：若当天已生成过复盘，不覆盖，保留当天最原始数据。
+        # 只有用户手动「生成复盘」（显式传日期）才会重建当天。
+        if auto:
+            got = (await self.db.execute(select(ReplayReport).where(ReplayReport.date == target_date))).scalars().first()
+            if got:
+                logger.info(f"当日 {target_date} 复盘已存在，自动任务跳过（保留原始数据）")
+                return {"status": "skipped", "date": target_date.isoformat(),
+                        "message": "当日复盘已生成，自动任务跳过；如需重建请手动点击「生成复盘」"}
 
         # 数据采集
         indices = await self.market.get_indices()

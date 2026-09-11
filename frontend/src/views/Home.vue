@@ -253,6 +253,65 @@
         </el-col>
       </el-row>
 
+      <!-- 投资日历 + 监管异动 -->
+      <el-row :gutter="10" class="mt8">
+        <el-col :xs="24" :sm="12">
+          <div class="card col-card">
+            <div class="flex between" style="align-items:center">
+              <span class="fs14 bold">投资日历 <span class="fs12" style="color:#909399">（未来45天 解禁 / 分红除权）</span></span>
+              <el-button size="small" :loading="calLoading" @click="loadCalendar">刷新</el-button>
+            </div>
+            <div class="cal-scroll mt8">
+              <div class="fs12 bold" style="color:#f56c6c;margin:2px 0">🛡 限售解禁 <span class="fs11" style="color:#909399">（{{ calendar.unlocks.length }}笔，按解禁市值排序）</span></div>
+              <div v-for="(u, i) in topUnlocks" :key="'u' + i" class="cal-row">
+                <span class="cal-date">{{ (u.date || '').slice(5) }}</span>
+                <el-link v-if="u.symbol" class="cal-name" type="danger" :underline="false" @click="goStock(u.symbol, u.name)">{{ u.name }}</el-link>
+                <span v-else class="fs12 cal-name">{{ u.name }}</span>
+                <span class="cal-val mono fs12" style="color:#f56c6c">{{ u.market_cap_yi }}亿</span>
+                <span class="cal-sub">{{ u.type }}</span>
+              </div>
+              <el-empty v-if="!calendar.unlocks.length" description="未来45天无解禁" :image-size="30" />
+              <div class="fs12 bold" style="color:#67c23a;margin:6px 0 2px">💰 分红除权 <span class="fs11" style="color:#909399">（{{ calendar.dividends.length }}笔）</span></div>
+              <div v-for="(d, i) in topDividends" :key="'d' + i" class="cal-row">
+                <span class="cal-date">{{ (d.date || '').slice(5) }}</span>
+                <el-link v-if="d.symbol" class="cal-name" type="success" :underline="false" @click="goStock(d.symbol, d.name)">{{ d.name }}</el-link>
+                <span v-else class="fs12 cal-name">{{ d.name }}</span>
+                <span class="cal-val mono fs12" style="color:#67c23a">{{ (d.record_date || '').slice(5) }}除权</span>
+                <span class="cal-sub">{{ d.plan }}</span>
+              </div>
+              <el-empty v-if="!calendar.dividends.length" description="未来45天无分红除权" :image-size="30" />
+            </div>
+          </div>
+        </el-col>
+        <el-col :xs="24" :sm="12">
+          <div class="card col-card">
+            <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
+              <span class="fs14 bold">监管异动 <span class="fs12" style="color:#909399">（重点监控 / 严重异常波动）</span></span>
+              <el-button size="small" :loading="regLoading" @click="loadRegulatory">刷新</el-button>
+            </div>
+            <div class="cal-scroll mt8">
+              <div class="fs12 bold" style="color:#ef232a;margin:2px 0">⚠ 重点监控 <span class="fs11" style="color:#909399">（{{ monitor.length }}只 在监控窗口内）</span></div>
+              <div v-for="(m, i) in monitor" :key="'m' + i" class="cal-row">
+                <span class="cal-date">剩{{ m.days_left }}天</span>
+                <el-link v-if="m.symbol" class="cal-name" type="danger" :underline="false" @click="goStock(m.symbol, m.name)">{{ m.name }}</el-link>
+                <span v-else class="fs12 cal-name">{{ m.name }}</span>
+                <span class="cal-val mono fs12" style="color:#909399">{{ m.code }}</span>
+                <span class="cal-sub">{{ m.market }}</span>
+              </div>
+              <el-empty v-if="!monitor.length" description="当前无重点监控标的" :image-size="30" />
+              <div class="fs12 bold" style="color:#ef232a;margin:6px 0 2px">🔥 严重异常波动 <span class="fs11" style="color:#909399">（{{ anomalyDateTxt }} {{ anomalyItems.length }}条）</span></div>
+              <div v-for="(a, i) in anomalyItems" :key="'a' + i" class="cal-row">
+                <el-link v-if="a.symbol" class="cal-name" type="danger" :underline="false" @click="goStock(a.symbol, a.name)">{{ a.name }}</el-link>
+                <span v-else class="fs12 cal-name">{{ a.name }}</span>
+                <span class="cal-val mono fs12" :class="a.change_pct >= 0 ? 'up' : 'down'">{{ a.change_pct >= 0 ? '+' : '' }}{{ a.change_pct }}%</span>
+                <span class="cal-sub">偏离{{ a.deviation }}% · {{ a.rule }}</span>
+              </div>
+              <el-empty v-if="!anomalyItems.length" description="当前无异常波动标的" :image-size="30" />
+            </div>
+          </div>
+        </el-col>
+      </el-row>
+
       <!-- 消息滚动 + ETF资金流 -->
       <el-row :gutter="10" class="mt8">
         <el-col :xs="24" :sm="14">
@@ -384,6 +443,37 @@ const sectorIntraday = ref([])
 const sectorPreClose = ref(0)
 const hotStocks = ref([])
 
+const calendar = ref({ date: '', unlocks: [], dividends: [] })
+const calLoading = ref(false)
+const monitor = ref([])
+const anomaly = ref({ date: '', items: [], count: [] })
+const regLoading = ref(false)
+const topUnlocks = computed(() => [...(calendar.value.unlocks || [])]
+  .sort((a, b) => b.market_cap_yi - a.market_cap_yi).slice(0, 6))
+const topDividends = computed(() => [...(calendar.value.dividends || [])]
+  .sort((a, b) => (a.date || '').localeCompare(b.date || '')).slice(0, 6))
+const anomalyItems = computed(() => (anomaly.value.items || []).slice(0, 8))
+const anomalyDateTxt = computed(() => {
+  const dt = anomaly.value.date || ''
+  return dt ? `${dt.slice(0, 4)}-${dt.slice(4, 6)}-${dt.slice(6)}` : ''
+})
+
+async function loadCalendar() {
+  calLoading.value = true
+  try { calendar.value = (await marketApi.investCalendar()) || { date: '', unlocks: [], dividends: [] } } catch { /* 保留旧数据 */ }
+  calLoading.value = false
+}
+
+async function loadRegulatory() {
+  regLoading.value = true
+  try {
+    const d = (await marketApi.regulatory()) || { monitor: [], anomaly: { date: '', items: [], count: [] } }
+    monitor.value = d.monitor || []
+    anomaly.value = d.anomaly || { date: '', items: [], count: [] }
+  } catch { /* 保留旧数据 */ }
+  regLoading.value = false
+}
+
 function hotColor(heat) {
   const n = Number(heat || 0)
   return n >= 80 ? '#ef232a' : n >= 60 ? '#f56c6c' : '#e6a23c'
@@ -463,7 +553,7 @@ const distBuckets = computed(() => {
     label: b.label, count: b.count,
     cls: b.label === '平盘' ? '' : b.label.includes('-') || b.count === 0 ? 'down' : 'up',
     color: b.label === '平盘' ? '#909399' : b.label.includes('-') ? '#14b143' : '#e6452f',
-    h: 6 + Math.round(b.count / max * 40)
+    h: 8 + Math.round(b.count / max * 160)
   }))
 })
 const emotion = computed(() => {
@@ -634,7 +724,9 @@ async function load() {
       loadLadder(),
       loadSectorMonitor(),
       loadHotStocks(),
-      loadMarketFlow()
+      loadMarketFlow(),
+      loadCalendar(),
+      loadRegulatory()
     ])
   } finally {
     loading.value = false
@@ -652,7 +744,7 @@ onMounted(() => {
   indexTimer = setInterval(() => { loadIndices(); mainIdxDefs.forEach((m) => loadPanel(m.code)) }, 15000)
   newsTimer = setInterval(loadNews, 60000)
   flowTimer = setInterval(() => { loadSectorFlowTop(); loadEtf(); loadHotStocks() }, 60000)
-  distTimer = setInterval(() => { loadDistribution(); loadLadder(); loadMarketFlow() }, 60000)
+  distTimer = setInterval(() => { loadDistribution(); loadLadder(); loadMarketFlow(); loadCalendar(); loadRegulatory() }, 60000)
   sectorTimer = setInterval(loadSectorMonitor, 15000)
 })
 onUnmounted(() => {
@@ -781,7 +873,8 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  flex-wrap: wrap;
+  height: 210px;
+  overflow: hidden;
 }
 .dist-col {
   display: flex;
@@ -791,9 +884,16 @@ onUnmounted(() => {
   gap: 3px;
   min-width: 40px;
   flex: 1;
+  height: 100%;
   cursor: default;
 }
 .dist-num { font-size: 11px; line-height: 1; }
 .dist-bar { width: 70%; border-radius: 2px 2px 0 0; min-height: 2px; opacity: .85; }
 .dist-label { font-size: 10px; color: #909399; white-space: nowrap; }
+.cal-scroll { flex: 1; height: 250px; overflow: auto; }
+.cal-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px dashed #f5f5f5; }
+.cal-date { color: #c0c4cc; font-size: 11px; flex-shrink: 0; width: 42px; }
+.cal-name { flex-shrink: 0; }
+.cal-val { flex-shrink: 0; }
+.cal-sub { flex: 1; min-width: 0; text-align: right; color: #909399; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

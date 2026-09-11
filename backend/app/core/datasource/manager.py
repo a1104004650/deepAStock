@@ -113,6 +113,22 @@ class DataSourceManager:
         ans = await self._call("get_stock_sector", symbol)
         return ans if isinstance(ans, dict) else {"symbol": symbol, "industry": None, "concepts": []}
 
+    async def get_stock_monitor(self) -> list[dict]:
+        ans = await self._call("get_stock_monitor")
+        return [r for r in ans if isinstance(r, dict)] if isinstance(ans, list) else []
+
+    async def get_price_anomaly(self) -> dict:
+        ans = await self._call("get_price_anomaly")
+        return ans if isinstance(ans, dict) else {"date": "", "items": [], "count": []}
+
+    async def get_invest_calendar(self, days_ahead: int = 45) -> dict:
+        ans = await self._call("get_invest_calendar", days_ahead)
+        return ans if isinstance(ans, dict) else {"date": "", "unlocks": [], "dividends": []}
+
+    async def get_dragon_tiger_seats(self, trade_date: str = None) -> list[dict]:
+        ans = await self._call("get_dragon_tiger_seats", trade_date)
+        return [r for r in ans if isinstance(r, dict)] if isinstance(ans, list) else []
+
     async def get_sector_flow_top(self) -> dict:
         ans = await self._call("get_sector_flow_top")
         return ans if isinstance(ans, dict) else {"industries": {"in": [], "out": []}, "concepts": {"in": [], "out": []}}

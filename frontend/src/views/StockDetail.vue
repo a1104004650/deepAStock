@@ -104,17 +104,6 @@
             </div>
             <el-empty v-else description="点击「AI 分析」解读该股（未配置 API Key 时使用本地启发式分析）" :image-size="70" />
           </div>
-          <div class="card mt8">
-            <div class="fs14 bold">情绪指标</div>
-            <div class="mt8">
-              <el-progress :percentage="Number(sentiment.positive_score || 0) * 100" :stroke-width="12" color="#67c23a" :format="() => '正面 ' + Number(sentiment.positive_score || 0).toFixed(2)" />
-              <el-progress class="mt8" :percentage="Number(sentiment.negative_score || 0) * 100" :stroke-width="12" color="#f56c6c" :format="() => '负面 ' + Number(sentiment.negative_score || 0).toFixed(2)" />
-              <div class="fs12 mt8" style="color:#909399">
-                新闻 {{ sentiment.news_count || 0 }} 条 · 论坛活跃度 {{ sentiment.forum_activity || 0 }}
-                <span v-if="!sentiment.news_count">（情绪数据源受限，暂无新闻）</span>
-              </div>
-            </div>
-          </div>
         </el-col>
       </el-row>
 

@@ -134,7 +134,7 @@ async def logs(account_id: int, limit: int = 100, db: AsyncSession = Depends(get
 @router.post("/accounts/{account_id}/run")
 async def run_daily(account_id: int, body: SimulationRunRequest, db: AsyncSession = Depends(get_db)):
     engine = SimulationEngine(db)
-    return await engine.run_daily(account_id, body.date)
+    return await engine.run_daily(account_id, body.date, window="手动")
 
 
 @router.get("/accounts/{account_id}/pool")

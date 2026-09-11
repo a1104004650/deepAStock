@@ -167,7 +167,7 @@ class SinaSource(DataSourceBase):
                 volume = round(_f(fields[8]) / 100, 2)  # 新浪个股量为股，归一为手
                 amount = _f(fields[9])
                 change = round(price - prev_close, 4)
-                change_pct = round(change / prev_close * 100, 4) if prev_close else 0.0
+                change_pct = round(change / prev_close * 100, 2) if prev_close else 0.0
                 out[sym] = {"symbol": sym, "name": name, "price": price, "change": change,
                             "change_pct": change_pct, "volume": volume, "amount": amount,
                             "high": high, "low": low, "open": open_p, "prev_close": prev_close,
@@ -1446,6 +1446,292 @@ class SinaSource(DataSourceBase):
                 continue
         self._EM_DT_CACHE = out
         self._EM_DT_TS = now
+        return out[:limit]
+
+    # ---------- 监管异动：重点监控池 + 日内严重异常波动（东财零鉴权） ----------
+    _MONITOR_MARKET = {"1": "SH", "0": "SZ", "B": "BJ"}
+    _ANOMALY_RULES = {
+        1: "主板连续10个交易日内4次同向异常波动",
+        2: "创业板连续10个交易日内3次同向异常波动",
+        3: "科创板连续10个交易日内3次同向异常波动",
+        4: "10日收盘价涨跌幅偏离值累计达+100%",
+        5: "10日收盘价涨跌幅偏离值累计达-50%",
+        6: "30日收盘价涨跌幅偏离值累计达+200%",
+        7: "30日收盘价涨跌幅偏离值累计达-70%",
+        8: "北交所连续10个交易日内3次同向异常波动",
+        40: "10日收盘价涨跌幅偏离值累计达+150%",
+        50: "10日收盘价涨跌幅偏离值累计达-60%",
+        60: "30日收盘价涨跌幅偏离值累计达+300%",
+        70: "30日收盘价涨跌幅偏离值累计达-75%",
+    }
+    _ANOMALY_HQ = {"team": "h5", "product": "EastMoney", "client": "WAP",
+                   "version": "9001", "name": "WAP", "user": "123"}
+    _EM_MONITOR_CACHE: Optional[list] = None
+    _EM_MONITOR_TS = 0.0
+    _EM_ANOMALY_CACHE: Optional[dict] = None
+    _EM_ANOMALY_TS = 0.0
+
+    @staticmethod
+    def _em_cn_today() -> str:
+        from datetime import datetime, timezone as _tz
+        return datetime.now(_tz(timedelta(hours=8))).date().isoformat()
+
+    @staticmethod
+    def _em_anomaly_market(code, m, board) -> str:
+        c = str(code or "")
+        if c.startswith(("4", "8", "92")) or int(_f(board)) == 8:
+            return "BJ"
+        return "SH" if int(_f(m)) == 1 else "SZ"
+
+    def get_stock_monitor(self) -> list[dict]:
+        """东财重点监控池：交易所风险警示 / 重点监控名单，仅保留今天仍在监控窗口内的标的。"""
+        import time as _t
+        now = _t.time()
+        if self._EM_MONITOR_CACHE is not None and (now - self._EM_MONITOR_TS) < 600:
+            return self._EM_MONITOR_CACHE
+        url = "https://mobappconfig.securities.eastmoney.com/emcfg/stock_monitor.json"
+        try:
+            req = urllib.request.Request(url, headers={**_UA, "Referer": "https://vipmoney.eastmoney.com/"})
+            rows = json.loads(urllib.request.urlopen(req, timeout=10).read().decode("utf-8", "ignore")) or []
+        except Exception as e:
+            logger.warning("em stock monitor failed: %s" % e)
+            return []
+        today = self._em_cn_today()
+        out = []
+        for x in rows:
+            start = (x.get("VALIDATESTARTDATE") or "").strip()[:10]
+            end = (x.get("VALIDATEENDDATE") or "").strip()[:10]
+            if not (start and end and start <= today <= end):
+                continue
+            code = str(x.get("STKCODE") or "").strip()
+            mkt = self._MONITOR_MARKET.get(str(x.get("MARKET") or "").upper(), "SZ")
+            days_left = 0
+            try:
+                days_left = (date.fromisoformat(end) - date.fromisoformat(today)).days
+            except ValueError:
+                pass
+            out.append({
+                "symbol": ("%s%s" % (mkt, code)) if code else "",
+                "code": code,
+                "name": (x.get("STKNAME") or "").strip(),
+                "market": mkt,
+                "start": start, "end": end, "days_left": max(days_left, 0),
+            })
+        out.sort(key=lambda r: r["days_left"])
+        self._EM_MONITOR_CACHE = out
+        self._EM_MONITOR_TS = now
+        return out
+
+    def get_price_anomaly(self, max_items: int = 50) -> dict:
+        """东财日内异动池（交易所"严重异常波动"口径）：list 明细 + count 按标的聚合。"""
+        import time as _t
+        import urllib.parse as _p
+        now = _t.time()
+        if self._EM_ANOMALY_CACHE is not None and (now - self._EM_ANOMALY_TS) < 600:
+            return self._EM_ANOMALY_CACHE
+        base = "https://dycalchis.eastmoney.com/price-anomaly"
+        headers = {**_UA, "Referer": "https://vipmoney.eastmoney.com/"}
+
+        def _freq(path, page_size, page_no=1):
+            params = dict(self._ANOMALY_HQ)
+            params.update({"pageSize": str(page_size), "pageNo": str(page_no)})
+            try:
+                req = urllib.request.Request("%s/%s?%s" % (base, path, _p.urlencode(params)), headers=headers)
+                d = json.loads(urllib.request.urlopen(req, timeout=10).read().decode("utf-8", "ignore"))
+            except Exception as e:
+                logger.warning("em price anomaly %s failed: %s" % (path, e))
+                return None
+            if not isinstance(d, dict) or d.get("result") != 0:
+                logger.warning("em price anomaly %s refused: %s" % (path, d.get("msg") if isinstance(d, dict) else d))
+                return None
+            return d
+
+        list_d = _freq("list", 200) or {}
+        count_d = _freq("count", 50) or {}
+        items = []
+        for x in list_d.get("data") or []:
+            e = x.get("e")
+            board = int(_f(x.get("s")))
+            key = (e * 10) if (board == 6 and e in (4, 5, 6, 7)) else e
+            code = str(x.get("c") or "")
+            mkt = self._em_anomaly_market(code, x.get("m"), x.get("s"))
+            items.append({
+                "symbol": ("%s%s" % (mkt, code)) if code else "",
+                "code": code,
+                "name": (x.get("n") or "").strip(),
+                "market": mkt,
+                "change_pct": round(_f(x.get("a")), 2),
+                "deviation": round(_f(x.get("x")), 2),
+                "days": int(_f(x.get("d"))),
+                "threshold": round(_f(x.get("t")), 2),
+                "rule_code": key,
+                "rule": self._ANOMALY_RULES.get(key, "未知规则"),
+            })
+        agg = []
+        for x in count_d.get("data") or []:
+            code = str(x.get("c") or "")
+            mkt = self._em_anomaly_market(code, x.get("m"), x.get("s"))
+            agg.append({
+                "symbol": ("%s%s" % (mkt, code)) if code else "",
+                "code": code,
+                "name": (x.get("n") or "").strip(),
+                "market": mkt,
+                "price": round(_f(x.get("p")), 2),
+                "change_pct": round(_f(x.get("a")), 2),
+                "times": int(_f(x.get("t"))),
+                "deviation": round(_f(x.get("x")), 2),
+                "days": int(_f(x.get("d"))),
+            })
+        agg.sort(key=lambda r: -r["times"])
+        out = {"date": str(list_d.get("date") or count_d.get("date") or "")[:10],
+               "items": items[:max_items], "count": agg[:max_items]}
+        self._EM_ANOMALY_CACHE = out
+        self._EM_ANOMALY_TS = now
+        return out
+
+    # ---------- 投资日历：未来解禁 + 分红除权（东财数据中心） ----------
+    _EM_CALENDAR_CACHE: Optional[dict] = None
+    _EM_CALENDAR_TS = 0.0
+
+    def get_invest_calendar(self, days_ahead: int = 45) -> dict:
+        """未来限售解禁 + 分红除权日程。unlocks: 解禁(市值万/亿) / dividends: 分红除权。"""
+        import time as _t
+        now = _t.time()
+        if self._EM_CALENDAR_CACHE is not None and (now - self._EM_CALENDAR_TS) < 600:
+            return self._EM_CALENDAR_CACHE
+        today = self._em_cn_today()
+        end = (date.today() + timedelta(days=days_ahead)).isoformat()
+        unlocks = []
+        try:
+            rows = self._em_datacenter("RPT_LIFT_STAGE",
+                                       "(FREE_DATE>='%s')(FREE_DATE<='%s')" % (today, end),
+                                       page_size=100, sort_columns="FREE_DATE")
+            for r in rows:
+                free_date = (r.get("FREE_DATE") or "").strip()[:10]
+                if not (today <= free_date <= end):
+                    continue
+                code = str(r.get("SECURITY_CODE") or "")
+                if not (code.isdigit() and len(code) == 6):
+                    continue
+                mc = _f(r.get("LIFT_MARKET_CAP"))
+                unlocks.append({
+                    "symbol": to_standard_symbol(code),
+                    "code": code,
+                    "name": r.get("SECURITY_NAME_ABBR") or "",
+                    "date": free_date,
+                    "type": r.get("FREE_SHARES_TYPE") or "",
+                    "shares_wan": round(_f(r.get("CURRENT_FREE_SHARES")), 2),
+                    "market_cap_wan": round(mc, 2),
+                    "market_cap_yi": round(mc / 10000.0, 2),
+                    "ratio": round(_f(r.get("FREE_RATIO")) * 100, 2),
+                })
+        except Exception as e:
+            logger.warning("invest calendar unlocks failed: %s" % e)
+        dividends = []
+        try:
+            rows = self._em_datacenter("RPT_SHAREBONUS_DET",
+                                       "(EX_DIVIDEND_DATE>='%s')(EX_DIVIDEND_DATE<='%s')" % (today, end),
+                                       page_size=100, sort_columns="EX_DIVIDEND_DATE")
+            for r in rows:
+                ex_date = (r.get("EX_DIVIDEND_DATE") or "").strip()[:10]
+                if not (today <= ex_date <= end):
+                    continue
+                code = str(r.get("SECURITY_CODE") or "")
+                if not (code.isdigit() and len(code) == 6):
+                    continue
+                dividends.append({
+                    "symbol": to_standard_symbol(code),
+                    "code": code,
+                    "name": r.get("SECURITY_NAME_ABBR") or "",
+                    "date": ex_date,
+                    "plan": r.get("IMPL_PLAN_PROFILE") or "",
+                    "bonus": round(_f(r.get("PRETAX_BONUS_RMB")), 4),
+                    "progress": r.get("ASSIGN_PROGRESS") or "",
+                    "record_date": (r.get("EQUITY_RECORD_DATE") or "").strip()[:10],
+                })
+        except Exception as e:
+            logger.warning("invest calendar dividends failed: %s" % e)
+        out = {"date": today, "unlocks": unlocks, "dividends": dividends}
+        self._EM_CALENDAR_CACHE = out
+        self._EM_CALENDAR_TS = now
+        return out
+
+    # ---------- 龙虎榜营业部席位整合（本地游资打标） ----------
+    _EM_SEAT_TAGS = [
+        ("拉萨天团", ["拉萨"]),
+        ("温州帮", ["温州", "乐清"]),
+        ("杭州帮", ["杭州"]),
+        ("成都帮", ["成都"]),
+        ("佛山帮", ["佛山"]),
+        ("宁波敢死队", ["宁波解放南路", "宁波彩虹北路"]),
+        ("章盟主", ["上海江苏路"]),
+        ("赵老哥", ["绍兴"]),
+        ("炒股养家", ["宛平南路"]),
+        ("小鳄鱼", ["南京太平南路"]),
+        ("溧阳路", ["溧阳路"]),
+        ("上海超短", ["上海分公司"]),
+    ]
+    _EM_SEATS_CACHE: Optional[list] = None
+    _EM_SEATS_TS = 0.0
+
+    @staticmethod
+    def _seat_tag(name: str) -> str:
+        n = name or ""
+        if "机构专用" in n:
+            return "机构专用"
+        if "沪股通" in n or "深股通" in n:
+            return "北向资金"
+        for tag, kws in SinaSource._EM_SEAT_TAGS:
+            if any(k in n for k in kws):
+                return tag
+        return ""
+
+    def get_dragon_tiger_seats(self, trade_date: str = None, limit: int = 300) -> list[dict]:
+        """龙虎榜当日营业部席位明细 + 本地游资打标（最近交易日自动回退）。"""
+        import time as _t
+        now = _t.time()
+        if trade_date and self._EM_SEATS_CACHE is not None and (now - self._EM_SEATS_TS) < 600 \
+                and self._EM_SEATS_CACHE and self._EM_SEATS_CACHE[0].get("date") == trade_date:
+            return self._EM_SEATS_CACHE[:limit]
+        rows = []
+        day = trade_date
+        if not day:
+            for back in range(4):
+                d = (date.today() - timedelta(days=back)).isoformat()
+                if date.fromisoformat(d).weekday() >= 5:
+                    continue
+                rows = self._em_datacenter("RPT_OPERATEDEPT_TRADE_DETAILSNEW",
+                                           "(TRADE_DATE='%s')" % d, page_size=300)
+                if rows:
+                    day = d
+                    break
+        else:
+            rows = self._em_datacenter("RPT_OPERATEDEPT_TRADE_DETAILSNEW",
+                                       "(TRADE_DATE='%s')" % day, page_size=300)
+        out = []
+        for r in rows:
+            code = str(r.get("SECURITY_CODE") or "")
+            if not (code.isdigit() and len(code) == 6):
+                continue
+            name = r.get("OPERATEDEPT_NAME") or ""
+            out.append({
+                "date": str((r.get("TRADE_DATE") or ""))[:10],
+                "symbol": to_standard_symbol(code),
+                "code": code,
+                "stock_name": r.get("SECURITY_NAME_ABBR") or "",
+                "seat": r.get("OPERATEDEPT_CODE") or "",
+                "seat_name": name,
+                "tag": self._seat_tag(name),
+                "buy": round(_f(r.get("ACT_BUY")), 2),
+                "sell": round(_f(r.get("ACT_SELL")), 2),
+                "net": round(_f(r.get("NET_AMT")), 2),
+                "reason": (r.get("EXPLANATION") or "").strip(),
+                "d1": round(_f(r.get("D1_CLOSE_ADJCHRATE")), 2) if r.get("D1_CLOSE_ADJCHRATE") is not None else None,
+                "d3": round(_f(r.get("D3_CLOSE_ADJCHRATE")), 2) if r.get("D3_CLOSE_ADJCHRATE") is not None else None,
+                "d5": round(_f(r.get("D5_CLOSE_ADJCHRATE")), 2) if r.get("D5_CLOSE_ADJCHRATE") is not None else None,
+            })
+        self._EM_SEATS_CACHE = out
+        self._EM_SEATS_TS = now
         return out[:limit]
 
     # ---------- 板块资金流（真实主力净流入，覆盖旧的“涨跌近似口径”） ----------

@@ -19,6 +19,9 @@ export const marketApi = {
   sectorMonitorIntraday: (symbol) => http.get('/market/sectors/monitor/intraday', { params: { symbol } }),
   hotStocks: (top = 10) => http.get('/market/hot-stocks', { params: { top } }),
   marketFlow: () => http.get('/market/market-flow'),
+  regulatory: () => http.get('/market/regulatory'),
+  investCalendar: () => http.get('/market/invest-calendar'),
+  dragonTigerSeats: (tradeDate) => http.get('/market/dragon-tiger/seats', { params: { trade_date: tradeDate } }),
 }
 
 // 自选股

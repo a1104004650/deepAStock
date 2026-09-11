@@ -631,3 +631,35 @@
 [SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
 [parameters: ('SZ001369', 'day', '2025-12-30 00:00:00.000000', 19.45, 24.85, 19.45, 19.53, 1459908, 0.0, None, '2026-09-11 05:20:50.303202')]
 (Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-11 13:26:50,163 [INFO] quant: 初始化数据库...
+2026-09-11 13:26:50,183 [INFO] quant: 启动定时任务...
+2026-09-11 13:26:50,183 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 18:00复盘, 20:00进化)
+2026-09-11 13:38:10,024 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 13:56:33,225 [INFO] quant: 初始化数据库...
+2026-09-11 13:56:33,238 [INFO] quant: 启动定时任务...
+2026-09-11 13:56:33,238 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 18:00复盘, 20:00进化)
+2026-09-11 13:57:22,985 [INFO] quant: 初始化数据库...
+2026-09-11 13:57:22,996 [INFO] quant: 启动定时任务...
+2026-09-11 13:57:22,997 [INFO] quant: 定时任务调度已配置 (9:25/10:30/13:30/14:50 盘中决策, 15:10收盘, 18:00复盘, 20:00进化)
+2026-09-11 14:03:51,025 [WARNING] quant: tencent breadth failed: <urlopen error _ssl.c:1015: The handshake operation timed out>
+2026-09-11 14:03:51,198 [WARNING] quant: tencent breadth failed: <urlopen error _ssl.c:1015: The handshake operation timed out>
+2026-09-11 14:06:08,229 [WARNING] quant: primary get_market_distribution failed/timeout: 
+2026-09-11 14:07:12,969 [WARNING] quant: tencent kline failed SH513100/day: HTTP Error 501: Not Implemented
+2026-09-11 14:07:12,969 [WARNING] quant: tencent kline failed SH513100/day: HTTP Error 501: Not Implemented
+2026-09-11 14:07:12,969 [WARNING] quant: tencent kline failed SH513100/day: HTTP Error 501: Not Implemented
+2026-09-11 14:07:15,630 [WARNING] quant: sina stock news failed SH513100: HTTP Error 404: Not Found
+2026-09-11 14:09:24,527 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 14:09:44,154 [WARNING] quant: sina index failed: <urlopen error _ssl.c:1015: The handshake operation timed out>
+2026-09-11 14:10:59,179 [INFO] quant: 初始化数据库...
+2026-09-11 14:10:59,191 [INFO] quant: 启动定时任务...
+2026-09-11 14:10:59,192 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化)
+2026-09-11 14:11:27,704 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 14:12:05,766 [WARNING] quant: tencent kline failed SZ399006/day: HTTP Error 501: Not Implemented
+2026-09-11 14:12:09,297 [WARNING] quant: tencent kline failed SZ399006/day: HTTP Error 501: Not Implemented
+2026-09-11 14:12:24,295 [WARNING] quant: tencent kline failed SZ399006/day: HTTP Error 501: Not Implemented
+2026-09-11 14:12:39,271 [WARNING] quant: tencent kline failed SZ399006/day: HTTP Error 501: Not Implemented
+2026-09-11 14:12:54,654 [WARNING] quant: tencent kline failed SZ399006/day: HTTP Error 501: Not Implemented
+2026-09-11 14:13:09,252 [WARNING] quant: tencent kline failed SZ399006/day: HTTP Error 501: Not Implemented
+2026-09-11 14:13:24,279 [WARNING] quant: tencent kline failed SZ399006/day: HTTP Error 501: Not Implemented
+2026-09-11 14:18:21,759 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 14:18:24,238 [WARNING] quant: em fflow kline 1.000001 klt=1 failed: Remote end closed connection without response

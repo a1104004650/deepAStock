@@ -64,6 +64,19 @@ class MarketService:
         rows = await self.dsm.get_dragon_tiger()
         return rows
 
+    async def get_dragon_tiger_seats(self, trade_date: str = None) -> list[dict]:
+        rows = await self.dsm.get_dragon_tiger_seats(trade_date)
+        return rows
+
+    async def get_stock_monitor(self) -> list[dict]:
+        return await self.dsm.get_stock_monitor()
+
+    async def get_price_anomaly(self) -> dict:
+        return await self.dsm.get_price_anomaly()
+
+    async def get_invest_calendar(self, days: int = 45) -> dict:
+        return await self.dsm.get_invest_calendar(days)
+
     async def get_market_distribution(self) -> dict:
         # 全市场涨跌家数/涨停跌停/成交额：腾讯全部A股真实统计（源不可达时返回全 0，不 mock）
         return await self.dsm.get_market_distribution()

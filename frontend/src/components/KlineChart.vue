@@ -193,9 +193,9 @@ function render() {
       data: ['K线', 'MA5', 'MA10', 'MA20', '笔', '分型', '信号', '情绪']
     },
     grid: [
-      { left: 60, right: 20, top: 30, height: '54%' },
-      { left: 60, right: 20, top: '67%', height: '14%' },
-      { left: 60, right: 20, top: '83%', height: '8%' }
+      { left: 60, right: 20, top: 30, height: '44%' },
+      { left: 60, right: 20, top: '50%', height: '22%' },
+      { left: 60, right: 20, top: '74%', height: '8%' }
     ],
     xAxis: [
       { type: 'category', data: dates, boundaryGap: true, axisLine: { lineStyle: { color: '#ccc' } } },
@@ -209,7 +209,7 @@ function render() {
     ],
     dataZoom: [
       { type: 'inside', xAxisIndex: [0, 1, 2], start: 40, end: 100 },
-      { type: 'slider', xAxisIndex: [0, 1, 2], top: '93%', height: 14 }
+      { type: 'slider', xAxisIndex: [0, 1, 2], top: '85%', height: 14 }
     ],
     series
   }

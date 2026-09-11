@@ -38,7 +38,7 @@
 - 定时任务：APScheduler（Asia/Shanghai，周一~五）**09:25/10:30/13:30/14:50 盘中决策、15:10 收盘决策**（当日已有成交的账户自动跳过）、**18:00 复盘**、20:00 进化。调度信息经 `/api/v1/system/status` 的 `jobs` 字段暴露。
 
 ## 部署
-- **Docker 单容器**：根 `Dockerfile`（叠加 node 构建前端 + python 依赖 + nginx，supervisord 同容器跑 uvicorn+nginx）+ `nginx.conf`（`/api`→`127.0.0.1:8000`）+ `docker-compose.yml`（默认 SQLite 卷 `backend_data`，可选 `postgres` profile）。端口：80 前端 / 8000 接口。
+- **Docker 单容器**：根 `Dockerfile`（叠加 node 构建前端 + python 依赖 + nginx，supervisord 同容器跑 uvicorn+nginx）+ `nginx.conf`（`/api`→`127.0.0.1:8000`）+ `docker-compose.yml`（默认 SQLite 卷 `backend_data`，可选 `postgres` profile）。端口（宿主机）：18080 前端 / 18000 接口 / 15432 postgres。
 - **本地开发**：`start.bat`（chcp 65001）或手动。
 
 ## 模块与关键文件

@@ -37,9 +37,17 @@ def _fmt_cst(dt) -> str:
 
 
 class SimulationEngine:
+    # A股可下单交易时段（北京时间，分钟）：9:30-10:25 / 13:00-13:30 / 14:30-14:50
+    TRADE_WINDOWS_MIN = ((570, 625), (780, 810), (870, 890))
+
     def __init__(self, db: AsyncSession):
         self.db = db
         self.dsm = DataSourceManager(db)
+
+    @staticmethod
+    def _in_trade_window(ts: datetime) -> bool:
+        m = ts.hour * 60 + ts.minute + ts.second / 60.0
+        return any(s <= m <= e + 10 for s, e in SimulationEngine.TRADE_WINDOWS_MIN)
 
     async def create_account(self, user_id: int, name: str, agent_config_id: int = None,
                              initial_capital: float = 100000, prompt_template: str = "",
@@ -84,10 +92,19 @@ class SimulationEngine:
         return created
 
     async def run_daily(self, account_id: int, target_date: date = None, window: str = "收盘") -> dict:
-        """模拟AI当日交易；window 为盘中调度窗口（如 竞价/开盘/午盘/尾盘）。
-        决策仅使用当前时刻可获得的实时行情（无未来数据）；A股 T+1：当日买入不可当日卖出。"""
+        """模拟AI当日交易；window 为盘中调度窗口（早盘/午盘/尾盘/收盘/进化）。
+        决策仅使用当前时刻可获得的实时行情（无未来数据）；A股 T+1：当日买入不可当日卖出。
+        交易仅允许在 A 股交易时段内下单：9:30-10:25 / 13:00-13:30 / 14:30-14:50。
+        """
         target_date = target_date or date.today()
         run_ts = datetime.now(SHANGHAI)  # 真实决策时刻（盘中窗口用真实时间，不用未来收盘价）
+
+        # 交易时段门禁：非官方收盘/进化任务，窗口外一律不交易（返回 noop，保留日志原文）
+        if window not in ("收盘", "进化") and not self._in_trade_window(run_ts):
+            logger.info(f"account {account_id} {run_ts:%H:%M} 不在交易时段（9:30-10:25/13:00-13:30/14:30-14:50），跳过下单")
+            return {"status": "noop", "date": target_date.isoformat(), "window": window,
+                    "message": "当前不在模拟交易时段（9:30-10:25 / 13:00-13:30 / 14:30-14:50），未执行交易"}
+
         account = (await self.db.execute(select(SimulationAccount).where(SimulationAccount.id == account_id))).scalars().first()
         if not account or not account.is_active:
             return {"error": "account not found or inactive"}
