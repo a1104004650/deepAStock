@@ -413,3 +413,191 @@ Error: connect ECONNREFUSED 127.0.0.1:8000
 [2m14:42:09[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/sectors/monitor[39m
 Error: connect ECONNREFUSED 127.0.0.1:8000
     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/system/health[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/news?limit=60[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/indices[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SH000001[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SZ399006[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SH000688[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/sectors/flow-top[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/etf/flow[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/news?limit=50[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/rss/items?limit=30[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/distribution[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/limit-up/ladder[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/sectors/monitor[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/hot-stocks?top=10[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/market-flow[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/invest-calendar[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:20:03[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/regulatory[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:53[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/simulation/accounts/10/pool[39m
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:218:20)
+[2m15:28:53[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/simulation/accounts/10/stats[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:53[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/simulation/accounts/10/reviews[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:53[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/simulation/accounts/11/performance[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:53[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/simulation/accounts/11/positions[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:53[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/simulation/accounts/11/trades[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:53[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/simulation/accounts/11/equity[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:53[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/simulation/accounts/11/pool[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:53[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/simulation/accounts/11/stats[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:53[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/simulation/accounts/11/reviews[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/system/health[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/news?limit=60[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/indices[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SH000001[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SZ399006[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/sectors/flow-top[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/intraday?symbol=SH000688[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/etf/flow[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/news?limit=50[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/rss/items?limit=30[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/distribution[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/limit-up/ladder[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/sectors/monitor[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/hot-stocks?top=10[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/market-flow[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/invest-calendar[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:28:54[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /api/v1/market/regulatory[39m
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[2m15:35:57[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/aiStock/frontend/src/views/RssNews.vue[39m:2:3
+[33m  1  |  <template>
+  2  |    <MainLayout>
+     |     ^
+  3  |      <div class="page rss-page">
+  4  |      <div class="rss-head">[39m
+      at createCompilerError (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at emitError (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3035:5)
+      at Object.onclosetag (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2402:13)
+      at Tokenizer.stateInClosingTagName (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1157:16)
+      at Object.baseParse (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3074:13)
+      at Object.parse (C:\aiStock\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:913:23)
+      at Object.parse$1 [as parse] (C:\aiStock\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1849:24)
+      at createDescriptor (file:///C:/aiStock/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/aiStock/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+[2m15:38:07[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/aiStock/frontend/src/views/RssNews.vue[39m:3:5
+[33m  1  |  <template>
+  2  |    <MainLayout>
+  3  |      <div class="page rss-page">
+     |       ^
+  4  |      <div class="rss-head">
+  5  |        <div>[39m
+      at createCompilerError (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at emitError (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3035:5)
+      at Object.onclosetag (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2402:13)
+      at Tokenizer.stateInClosingTagName (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1157:16)
+      at Object.baseParse (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3074:13)
+      at Object.parse (C:\aiStock\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:913:23)
+      at Object.parse$1 [as parse] (C:\aiStock\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1849:24)
+      at createDescriptor (file:///C:/aiStock/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/aiStock/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)
+[2m15:38:13[22m [31m[1m[vite][22m[39m [31mInternal server error: Element is missing end tag.[39m
+  Plugin: [35mvite:vue[39m
+  File: [36mC:/aiStock/frontend/src/views/RssNews.vue[39m:3:5
+[33m  1  |  <template>
+  2  |    <MainLayout>
+  3  |      <div class="page rss-page">
+     |       ^
+  4  |      <div class="rss-head">
+  5  |        <div>[39m
+      at createCompilerError (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1378:17)
+      at emitError (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3035:5)
+      at Object.onclosetag (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:2402:13)
+      at Tokenizer.stateInClosingTagName (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:1157:16)
+      at Object.baseParse (C:\aiStock\frontend\node_modules\@vue\compiler-core\dist\compiler-core.cjs.js:3074:13)
+      at Object.parse (C:\aiStock\frontend\node_modules\@vue\compiler-dom\dist\compiler-dom.cjs.js:913:23)
+      at Object.parse$1 [as parse] (C:\aiStock\frontend\node_modules\@vue\compiler-sfc\dist\compiler-sfc.cjs.js:1849:24)
+      at createDescriptor (file:///C:/aiStock/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:71:43)
+      at handleHotUpdate (file:///C:/aiStock/frontend/node_modules/@vitejs/plugin-vue/dist/index.mjs:2198:26)

@@ -47,13 +47,15 @@
           </div>
 
           <div class="card mt8">
-            <div class="fs14 bold">CSV 批量导入</div>
+            <div class="fs14 bold">交割单 / CSV 批量导入</div>
             <div class="fs12 mt8" style="color:#909399">
-              列：symbol（代码，如 SH600519）,name（名称）,action（buy/sell 或 买入/卖出）,quantity（股数）,price（价格）,date（YYYY-MM-DD）,fee（手续费，可选）
+              直接上传券商导出的交割单（CSV/Excel，支持同花顺 / 东方财富等，UTF-8 或 GBK 编码，自动识别列）
+              — 列如：成交日期 / 证券代码 / 证券名称 / 买卖标志 / 成交数量 / 成交价格 / 成交金额 / 手续费 / 印花税 / 过户费；
+              也支持本站模板 CSV（symbol,name,action,quantity,price,date,fee）。买卖金额不含费用的行会按 金额÷数量 补算价格。
             </div>
             <div class="flex gap mt8" style="align-items:center">
               <el-button size="small" @click="downloadTemplate">下载 CSV 模板</el-button>
-              <input ref="fileInput" type="file" accept=".csv" class="mt8" @change="importCsv" />
+              <input ref="fileInput" type="file" accept=".csv,.xlsx,.xls" class="mt8" @change="importFile" />
             </div>
           </div>
 
@@ -232,14 +234,20 @@ async function importJson() {
   }
 }
 
-async function importCsv(e) {
+async function importFile(e) {
   const file = e.target.files[0]
   if (!file) return
+  if (!/\.(csv|xlsx|xls|csv)$/i.test(file.name)) return ElMessage.warning('请选择 CSV 或 Excel 文件')
   const fd = new FormData()
   fd.append('file', file)
-  const r = await tradeApi.importCsv(fd)
-  ElMessage.success(`CSV 导入成功 ${r.imported} 条`)
-  if (fileInput.value) fileInput.value.value = ''
+  try {
+    const r = await tradeApi.importFile(fd)
+    const msg = `导入成功 ${r.imported} 条` + (r.skipped ? `，跳过 ${r.skipped} 条（无代码/非买卖/数量价格异常）` : '')
+    ElMessage.success(msg)
+    if (r.skipped) ElMessage.warning(`有 ${r.skipped} 行被跳过（如分红/配号/非交易行不导入，仅保留买卖成交）`)
+  } finally {
+    if (fileInput.value) fileInput.value.value = ''
+  }
   await load()
 }
 

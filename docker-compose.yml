@@ -16,7 +16,7 @@ services:
       # - USE_POSTGRES=true
       # ---------- 默认配置 ----------
       - APP_NAME=deepAStock 深度A股交易
-      - APP_VERSION=1.1.1
+      - APP_VERSION=1.1.2
       - DEBUG=false
       # SECRET_KEY 可选：不设置则首次启动自动生成并持久化到 data/.secret_key；
       # 如需固定密钥（多实例/回滚一致），取消下面一行注释并填入自己的随机串

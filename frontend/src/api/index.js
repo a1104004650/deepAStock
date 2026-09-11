@@ -102,8 +102,8 @@ export const simulationApi = {
 // 实盘导入
 export const tradeApi = {
   importJson: (data) => http.post('/trade/import/json', data),
-  importCsv: (formData) =>
-    http.post('/trade/import/csv', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  importFile: (formData) =>
+    http.post('/trade/import/file', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   positions: () => http.get('/trade/positions'),
   trades: () => http.get('/trade/trades'),
   deleteTrade: (id) => http.delete(`/trade/trades/${id}`),

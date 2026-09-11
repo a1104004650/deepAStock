@@ -43,11 +43,18 @@ async def import_json(body: TradeImportRequest, db: AsyncSession = Depends(get_d
     return await svc.import_trades(0, trades)
 
 
+@router.post("/import/file")
+async def import_file(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+    content = await file.read()
+    svc = TradeImportService(db)
+    return await svc.import_file(0, content, filename=file.filename or "file")
+
+
 @router.post("/import/csv")
 async def import_csv(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
     content = await file.read()
     svc = TradeImportService(db)
-    return await svc.import_csv(0, content, source="csv")
+    return await svc.import_file(0, content, filename="csv")
 
 
 @router.get("/pnl/summary")

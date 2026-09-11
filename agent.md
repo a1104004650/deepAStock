@@ -5,7 +5,7 @@
 
 ## 项目目标
 构建个人深度 A 股 AI 交易平台（PC/H5），闭环：**看盘 → 选股 → 交易 → 复盘 → 进化**。
-项目名 **deepAStock（深度A股交易）**，版本 **1.1.1**。
+项目名 **deepAStock（深度A股交易）**，版本 **1.1.2**。
 需求来源：`提示词.txt`（功能要求）、`量化交易系统开发需求讨论.markdown`（工程文档）。
 
 ## 关键环境事实（务必遵守）
@@ -48,7 +48,7 @@
 | 缠论 | `app/core/czsc_engine/analyzer.py` | 内置简化缠论（分型/笔/中枢） |
 | 模拟交易 | `app/core/simulation/engine.py` | 账户/买卖/风控/绩效；无 API Key 时用本地启发式基于**真实行情**决策；候选池=复盘池+持仓池+跟踪池+观察池（观察池按 `account.id % len(items)` 轮转差异化）；**禁止买入 ST/\*ST**（`_is_st_name` 正则候选池+`_exec` 终审双保险）；不满足买点则如实空仓 |
 | 复盘 | `app/core/replay/engine.py` | 数据采集+AI 解读+次日选股池+Markdown |
-| 实盘导入 | `app/core/trade_import/parser.py` | JSON/CSV→持仓重算+盈亏 |
+| 实盘导入 | `app/core/trade_import/parser.py` | JSON/交割单 CSV·Excel 批量导入（自动识别列：同花顺/东方财富/投资账本表头别名、UTF-8/GBK 编码、xlsx/xls/标题行；分红/配号/非交易行跳过；佣金+印花税+过户费合计）→持仓重算+盈亏 |
 | 行情服务 | `app/core/market/quote_service.py` `kline_service.py` `stock_service.py` `watchlist_service.py` | 指数/板块/涨停/龙虎榜/个股详情 |
 | 设置 | `app/core/settings/service.py` `api/v1/settings.py` `models/system.py` | DB 持久化覆盖 env 默认值（`Setting` 表 + `EFFECTIVE` 内存快照）；数据源主+备用1/2/3 顺序回退；数据库连接测试；`snapshot()` 只显示与默认值不同的覆盖项 |
 | RSSHub 订阅 | `app/core/rsshub/parser.py` `app/core/rsshub/service.py` `api/v1/rss.py` `models/rss.py` 前端 `views/RssNews.vue` | 本地 RSSHub 自建实例；订阅源 CRUD（微博/公众号/股吧/自定义，**path(route) 或 url 二选一**）、RSS/Atom/JSON Feed 解析（`fetch_feed`；**页面地址 HTML 会显式报错而非静默 0 条**）、限频轮询去重落库（`rss_sources`/`rss_items` 表）；ST 标题过滤；`_upsert_items` 按 source+guid 去重；`_prune` 按天数/每源上限清理。导航「订阅」为**独立整页**（`RssNews.vue` 包裹 `MainLayout`，保留顶部导航栏；桌面双栏网格：消息流 + 订阅源状态表），页内直接维护 **RSSHub 配置**（启用开关/实例地址/保存，等同步「设置 → RSSHub 订阅」）；轮询后**重要消息全局推送**（`MainLayout.pollImportantNews` 合并平台新闻+`/rss/items?importance=1`，按标题本地去重顶层 toast）；「设置 → RSSHub 订阅」可编辑实例地址（本机开发 `http://127.0.0.1:11200`，容器内 `http://rsshub:1200`）；已预置 4 个**实测可直连解析**的案例源（雪球热帖/钛媒体/IT之家/爱范儿） |
@@ -77,12 +77,13 @@
 20. **`snapshot()["overridden"]` 原返回所有 DB 键** → 用户恢复默认值后 overridden 列表仍残留该项 → 改为 `EFFECTIVE[k] != DEFAULTS.get(k, "")` 比较。
 21. **直接把微博网页地址（如 `https://weibo.com/u/1xxxx`）当订阅 URL**：解析器拿到 HTML 页面后返回 0 条（`ok:0`），看起来“配置了但没反应”→ 微博等平台必须用 RSSHub **路径** `/weibo/user/{uid}`（`url` 留空，base 从设置取）；解析器现已对 `text/html` 内容显式报错（`err:地址返回的是 HTML 网页…`）。**rsshub_base 默认 `http://127.0.0.1:1200` 只对容器内有效**：本机开发必须在「设置 → RSSHub 订阅」把实例地址改成宿主机映射 `http://127.0.0.1:11200`，且先 `docker compose up -d rsshub`，否则路径型订阅报连接错误。
 
-## 当前完成度（v1.1.1 发布状态）
+## 当前完成度（v1.1.2 发布状态）
 - 后端全部核心功能 + API 全链路可用：行情/自选(批量删除)/个股(资金流/财务/产业链/行业对比)/复盘(真实龙虎榜+板块资金流)/模拟/导入/智能体/系统/设置/RSS订阅。
 - 前端 8 页面完成（大盘/自选/复盘/模拟/实盘导入/智能体/订阅消息/设置），`npm run build` 成功；复盘 pending/ready/empty 状态、涨跌区间分布、批量删除、消息滚动（平台新闻+RSS合并）、订阅消息独立页等均已联调。
 - Docker 多服务部署方案确定（compose config 校验通过，含 rsshub 本地镜像）。
 - v1.1.0：RSSHub 订阅系统（本地实例+订阅源管理+轮询去重+ST过滤+独立「订阅消息」页+内置 4 个可直连案例源）、系统设置页（数据源链+数据库+RSSHub）、大盘看板四板块等高、模拟四池Tab切换、AI禁买ST/观察池差异化。
 - v1.1.1：导航「订阅」为完整整页（保留顶部导航栏、含 RSS 配置与订阅源状态）；设置页 RSSHub 实例地址可编辑；订阅弹窗支持 RSSHub 路径/URL 二选一；RSS 解析对 HTML 网页地址显式报错；微博订阅源修正为 RSSHub 路径；订阅页嵌入配置行可保存；后台轮询后重要 RSS 消息全局定向推送；`run_server.py` stop GBK 解码修复。版本号 1.1.1（compose / build_release / 文档）已同步。
+- v1.1.2：实盘导入**直接解析券商交割单**（同花顺/东方财富/投资账本等 CSV/Excel，UTF-8/GBK 自动识别，表头别名映射，分红/配号/非交易行自动跳过，佣金+印花税+过户费合计入费用；endpoint `/trade/import/file`，旧 `/trade/import/csv` 保留兼容）。版本号 1.1.2 已同步。
 
 ## 常用命令
 ```bash
@@ -97,7 +98,7 @@ cd C:\aiStock && docker compose config --quiet  # 验证 compose 配置
 ```
 
 ## Roadmap / 未完成项
-- v1.1.1 发布准备已完成：版本号 1.1.1（compose / build_release / README / CHANGELOG），release zip 已打包验证。
+- v1.1.2 发布准备已完成：版本号 1.1.2（compose / build_release / README / CHANGELOG），release zip 已打包验证。
 - 待优化：前端按需引入 (echarts/core、element-plus 按组件) 减少厂商包体积；release smoke 测试脚本（解压→compose→health 断言）。
 - 数据：恢复东财板块涨速/个股新闻/股东/情绪等（网络放开时）；复盘 Markdown 原文渲染；财务图表化。
 - 性能容量：SQLite→PostgreSQL（已支持）；TimescaleDB 预留。

@@ -1,6 +1,7 @@
 """实盘交易导入 + 盈亏计算 + AI点评"""
 import csv
 import io
+import re
 from datetime import datetime, date
 from decimal import Decimal
 from sqlalchemy import select
@@ -8,6 +9,239 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.trade import UserTrade, UserPosition
 from app.core.datasource.manager import DataSourceManager
 from app.utils.logger import logger
+
+
+# ---------- 券商交割单 / 通用 CSV 解析 ----------
+# 表头别名统一映射（兼容同花顺/东方财富/各券商交割单与本站模板）
+_HEADER_ALIAS = {
+    "symbol": ["证券代码", "股票代码", "证券编号", "股票编号", "代码", "symbol"],
+    "name": ["证券名称", "股票名称", "证券简称", "名称", "name"],
+    "action": ["买卖标志", "买卖方向", "成交方向", "操作", "方向", "成交类别", "成交类型", "业务名称",
+               "委托标志", "交易类别", "action"],
+    "date": ["成交日期", "交易日期", "发生日期", "委托日期", "下单日期", "日期", "date", "trade_date"],
+    "time": ["成交时间", "委托时间", "time"],
+    "quantity": ["成交数量", "委托数量", "成交股数", "股数", "成交量", "数量", "quantity"],
+    "price": ["成交价格", "委托价格", "成交均价", "委托均价", "成交价", "价格", "price"],
+    "amount": ["成交金额", "发生金额", "收付金额", "清算金额", "资金发生额", "金额", "amount"],
+    "fee_commission": ["手续费", "佣金", "fee"],
+    "fee_tax": ["印花税", "印花"],
+    "fee_transfer": ["过户费", "结算费", "结算费用", "经手费", "证管费", "其他费用", "委托费"],
+    "note": ["备注", "note"],
+}
+_DIV_SKIP = ("派息", "股息", "红利", "利息", "资金划转", "申购配号", "配号", "中标", "市值")
+
+
+def _norm_hdr(h) -> str:
+    h = str(h or "").strip()
+    h = re.sub(r"[（(）)【】\[\]:：,，;；.。·\-–—/\\\s]+", "", h)
+    return h
+
+
+def _map_headers(headers: list) -> dict:
+    """把实际表头映射到标准字段；返回 {字段: [列索引,...]}"""
+    idx = {}
+    norms = {k: [_norm_hdr(a) for a in aliases] for k, aliases in _HEADER_ALIAS.items()}
+    for i, h in enumerate(headers):
+        nh = _norm_hdr(h)
+        if not nh:
+            continue
+        for k, alias_list in norms.items():
+            if nh in alias_list:
+                idx.setdefault(k, []).append(i)
+                break
+    return idx
+
+
+def _cell(row: list, cols) -> str:
+    if not cols:
+        return ""
+    i = cols[0]
+    if i >= len(row):
+        return ""
+    return row[i]
+
+
+def _num(v):
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        try:
+            return float(v)
+        except Exception:
+            return None
+    s = str(v).replace(",", "").replace("，", "").replace(" ", "").strip()
+    if not s or s in ("-", "--"):
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _fmt_cell_date(v):
+    if v is None or v == "":
+        return None
+    if isinstance(v, datetime):
+        return v.date().isoformat()
+    if hasattr(v, "to_pydatetime"):  # numpy/pandas 时间
+        try:
+            return v.to_pydatetime().date().isoformat()
+        except Exception:
+            pass
+    s = str(v).strip()
+    if re.fullmatch(r"\d{5}", s):  # Excel 日期序列号
+        try:
+            base = date(1899, 12, 30)
+            d = base + __import__("datetime").timedelta(days=int(s))
+            if 1990 <= d.year <= 2100:
+                return d.isoformat()
+        except Exception:
+            pass
+    if s.isdigit() and len(s) == 8:  # 20260901
+        try:
+            return datetime.strptime(s, "%Y%m%d").date().isoformat()
+        except ValueError:
+            pass
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d"):
+        try:
+            return datetime.strptime(s[:10], fmt).date().isoformat()
+        except (ValueError, IndexError):
+            continue
+    return s
+
+
+def _action(v):
+    s = str(v or "").strip().upper()
+    if not s:
+        return None
+    for w in _DIV_SKIP:
+        if w in str(v):
+            return None
+    if s in ("S", "SELL", "SL") or "卖" in s:
+        return "sell"
+    if s in ("B", "BUY", "BY") or "买" in s or "申购" in s:
+        return "buy"
+    return None
+
+
+def normalize_symbol(code) -> str:
+    """券商交割单代码 → 标准 SH/SZ/BJxxxxxx"""
+    s = str(code or "").strip().upper()
+    if not s:
+        return ""
+    s = re.sub(r"[^0-9]", "", s)
+    if len(s) < 6:
+        return ""
+    s = s[-6:]
+    if s.startswith(("60", "68", "9")) or s.startswith(("50", "51", "56", "58")):
+        return "SH" + s
+    if s.startswith(("43", "83", "87", "92")):
+        return "BJ" + s
+    return "SZ" + s
+
+
+def _decode_bytes(raw: bytes) -> str:
+    for enc in ("utf-8-sig", "utf-8", "gb18030", "gbk"):
+        try:
+            s = raw.decode(enc)
+            if "\x00" not in s:
+                return s
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("latin-1", errors="replace")
+
+
+def _csv_rows(text: str) -> list:
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return []
+    head = "\n".join(lines[:5])
+    delim = "\t" if head.count("\t") > head.count(",") else ","
+    return [r for r in csv.reader(io.StringIO("\n".join(lines)), delimiter=delim)
+            if any(str(c).strip() for c in r)]
+
+
+def _excel_rows(content: bytes) -> list:
+    try:
+        import pandas as pd
+    except ImportError:
+        raise ValueError("缺少 pandas，无法解析 Excel，请安装 pandas/openpyxl")
+    xl = pd.ExcelFile(io.BytesIO(content))
+    best = None
+    for sh in xl.sheet_names:
+        df = xl.parse(sh, header=None)
+        if best is None or len(df) > len(best):
+            best = df
+    rows = []
+    for _, line in best.iterrows():
+        cells = []
+        for v in line.tolist():
+            if v is None or not re.search(r"[^\s]", str(v)) or (isinstance(v, float) and pd.isna(v)):
+                v = ""
+            cells.append(v)
+        if any(str(c).strip() for c in cells):
+            rows.append(cells)
+    return rows
+
+
+def _build_trades(rows: list, idx: dict) -> tuple:
+    trades, skipped = [], 0
+    for r in rows:
+        sym = normalize_symbol(_cell(r, idx.get("symbol")))
+        act = _action(_cell(r, idx.get("action")))
+        if not sym or not act:
+            skipped += 1
+            continue
+        qty = _num(_cell(r, idx.get("quantity")))
+        price = _num(_cell(r, idx.get("price")))
+        amount = _num(_cell(r, idx.get("amount")))
+        if price is None and amount is not None:
+            price = amount / qty if qty else None
+        if qty is None and amount is not None and price:
+            qty = amount / price
+        if not qty or not price or qty <= 0 or price <= 0:
+            skipped += 1
+            continue
+        fee = sum(x for x in (
+            _num(_cell(r, idx.get("fee_commission"))),
+            _num(_cell(r, idx.get("fee_tax"))),
+            _num(_cell(r, idx.get("fee_transfer"))),
+        ) if x) or 0.0
+        d = _fmt_cell_date(_cell(r, idx.get("date"))) or date.today().isoformat()
+        t = str(_cell(r, idx.get("time"))).strip() or None
+        trades.append({
+            "symbol": sym,
+            "name": str(_cell(r, idx.get("name")) or "").strip(),
+            "action": act,
+            "quantity": int(round(qty)),
+            "price": round(float(price), 4),
+            "fee": round(float(fee), 2),
+            "date": d,
+            "time": t,
+            "note": "交割单导入",
+            "imported_from": "file",
+        })
+    return trades, skipped
+
+
+def parse_file_content(content: bytes) -> tuple:
+    """解析交割单 CSV/Excel 或本站模板 → (trades, skipped)
+
+    自动识别：UTF-8/GBK 编码、xlsx/xls（openpyxl/xlrd）、表头行位置、字段别名。
+    支持同花顺/东方财富/各大券商交割单（成交日期/证券代码/买卖标志/成交数量/成交价格/成交金额/手续费/印花税/过户费）。
+    """
+    if content[:2] == b"PK" or content[:4] == b"\xd0\xcf\x11\xe0":
+        rows = _excel_rows(content)
+    else:
+        rows = _csv_rows(_decode_bytes(content))
+    for i in range(min(len(rows), 30)):
+        idx = _map_headers(rows[i])
+        if len(idx) >= 3:
+            body = rows[i + 1:]
+            return _build_trades(body, idx)
+    raise ValueError("无法识别表头：未找到代码/日期/数量/买卖标志等列")
 
 
 class TradeImportService:
@@ -43,23 +277,13 @@ class TradeImportService:
         await self._recalc_positions(user_id)
         return {"imported": imported}
 
-    async def import_csv(self, user_id: int, content: bytes, source: str = "csv") -> dict:
-        text = content.decode("utf-8-sig")
-        reader = csv.DictReader(io.StringIO(text))
-        trades = []
-        for row in reader:
-            trades.append({
-                "symbol": row.get("symbol", row.get("代码", "")),
-                "name": row.get("name", row.get("名称", "")),
-                "action": "buy" if row.get("action", row.get("操作", "buy")) in ("买入", "buy", "B", "BUY") else "sell",
-                "quantity": int(float(row.get("quantity", row.get("股数", 0)))),
-                "price": float(row.get("price", row.get("价格", 0))),
-                "fee": float(row.get("fee", row.get("手续费", 0)) or 0),
-                "date": row.get("date", row.get("日期", date.today().isoformat())),
-                "note": row.get("note", ""),
-                "imported_from": source,
-            })
-        return await self.import_trades(user_id, trades)
+    async def import_file(self, user_id: int, content: bytes, filename: str = "file") -> dict:
+        """批量导入：券商交割单 CSV/Excel 或本站模板 CSV"""
+        trades, skipped = parse_file_content(content)
+        result = await self.import_trades(user_id, trades)
+        result["skipped"] = skipped
+        result["raw"] = len(trades) + skipped
+        return result
 
     async def get_positions(self, user_id: int) -> list[dict]:
         rows = (await self.db.execute(

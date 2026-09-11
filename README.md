@@ -12,13 +12,13 @@
 ```bash
 # 开发者：自己打 release 包
 powershell -ExecutionPolicy Bypass -File build_release.ps1
-# 产出：release/deepAStock-v1.1.1.zip（含完整项目 + Docker 全家桶 + 文档）
+# 产出：release/deepAStock-v1.1.2.zip（含完整项目 + Docker 全家桶 + 文档）
 ```
 
 ### 2. 部署（使用者）
 ```bash
-unzip deepAStock-v1.1.1.zip
-cd deepAStock-v1.1.1
+unzip deepAStock-v1.1.2.zip
+cd deepAStock-v1.1.2
 docker compose up -d --build     # 首次构建约需数分钟，之后秒级
 # 打开浏览器 http://localhost:18080   （接口文档 http://localhost:18000/docs）
 docker compose logs -f app       # 看日志
@@ -51,7 +51,7 @@ docker compose up -d             # 再次启动（增量秒级）
 | `SECRET_KEY` | 自动生成并持久化到 `data/.secret_key` | 固定密钥勿留默认，可用环境变量显式覆盖 |
 | `DEBUG` | false | 生产安全默认关闭 |
 | `TZ` | Asia/Shanghai | 时区 |
-| `APP_VERSION` | 1.1.1 | 显示版本 |
+| `APP_VERSION` | 1.1.2 | 显示版本 |
 | `PRIMARY_SOURCE/BACKUP_SOURCE` | sina+tencent | 行情数据源 |
 | `RSSHUB_BASE` | http://rsshub:1200 | 本地 RSSHub 实例地址（容器内）；本机直接跑后端需在「设置 → RSSHub 订阅」填宿主机映射 `http://127.0.0.1:11200` |
 | `RSSHUB_ENABLED` | true | RSSHub 轮询总开关 |
@@ -86,7 +86,7 @@ python scripts/run_frontend.py  status|start|stop
 | 自选股 | `/watchlist` | 分组管理、**批量/单条删除**、实时行情与最近查看价格、个股详情（资金流/财务/产业链/行业对比） |
 | 每日复盘 | `/replay` | 市场概况、涨停梯队、**真实龙虎榜**、**板块主力净流入/流出**、AI 复盘、次日选股池、复盘原文（交易日 18:00 自动生成） |
 | 模拟交易 | `/simulation` | 多账户，AI 每日决策买卖（**禁买 ST/\*ST**），持仓/追踪/观察/复盘四池 Tab 切换，收益曲线 + 绩效统计（收益率/胜率/最大回撤） |
-| 实盘导入 | `/trade` | JSON/CSV 导入真实成交，持仓与盈亏汇总 |
+| 实盘导入 | `/trade` | 手动录入 / JSON / **券商交割单 CSV·Excel 批量导入**（同花顺、东方财富、投资账本等自动识别列，UTF-8/GBK 均可，分红配号自动跳过），持仓与盈亏汇总 |
 | 智能体中心 | `/agents` | 3 个默认智能体 + 自定义，配置 API/模型/提示词，大盘分析 |
 | 订阅消息 | `/rss` | 导航「订阅」为**独立整页**（保留顶部导航栏），页内消息流（来源/重要度/搜索/ST过滤）+ **RSSHub 配置**（启用开关/实例地址/保存）+ 订阅源状态表；立即轮询、30s 自动刷新；轮询后重要消息全局推送 |
 | 系统设置 | `/settings` | 数据源（主+备用1/2/3顺序回退）、数据库配置/测试、RSSHub开关+订阅地址+间隔+订阅源管理 |
