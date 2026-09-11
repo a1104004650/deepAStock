@@ -26,6 +26,19 @@ docker compose down              # 停止
 docker compose up -d             # 再次启动（增量秒级）
 ```
 
+> **访问不了/端口没暴露？先自检（配置本身已含 `18080`/`18000`/`11200` 端口映射）：**
+> 1. `docker compose ps`：STATUS 必须是 `Up (healthy)`，PORTS 要显示 `0.0.0.0:18080->80/tcp` 等——若只有 `build/pull` 没有 `up`，容器没起来当然没端口；
+> 2. `docker port deepastock-app`：确认端口确实绑定在宿主机；
+> 3. 访问地址用**运行 Docker 的那台机器 IP**：`http://<宿主IP>:18080`（WSL2 / 云主机 / 远程服务器不能只在本机浏览器打 `localhost`），并确认防火墙放行了这三口；
+> 4. 启动失败看原因：`docker compose logs app`。
+>
+> **改了代码/换了新版压缩包，但页面还是旧的？** 原因是没用 `--build` 重建镜像：
+> ```
+> docker compose up -d --build app       # 强制重新构建并用新镜像重启
+> docker compose build --no-cache app    # 如果还不放心，全量无缓存重建
+> ```
+> 完成后浏览器 `Ctrl+F5` 强刷；不要只执行 `docker compose up`（它永远复用旧镜像）。
+
 ### 端口
 | 端口 | 用途 |
 |---|---|

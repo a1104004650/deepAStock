@@ -762,3 +762,7 @@
 2026-09-11 15:54:00,525 [INFO] quant: 初始化数据库...
 2026-09-11 15:54:00,555 [INFO] quant: 启动定时任务...
 2026-09-11 15:54:00,557 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-11 16:00:18,927 [WARNING] quant: em boards m:90+t:3 p1: Remote end closed connection without response
+2026-09-11 16:00:21,780 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 16:05:25,791 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-11 16:07:23,490 [WARNING] quant: [sina] get_limit_up failed/timeout: 
