@@ -9883,3 +9883,6 @@ INFO:     127.0.0.1:59120 - "GET /api/v1/market/sectors/monitor HTTP/1.1" 200 OK
 INFO:     127.0.0.1:60730 - "GET /api/v1/system/health HTTP/1.1" 200 OK
 INFO:     127.0.0.1:60732 - "GET /api/v1/market/intraday?symbol=SH000001 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:60733 - "GET /api/v1/market/intraday?symbol=SZ399006 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60734 - "GET /api/v1/market/intraday?symbol=SH000688 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60731 - "GET /api/v1/market/indices HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60735 - "GET /api/v1/market/sectors/monitor HTTP/1.1" 200 OK
