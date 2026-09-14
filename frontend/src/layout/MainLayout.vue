@@ -1,15 +1,43 @@
 <template>
   <el-container class="layout">
     <el-header class="header" height="56px">
-      <div class="logo">deepAStock</div>
+      <router-link to="/" class="logo">deepAStock</router-link>
       <nav class="nav">
+        <router-link to="/" class="nav-item" :class="{ active: isActive('/') }">看板</router-link>
+
+        <div
+          v-for="g in desktopGroups"
+          :key="g.label"
+          class="nav-group"
+          @mouseenter="onGroupEnter(g.label)"
+          @mouseleave="onGroupLeave"
+        >
+          <span class="nav-item nav-trigger" :class="{ active: groupActive(g) }">
+            {{ g.label }}
+            <el-icon class="caret" :class="{ open: openMenu === g.label }" style="margin-left:3px"><ArrowDown /></el-icon>
+          </span>
+          <div v-show="openMenu === g.label" class="nav-panel">
+            <router-link
+              v-for="it in g.items"
+              :key="it.path"
+              :to="it.path"
+              class="nav-link"
+              @click="openMenu = ''"
+            >
+              <el-icon :size="15"><component :is="it.icon" /></el-icon>
+              <span>{{ it.label }}</span>
+              <el-tag v-if="it.soon" size="small" effect="plain" type="warning">敬请开放</el-tag>
+            </router-link>
+          </div>
+        </div>
+
         <router-link
-          v-for="item in desktopNav"
-          :key="item.path"
-          :to="item.path"
+          v-for="d in desktopDirect"
+          :key="d.path"
+          :to="d.path"
           class="nav-item"
-          :class="{ active: isActive(item.path) }"
-        >{{ item.label }}</router-link>
+          :class="{ active: isActive(d.path) }"
+        >{{ d.label }}</router-link>
       </nav>
       <div class="right">
         <span class="clock">{{ clockText }}</span>
@@ -31,23 +59,31 @@
         <span>{{ item.label }}</span>
       </router-link>
     </nav>
-    <!-- 全局重要消息渐变通知（每条只提示一次，本地去重；含平台新闻 + RSS 增量推送） -->
-    <transition name="news-pop">
-      <div v-if="newsStore.currentNews" class="news-toast" @click="newsStore.openNews(newsStore.currentNews)">
+    <!-- 全局重要消息渐变通知（多条同时弹出、互不覆盖，15 秒自动消失；含平台新闻 + RSS 增量推送） -->
+    <transition-group name="news-pop" tag="div" class="news-stack">
+      <div
+        v-for="t in newsStore.toasts"
+        :key="t.id"
+        class="news-toast"
+        @click="newsStore.openNews(t)"
+      >
         <div class="news-toast-text">
-          <span class="news-toast-tag">{{ newsStore.currentNews.source || '重要' }}</span>
-          <span class="news-toast-title">{{ newsStore.currentNews.title }}</span>
+          <span class="news-toast-tag">{{ t.source }}</span>
+          <span class="news-toast-title">{{ t.title }}</span>
         </div>
-        <el-icon class="news-toast-close" @click.stop="newsStore.dismissNews"><Close /></el-icon>
+        <el-icon class="news-toast-close" @click.stop="newsStore.dismissToast(t.id)"><Close /></el-icon>
       </div>
-    </transition>
+    </transition-group>
   </el-container>
 </template>
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import { DataBoard, Star, Document, TrendCharts, Histogram, Upload, MagicStick, Promotion, Setting, Close } from '@element-plus/icons-vue'
+import {
+  DataBoard, Star, Document, TrendCharts, Histogram, Upload,
+  MagicStick, Promotion, Setting, Close, ArrowDown, DataLine, Coin, Cpu, Reading
+} from '@element-plus/icons-vue'
 import { systemApi, marketApi, rssApi } from '../api'
 import { useNewsStore } from '../stores/news'
 import { usePollingStore } from '../stores/polling'
@@ -56,6 +92,69 @@ const route = useRoute()
 const newsStore = useNewsStore()
 const polling = usePollingStore()
 const clockText = ref('')
+const openMenu = ref('')
+
+// 桌面端导航：直接项 + 分组大菜单（功能相近的整合到一个菜单下）
+const desktopGroups = [
+  {
+    label: '行情',
+    items: [
+      { path: '/watchlist', label: '自选股', icon: Star },
+      { path: '/replay', label: '每日复盘', icon: Document },
+      { path: '/macro', label: '宏观数据', icon: DataLine },
+      { path: '/fund', label: '基金', icon: Coin, soon: true }
+    ]
+  },
+  {
+    label: '交易',
+    items: [
+      { path: '/backtest', label: '策略回测', icon: Histogram },
+      { path: '/trade', label: '实盘导入', icon: Upload }
+    ]
+  },
+  {
+    label: 'AI 研究',
+    items: [
+      { path: '/simulation', label: '模拟交易', icon: TrendCharts },
+      { path: '/agents', label: '智能体', icon: MagicStick },
+      { path: '/lab', label: '实验室', icon: Cpu, soon: true },
+      { path: '/knowledge', label: 'Wiki', icon: Reading, soon: true }
+    ]
+  }
+]
+const desktopDirect = [
+  { path: '/rss', label: '订阅', icon: Promotion },
+  { path: '/settings', label: '设置', icon: Setting }
+]
+// 移动端底部导航：只保留最常用入口
+const mobileNav = [
+  { path: '/', label: '看板', icon: DataBoard },
+  { path: '/watchlist', label: '自选', icon: Star },
+  { path: '/simulation', label: '模拟', icon: TrendCharts },
+  { path: '/rss', label: '订阅', icon: Promotion },
+  { path: '/settings', label: '设置', icon: Setting }
+]
+
+const isActive = (path) => {
+  const p = route.path
+  if (path === '/') return p === '/' || p.startsWith('/stock/')
+  if (path === '/watchlist') return p === '/watchlist' || p.startsWith('/stock/')
+  return p === path
+}
+const groupActive = (g) => g.items.some((it) => {
+  const p = route.path
+  return p === it.path || (it.path === '/watchlist' && p.startsWith('/stock/'))
+})
+
+let hoverTimer = null
+function onGroupEnter(label) {
+  if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null }
+  openMenu.value = label
+}
+function onGroupLeave() {
+  if (hoverTimer) clearTimeout(hoverTimer)
+  hoverTimer = setTimeout(() => { openMenu.value = ''; hoverTimer = null }, 150)
+}
 
 function isTradingHours() {
   const now = new Date()
@@ -87,13 +186,15 @@ async function pollImportantNews() {
   } catch { /* ignore */ }
 }
 
-// RSS 纯增量轮询：所有新入库的消息都进全局通知（本地去重）
+// RSS 纯增量轮询：仅推送 重要(1) 与 普通(2) 级别的消息进全局通知，其他级别不推送（本地去重）
 const rssSeen = new Set()
 async function pollRssIncrement() {
   try {
     const rows = await rssApi.recent(50).catch(() => [])
     for (const r of rows || []) {
       if (!r || !r.title) continue
+      const imp = Number(r.importance || 3)
+      if (imp > 2) continue
       const key = 'rss-inc-' + (r.guid || ('i' + (r.id || r.title)))
       if (rssSeen.has(key)) continue
       rssSeen.add(key)
@@ -105,7 +206,7 @@ async function pollRssIncrement() {
         if (localStorage.getItem(key)) continue
         localStorage.setItem(key, '1')
       } catch { /* storage disabled */ }
-      newsStore.pushNews({ title: r.title, url: r.link || '', source: r.source_name || 'RSS', importance: Number(r.importance) || 3 })
+      newsStore.pushNews({ title: r.title, url: r.link || '', source: r.source_name || 'RSS', importance: imp })
     }
   } catch { /* ignore */ }
 }
@@ -121,27 +222,6 @@ function updateClock() {
   const mm = String(now.getMinutes()).padStart(2, '0')
   const ss = String(now.getSeconds()).padStart(2, '0')
   clockText.value = `${y}-${mo}-${d} ${w} ${hh}:${mm}:${ss}`
-}
-
-const navItems = [
-  { path: '/', label: '看板', icon: DataBoard },
-  { path: '/watchlist', label: '自选', icon: Star },
-  { path: '/replay', label: '复盘', icon: Document },
-  { path: '/simulation', label: '模拟', icon: TrendCharts },
-  { path: '/backtest', label: '回测', icon: Histogram },
-  { path: '/trade', label: '实盘', icon: Upload },
-  { path: '/agents', label: '智能体', icon: MagicStick },
-  { path: '/rss', label: '订阅', icon: Promotion },
-  { path: '/settings', label: '设置', icon: Setting }
-]
-
-const desktopNav = navItems.map(({ path, label }) => ({ path, label }))
-const mobileNav = navItems
-
-const isActive = (path) => {
-  const p = route.path
-  if (path === '/') return p === '/' || p.startsWith('/stock/')
-  return p === path
 }
 
 function checkHealth() {
@@ -163,7 +243,6 @@ onMounted(() => {
   pollRssIncrement()
   polling.register('platnews', pollImportantNews, pollNewsInterval())
   polling.register('rss', pollRssIncrement, 60000)
-  polling.register('newsadv', newsStore.advanceNewsQueue, 15000)
 })
 onBeforeUnmount(() => {
   polling.clearAll()
@@ -189,6 +268,7 @@ onBeforeUnmount(() => {
   color: #60a5fa;
   margin-right: 24px;
   white-space: nowrap;
+  text-decoration: none;
 }
 .nav {
   display: flex;
@@ -216,6 +296,48 @@ onBeforeUnmount(() => {
   color: #409eff;
   background: rgba(64,158,255,.12);
   font-weight: 600;
+}
+.nav-group {
+  position: relative;
+}
+.nav-trigger {
+  display: inline-flex;
+  align-items: center;
+}
+.caret { transition: transform .2s; }
+.caret.open { transform: rotate(180deg); }
+.nav-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 190px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.16);
+  border: 1px solid #eef0f3;
+  padding: 6px;
+  z-index: 900;
+}
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #303133;
+  text-decoration: none;
+  transition: all .12s;
+}
+.nav-link:hover {
+  background: #f3f6fb;
+  color: #409eff;
+}
+.nav-link .el-tag { margin-left: auto; }
+.nav-link.router-link-active {
+  color: #409eff;
+  font-weight: 600;
+  background: #ecf5ff;
 }
 .right {
   color: #cbd5e1;
@@ -280,12 +402,19 @@ onBeforeUnmount(() => {
 }
 
 /* 全局重要消息渐变通知 */
-.news-toast {
+.news-stack {
   position: fixed;
   top: 66px;
   right: 16px;
-  max-width: min(420px, calc(100vw - 32px));
   z-index: 2200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.news-stack .news-toast { pointer-events: auto; }
+.news-toast {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -329,4 +458,5 @@ onBeforeUnmount(() => {
   opacity: 0;
   transform: translateX(30px);
 }
+.news-pop-leave-active { position: relative; }
 </style>

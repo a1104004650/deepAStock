@@ -1,8 +1,9 @@
 """系统状态接口"""
+from pathlib import Path
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db, engine
-from app.config import settings
+from app.config import settings, BASE_DIR
 from app.tasks.scheduler import scheduler_jobs
 from app.core.settings import source_order, get_setting
 
@@ -12,6 +13,17 @@ router = APIRouter(prefix="/api/v1/system", tags=["系统"])
 @router.get("/health")
 async def health():
     return {"status": "ok", "app": settings.APP_NAME, "version": settings.APP_VERSION}
+
+
+@router.get("/changelog")
+async def changelog():
+    """返回版本信息与 CHANGELOG.md 全文（前端设置页展示）。"""
+    p = Path(BASE_DIR).parent / "CHANGELOG.md"
+    try:
+        text = p.read_text("utf-8", errors="replace")
+    except Exception:
+        text = ""
+    return {"app": settings.APP_NAME, "version": settings.APP_VERSION, "changelog": text}
 
 
 @router.get("/status")

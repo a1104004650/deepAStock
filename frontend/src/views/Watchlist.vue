@@ -16,7 +16,7 @@
                 <el-icon><Plus /></el-icon>新建
               </el-button>
             </div>
-            <el-scrollbar max-height="140" ref="groupScroll">
+            <el-scrollbar max-height="140">
               <div class="group-item" :class="{ active: showRecent }" @click="showRecentViewed">
                 <span>🕐 最近查看</span>
                 <span class="fs12" style="color:#909399">{{ recentList.length }}</span>
@@ -156,12 +156,22 @@
                   <div class="fs11 mt4" style="color:#909399">AI 正在生成分析…</div>
                 </div>
                 <div v-else-if="brain.agents?.length">
-                  <div class="flex gap fs12 mb8" style="flex-wrap:wrap">
-                    <span>综合建议：<el-tag size="small" :type="overallRatingTag">{{ overallRatingText }}</el-tag></span>
-                    <span class="flex gap" style="flex-wrap:wrap;justify-content:center">
-                      <el-button v-for="a in agentList" :key="a.agent_type" size="small" link :loading="brainLoading === a.agent_type" @click="runBrainOne(a.agent_type)">
-                        {{ a.agent_type === 'research' ? '投研' : a.agent_type === 'short_term' ? '短线' : '波段' }}
-                      </el-button>
+                  <div class="flex gap fs12 mb8" style="flex-wrap:wrap;align-items:center">
+                    <span class="flex gap" style="align-items:center">
+                      <span>综合建议：</span>
+                      <el-tag size="small" :type="overallRatingTag">{{ overallRatingText }}</el-tag>
+                    </span>
+                    <span class="flex gap" style="flex-wrap:wrap;align-items:center">
+                      <el-tooltip v-for="a in agentList" :key="a.agent_type"
+                        :content="a.agent_type === 'research' ? '投研智能体 · 点击重新分析' : a.agent_type === 'short_term' ? '短线交易智能体 · 点击重新分析' : '波段操作智能体 · 点击重新分析'"
+                        placement="top">
+                        <el-button size="small" :loading="brainLoading === a.agent_type" @click="runBrainOne(a.agent_type)"
+                          :type="a.agent_type === 'research' ? 'danger' : a.agent_type === 'short_term' ? 'warning' : 'info'"
+                          plain>
+                          <el-icon style="margin-right:3px"><Refresh /></el-icon>
+                          {{ a.agent_type === 'research' ? '投研' : a.agent_type === 'short_term' ? '短线' : '波段' }}
+                        </el-button>
+                      </el-tooltip>
                     </span>
                   </div>
                   <el-row :gutter="10">
@@ -447,10 +457,10 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Refresh } from '@element-plus/icons-vue'
 import MainLayout from '../layout/MainLayout.vue'
 import HQChartKline from '../components/HQChartKline.vue'
 import LineChart from '../components/LineChart.vue'
@@ -496,6 +506,7 @@ const batchMode = ref(false)
 const selectedForDelete = ref([])
 
 const RECENT_KEY = 'recent_viewed'
+const GROUP_STATE_KEY = 'watchlist_tab_state'
 const MAX_RECENT = 30
 const agentLabels = { research: '投研', short_term: '短线', swing: '波段' }
 
@@ -628,17 +639,6 @@ function showRecentViewed() {
   loadRecentPrices()
 }
 
-const groupScroll = ref(null)
-
-function anchorGroup(id) {
-  currentGroupId.value = id
-  showRecent.value = false
-  nextTick(() => {
-    const el = groupScroll.value?.$el?.querySelector('.group-item.active')
-    if (el) el.scrollIntoView({ block: 'nearest' })
-  })
-}
-
 function selectGroup(id) {
   showRecent.value = false
   currentGroupId.value = id
@@ -648,7 +648,6 @@ function selectGroup(id) {
 }
 
 function selectItem(row) {
-  showRecent.value = false
   batchMode.value = false
   selectedForDelete.value = []
   symbolStore.select(row.symbol, { name: row.name, price: row.price, change_pct: row.change_pct, change: row.change, ...row })
@@ -769,6 +768,7 @@ async function load(silent = false) {
   try {
     groups.value = await watchlistApi.groups()
     loadRecent()
+    if (showRecent.value && recentList.value.length) loadRecentPrices()
     loadAgentList()
     if (!currentGroupId.value || !groups.value.some(g => g.id === currentGroupId.value)) {
       currentGroupId.value = groups.value[0]?.id
@@ -782,8 +782,6 @@ async function loadWithSymbol(sym) {
   if (!sym) return
   const item = groups.value.flatMap(g => g.items || []).find(i => i.symbol === sym)
   if (item) {
-    const g = groups.value.find(gr => (gr.items || []).some(i => i.symbol === sym))
-    if (g) anchorGroup(g.id)
     selectItem(item)
     return
   }
@@ -883,11 +881,35 @@ function removeSelected() {
 
 watch(period, (v) => { if (VALID_PERIODS.includes(v)) loadKline() })
 
+function restoreTabState() {
+  try {
+    const raw = localStorage.getItem(GROUP_STATE_KEY)
+    if (raw) {
+      const st = JSON.parse(raw)
+      if (st.showRecent) showRecent.value = true
+      else if (st.groupId) currentGroupId.value = st.groupId
+    }
+  } catch {}
+}
+function persistTabState() {
+  try {
+    const st = showRecent.value
+      ? { showRecent: true, groupId: null }
+      : { showRecent: false, groupId: currentGroupId.value }
+    localStorage.setItem(GROUP_STATE_KEY, JSON.stringify(st))
+  } catch {}
+}
+watch([currentGroupId, showRecent], persistTabState)
+
 let timer = null
 onMounted(() => {
+  restoreTabState()
   const qSym = route.query.symbol
   if (qSym) { loadWithSymbol(qSym) } else { load() }
-  timer = setInterval(() => { if (symbolStore.selectedSymbol) loadKline() }, 30000)
+  timer = setInterval(() => {
+    if (symbolStore.selectedSymbol) loadKline()
+    if (showRecent.value && recentList.value.length) loadRecentPrices()
+  }, 30000)
 })
 onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>

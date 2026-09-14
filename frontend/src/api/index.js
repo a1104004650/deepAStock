@@ -4,6 +4,8 @@ import http from './http'
 export const marketApi = {
   overview: () => http.get('/market/overview'),
   indices: () => http.get('/market/indices'),
+  globalIndices: () => http.get('/market/global-indices'),
+  macro: (refresh = 0) => http.get('/market/macro', { params: { refresh } }),
   kline: (p) => http.get('/market/kline', { params: p }),
   intraday: (p) => http.get('/market/intraday', { params: p }),
   realtime: (p) => http.get('/market/realtime', { params: p }),
@@ -82,7 +84,8 @@ export const agentApi = {
     fetch(`/api/v1/agents/brainstorm/${s}/${at}/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
-    })
+    }),
+  parseCurl: (curl) => http.post('/agents/parse-curl', { curl })
 }
 
 // 模拟交易
@@ -119,7 +122,8 @@ export const tradeApi = {
 // 系统
 export const systemApi = {
   health: () => http.get('/system/health'),
-  status: () => http.get('/system/status')
+  status: () => http.get('/system/status'),
+  changelog: () => http.get('/system/changelog')
 }
 
 // 系统设置

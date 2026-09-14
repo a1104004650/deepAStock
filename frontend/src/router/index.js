@@ -10,7 +10,11 @@ const routes = [
   { path: '/trade', name: 'trade', component: () => import('../views/TradeImport.vue'), meta: { title: '实盘导入' } },
   { path: '/agents', name: 'agents', component: () => import('../views/Agents.vue'), meta: { title: '智能体中心' } },
   { path: '/rss', name: 'rss', component: () => import('../views/RssNews.vue'), meta: { title: '订阅消息' } },
-  { path: '/settings', name: 'settings', component: () => import('../views/Settings.vue'), meta: { title: '系统设置' } }
+  { path: '/settings', name: 'settings', component: () => import('../views/Settings.vue'), meta: { title: '系统设置' } },
+  { path: '/macro', name: 'macro', component: () => import('../views/Macro.vue'), meta: { title: '宏观数据' } },
+  { path: '/fund', name: 'fund', component: () => import('../views/ComingSoon.vue'), props: { title: '基金', code: 'fund' }, meta: { title: '基金' } },
+  { path: '/lab', name: 'lab', component: () => import('../views/ComingSoon.vue'), props: { title: '实验室', code: 'lab' }, meta: { title: '实验室' } },
+  { path: '/knowledge', name: 'knowledge', component: () => import('../views/ComingSoon.vue'), props: { title: 'Wiki', code: 'knowledge' }, meta: { title: 'Wiki' } }
 ]
 
 export default createRouter({

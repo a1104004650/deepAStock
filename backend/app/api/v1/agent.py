@@ -1,5 +1,7 @@
 """AI智能体接口"""
 import json
+import re
+import shlex
 from datetime import datetime
 import asyncio
 from zoneinfo import ZoneInfo
@@ -17,6 +19,106 @@ from app.schemas.common import AgentConfigCreate, AgentConfigUpdate, AgentAnalyz
 from app.utils.logger import logger
 
 router = APIRouter(prefix="/api/v1/agents", tags=["AI智能体"])
+
+
+# ========================= curl 一键导入 =========================
+
+def _parse_curl(curl_text: str) -> dict:
+    """解析 curl 命令为 LLM 配置字段（base_url/api_key/model/provider）"""
+    result = {"api_base": "", "api_key": "", "model_name": "", "provider": "", "headers": {}}
+    if not curl_text or not curl_text.strip():
+        return result
+    try:
+        # Normalize line continuations
+        text = re.sub(r'\\\s*\n', ' ', curl_text.strip())
+        tokens = shlex.split(text)
+    except Exception:
+        return result
+
+    url = ""
+    headers = {}
+    body_str = ""
+    method = "POST"
+    i = 0
+    while i < len(tokens):
+        t = tokens[i]
+        if t in ("curl", "--request", "-X"):
+            if t in ("--request", "-X"):
+                i += 1; method = tokens[i].upper() if i < len(tokens) else "POST"
+            i += 1
+        elif t in ("--url", ""):
+            i += 1; url = tokens[i] if i < len(tokens) else url; i += 1
+        elif t in ("-H", "--header"):
+            i += 1
+            if i < len(tokens):
+                k, _, v = tokens[i].partition(":")
+                headers[k.strip()] = v.strip().strip("'\"")
+            i += 1
+        elif t in ("-d", "--data", "--data-raw"):
+            i += 1
+            body_str = tokens[i] if i < len(tokens) else body_str
+            i += 1
+        else:
+            i += 1
+
+    result["api_base"] = url.rstrip("/")
+    result["headers"] = headers
+
+    # Extract api_key from various header styles
+    for k, v in headers.items():
+        kl = k.lower()
+        if kl == "authorization" and v.lower().startswith("bearer "):
+            result["api_key"] = v[7:].strip().strip("'\"")
+            break
+        elif kl in ("x-api-key", "x-goog-api-key", "api-key"):
+            result["api_key"] = v.strip().strip("'\"")
+            break
+
+    # Extract model from JSON body
+    if body_str:
+        try:
+            body = json.loads(body_str)
+            if isinstance(body, dict):
+                result["model_name"] = body.get("model", "")
+        except Exception:
+            pass
+
+    # Infer provider from URL
+    url_l = url.lower()
+    model_l = result["model_name"].lower()
+    if "anthropic" in url_l or "claude" in model_l:
+        result["provider"] = "claude"
+        # Normalize base URL: strip /v1/messages path
+        result["api_base"] = re.sub(r'/v1/messages$', '', url_l)
+    elif "openai" in url_l or "gpt" in model_l or "o1-" in model_l or "o3-" in model_l:
+        result["provider"] = "openai"
+    elif "gemini" in url_l or "generativelanguage" in url_l:
+        result["provider"] = "gemini"
+    elif "deepseek" in url_l or "deepseek" in model_l:
+        result["provider"] = "deepseek"
+    elif "dashscope" in url_l or "qwen" in model_l:
+        result["provider"] = "qwen"
+    elif "bigmodel" in url_l or "glm" in model_l:
+        result["provider"] = "zhipu"
+    elif "localhost" in url_l and ("11434" in url_l or "ollama" in url_l):
+        result["provider"] = "ollama"
+    elif "x.ai" in url_l or "grok" in model_l:
+        result["provider"] = "grok"
+    else:
+        result["provider"] = "openai"  # Default to OpenAI-compatible
+
+    # For Anthropic, base URL should end with /v1
+    if result["provider"] == "claude" and not result["api_base"].endswith("/v1"):
+        result["api_base"] = result["api_base"].rstrip("/") + "/v1"
+
+    return result
+
+
+@router.post("/parse-curl")
+async def parse_curl(req: dict):
+    """解析 curl 命令，返回 LLM 配置字段"""
+    curl_text = req.get("curl", "")
+    return _parse_curl(curl_text)
 
 
 def _today() -> str:

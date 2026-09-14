@@ -80,7 +80,23 @@
       </el-card>
 
       <!-- 配置弹窗 -->
-      <el-dialog :title="editingId ? '编辑智能体配置' : '创建自定义智能体'" v-model="dialog" width="560">
+      <el-dialog :title="editingId ? '编辑智能体配置' : '创建自定义智能体'" v-model="dialog" width="620">
+        <!-- curl 一键导入区域 -->
+        <div class="curl-box mb8">
+          <div class="flex between" style="align-items:center;margin-bottom:6px">
+            <span class="fs13 bold">curl 一键导入（可选）</span>
+            <el-button size="small" type="primary" plain :loading="curlLoading" @click="doParseCurl">解析 curl</el-button>
+          </div>
+          <div class="fs12 mb6" style="color:#909399">
+            粘贴任意 OpenAI / Anthropic / 其他兼容 API 的 curl 命令，自动提取 API 地址、Key、模型名
+          </div>
+          <el-input v-model="curlText" type="textarea" :rows="4"
+            placeholder='curl https://api.deepseek.com/v1/chat/completions \
+  -H "Authorization: Bearer sk-xxx" \
+  -H "Content-Type: application/json" \
+  -d &apos;{"model":"deepseek-chat","messages":[...]}' />
+        </div>
+        <el-divider style="margin:10px 0" />
         <el-form label-width="110px">
           <el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
           <el-form-item label="类型">
@@ -135,6 +151,8 @@ const statsDays = computed(() => stats.value.days || 30)
 const dialog = ref(false)
 const editingId = ref(null)
 const form = ref(defaultForm())
+const curlText = ref('')
+const curlLoading = ref(false)
 
 const PROVIDER_PRESETS = {
   deepseek: { api_base: 'https://api.deepseek.com/v1', model_name: 'deepseek-chat' },
@@ -164,6 +182,23 @@ function applyProviderPreset(p) {
   if (!preset) return
   form.value.api_base = preset.api_base
   form.value.model_name = preset.model_name
+}
+
+async function doParseCurl() {
+  if (!curlText.value.trim()) { ElMessage.warning('请先粘贴 curl 命令'); return }
+  curlLoading.value = true
+  try {
+    const r = await agentApi.parseCurl(curlText.value)
+    if (r.api_base) form.value.api_base = r.api_base
+    if (r.api_key) form.value.api_key = r.api_key
+    if (r.model_name) form.value.model_name = r.model_name
+    if (r.provider) form.value.provider = r.provider
+    ElMessage.success('curl 解析成功，字段已自动填充')
+  } catch (e) {
+    ElMessage.error('解析失败，请检查 curl 格式')
+  } finally {
+    curlLoading.value = false
+  }
 }
 
 async function load() {
@@ -217,5 +252,11 @@ onMounted(load)
 .wide-alert {
   width: 480px;
   white-space: pre-wrap;
+}
+.curl-box {
+  background: #f5f7fa;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 12px;
 }
 </style>

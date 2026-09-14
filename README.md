@@ -12,13 +12,13 @@
 ```bash
 # 开发者：自己打 release 包
 powershell -ExecutionPolicy Bypass -File build_release.ps1
-# 产出：release/deepAStock-v1.1.4.zip（含完整项目 + Docker 全家桶 + 文档）
+# 产出：release/deepAStock-v1.1.5.zip（含完整项目 + Docker 全家桶 + 文档）
 ```
 
 ### 2. 部署（使用者）
 ```bash
-unzip deepAStock-v1.1.4.zip
-cd deepAStock-v1.1.4
+unzip deepAStock-v1.1.5.zip
+cd deepAStock-v1.1.5
 docker compose up -d --build     # 首次构建约需数分钟，之后秒级
 # 打开浏览器 http://localhost:18080   （接口文档 http://localhost:18000/docs）
 docker compose logs -f app       # 看日志
@@ -64,7 +64,7 @@ docker compose up -d             # 再次启动（增量秒级）
 | `SECRET_KEY` | 自动生成并持久化到 `data/.secret_key` | 固定密钥勿留默认，可用环境变量显式覆盖 |
 | `DEBUG` | false | 生产安全默认关闭 |
 | `TZ` | Asia/Shanghai | 时区 |
-| `APP_VERSION` | 1.1.4 | 显示版本 |
+| `APP_VERSION` | 1.1.5 | 显示版本 |
 | `PRIMARY_SOURCE/BACKUP_SOURCE` | sina+tencent | 行情数据源 |
 | `RSSHUB_BASE` | http://rsshub:1200 | 本地 RSSHub 实例地址（容器内）；本机直接跑后端需在「设置 → RSSHub 订阅」填宿主机映射 `http://127.0.0.1:11200` |
 | `RSSHUB_ENABLED` | true | RSSHub 轮询总开关 |
