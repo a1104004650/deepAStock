@@ -35,7 +35,7 @@
     - 财务 `RPT_LICO_FN_CPD`（`YSTZ/SJLTZ/MGJYXJJE/XSMLL/ASSIGNDSCRPT/...`）。
   - K线/自选已落库缓存（purge 过旧 mock 缓存后 MA 正常）。
 - 前端：Vue3 + Vite 5 + Element Plus + Pinia + vue-router + ECharts，`frontend/`，dev 端口 **5173**，`vite.config.js` 已把 `/api` 代理到 8000。所有页面级代码做 `npm run build` 已验证编译通过。
-- 定时任务：APScheduler（Asia/Shanghai，周一~五）**10:25/13:30/14:50 交易窗口盘中决策、15:10 收盘决策**（当日已有成交的账户自动跳过）、**18:00 复盘**、20:00 进化；另有 **30s 一次 RSSHub 轮询**（单源限频按订阅间隔，微博/公众号/股吧等推送信息落库供「消息滚动」；`filter_st=True` 的源过滤 ST 标题）。调度信息经 `/api/v1/system/status` 的 `jobs` 字段暴露。settings 快照启动时从 DB 刷新（`refresh_settings`），PUT 时异步写回。
+- 定时任务：APScheduler（Asia/Shanghai，周一~五）**10:25/13:30/14:50 交易窗口盘中决策、15:10 收盘决策**（当日已有成交的账户自动跳过）、**18:00 复盘**、20:00 进化；另有 **30s 一次 RSSHub 轮询**（单源限频按订阅间隔，微博/公众号/股吧等推送信息落库供「消息滚动」）。调度信息经 `/api/v1/system/status` 的 `jobs` 字段暴露。settings 快照启动时从 DB 刷新（`refresh_settings`），PUT 时异步写回。
 
 ## 部署
 - **Docker 多服务**：根 `Dockerfile`（叠加 node 构建前端 + python 依赖 + nginx，supervisord 同容器跑 uvicorn+nginx）+ `nginx.conf`（`/api`→`127.0.0.1:8000`）+ `docker-compose.yml`（默认 SQLite 卷 `backend_data`，可选 `postgres` profile；**rsshub** 本地部署镜像 diygod/rsshub，宿主机 11200 映射，应用内部走 `http://rsshub:1200`，弱依赖不阻塞主业务）。端口（宿主机）：18080 前端 / 18000 接口 / 11200 rsshub / 15432 postgres。

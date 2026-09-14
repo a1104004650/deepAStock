@@ -1,5 +1,6 @@
 <template>
-  <div class="page settings-page">
+  <MainLayout>
+    <div class="page settings-page">
     <h2 class="page-title">系统设置</h2>
     <el-tabs v-model="tab" class="settings-tabs">
       <!-- 数据源 -->
@@ -59,8 +60,7 @@
         <el-card shadow="never" class="panel">
           <template #header>
             <div class="panel-head">
-              <span>订阅源管理（本地 RSSHub 实例，微博 / 公众号 / 股吧 等平台的推送消息，自动存库</span>
-              <span style="margin:0 12px 0 4px;color:#909399;font-weight:400">近实时，限频轮询）</span>
+              <span>订阅源管理（HTTP 直连 / RSSHub 本地，按分钟轮询增量入库，新消息全局通知）</span>
               <div class="panel-actions">
                 <el-button size="small" @click="pollNow" :loading="polling">
                   <el-icon style="margin-right:4px"><Refresh /></el-icon>立即轮询
@@ -71,34 +71,32 @@
           </template>
 
           <div class="rss-status">
-            <el-tag :type="rssStatus.enabled ? 'success' : 'info'" size="small">
-              {{ rssStatus.enabled ? 'RSSHub 已启用' : 'RSSHub 未启用' }}
-            </el-tag>
             <div class="rss-base-line">
-              <span class="form-tip" style="margin-left:0">实例地址</span>
-              <el-input v-model="rssHubBase" size="small" style="width:240px" placeholder="http://127.0.0.1:11200" />
-              <el-button size="small" type="primary" :loading="savingRssHub" @click="saveRssHub">保存</el-button>
+              <span class="form-tip" style="margin-left:0">本地 RSSHub 参考地址</span>
+              <span class="route" style="line-height:28px">http://127.0.0.1:11200（Docker 内 http://rsshub:1200）</span>
+            </div>
+            <div class="rss-base-line">
+              <span class="form-tip" style="margin-left:0">RSSHub 路由文档</span>
+              <a class="doc-link" href="https://rsshub-doc.pages.dev/traditional-media.html#cai-xin-wang" target="_blank" rel="noopener">
+                https://rsshub-doc.pages.dev/traditional-media.html#cai-xin-wang
+              </a>
             </div>
             <div class="rss-base-line">
               <span class="form-tip" style="margin-left:0">微博 Cookie</span>
-              <el-input v-model="weiboCookie" size="small" type="textarea" :rows="2" style="width:520px" placeholder="浏览器登录 m.weibo.cn 后 F12 复制任一请求的 Cookie 头整串（仅供微博订阅直连使用，保存在本应用配置中）" />
+              <el-input v-model="weiboCookie" size="small" type="textarea" :rows="2" style="width:520px" placeholder="浏览器登录 m.weibo.cn 后 F12 复制任一请求的 Cookie 头整串（微博订阅直连仅在使用 /weibo/user/ 路由时需要）" />
               <el-button size="small" type="primary" :loading="savingRssHub" @click="saveWeiboCookie">保存</el-button>
             </div>
             <span class="form-tip">订阅源 {{ sources.length }} 个 · 入库消息 {{ itemTotal }} 条 · 上次轮询：{{ lastPollText }}</span>
           </div>
-<div class="rss-tip">
-            提示：本机开发填宿主机映射地址 <code>http://127.0.0.1:11200</code>；Docker 容器内自动为 <code>http://rsshub:1200</code>（compose 已配置）。
-            微博博主/热搜订阅无需改 docker，只需在上方「微博 Cookie」填登录态 Cookie 即可（微博订阅直连 m.weibo.cn）。
-          </div>
 
           <el-table :data="sources" size="small" empty-text="暂无订阅源" class="rss-table">
             <el-table-column prop="name" label="名称" min-width="120" />
-            <el-table-column prop="platform" label="平台" width="90">
-              <template #default="{ row }">{{ platformLabel(row.platform) }}</template>
+            <el-table-column label="RSS类型" width="112">
+              <template #default="{ row }"><el-tag size="small" effect="plain">{{ rssTypeLabel(row.rss_type) }}</el-tag></template>
             </el-table-column>
             <el-table-column label="订阅地址" min-width="240">
               <template #default="{ row }">
-                <span class="route">{{ row.url || (rssStatus.base || '') + (row.route || '') }}</span>
+                <span class="route">{{ row.url || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column label="关注标签" min-width="140">
@@ -107,7 +105,7 @@
                 <span v-if="!row.tags || !row.tags.length" style="color:#c0c4cc">-</span>
               </template>
             </el-table-column>
-            <el-table-column label="间隔(秒)" prop="interval_sec" width="86" />
+            <el-table-column label="轮询(分钟)" prop="interval_min" width="86" />
             <el-table-column label="启用" width="70">
               <template #default="{ row }">
                 <el-switch :model-value="row.enabled" size="small" @change="(v) => toggle(row, v)" />
@@ -121,8 +119,9 @@
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="130" fixed="right">
+            <el-table-column label="操作" width="170" fixed="right">
               <template #default="{ row }">
+                <el-button link type="success" size="small" :loading="pollingId === row.id" @click="pollSource(row)">轮询</el-button>
                 <el-button link type="primary" size="small" @click="openDialog(row)">编辑</el-button>
                 <el-button link type="danger" size="small" @click="removeSource(row)">删除</el-button>
               </template>
@@ -146,52 +145,50 @@
     </el-tabs>
 
     <!-- 新增/编辑订阅源 -->
-    <el-dialog v-model="dialogVisible" :title="editing ? '编辑订阅源' : '新增订阅源'" width="580px">
-      <el-form label-width="90px" label-position="left">
-        <el-form-item label="平台" required>
-          <el-select v-model="form.platform" @change="onPlatform">
-            <el-option v-for="(p, key) in platformMap" :key="key" :label="p.label" :value="key" />
-          </el-select>
-          <span class="form-tip">{{ platformHint }}</span>
-        </el-form-item>
-        <el-form-item :label="isRssHub ? 'RSSHub 路径' : '订阅地址'" required>
-          <el-input v-model="addressValue" :placeholder="addressPlaceholder" />
-          <div class="form-tip" style="display:block;width:100%;margin-left:0;margin-top:4px">
-            <template v-if="isRssHub">
-              填写 RSSHub 路径，会自动拼接到上方实例地址。示例：<br/>
-              <code>/weibo/user/1645823934</code>（微博用户）·
-              <code>/weibo/search/hot</code>（微博热搜）·
-              <code>/wechat/sogou/财经</code>（公众号）·
-              <code>/eastmoney/guba/600519</code>（股吧）
-            </template>
-            <template v-else>
-              填写 RSS / Atom / JSON Feed 完整链接，直接拉取不经过 RSSHub。示例：<br/>
-              <code>https://xueqiu.com/hots/topic/rss</code>（雪球热帖）·
-              <code>https://www.ithome.com/rss/</code>（IT之家）·
-              <code>https://www.ifanr.com/feed</code>（爱范儿）
-            </template>
-          </div>
-        </el-form-item>
+    <el-dialog v-model="dialogVisible" :title="editing ? '编辑订阅源' : '新增订阅源'" width="620px">
+      <el-form label-width="96px" label-position="left">
         <el-form-item label="名称">
           <el-input v-model="form.name" placeholder="给这个源起个名字（可不填，自动识别）" />
         </el-form-item>
-        <el-form-item label="关注标签">
-          <el-input v-model="form.tagsText" :placeholder="'逗号分隔，如：600519,茅台,跟单（可不填）'" />
+        <el-form-item label="RSS类型" required>
+          <el-radio-group v-model="form.rss_type">
+            <el-radio-button value="http">HTTP/HTTPS 直连</el-radio-button>
+            <el-radio-button value="rsshub_local">RSSHub 本地 Docker</el-radio-button>
+          </el-radio-group>
+          <div class="form-tip" style="display:block;width:100%;margin-left:0;margin-top:6px">
+            <template v-if="form.rss_type === 'http'">填写 RSS / Atom / JSON Feed 完整链接，直接抓取。示例：<code>https://www.ithome.com/rss/</code></template>
+            <template v-else>填写 RSSHub 接口完整地址（直接粘 URL，不做任何校验）。参考：<code>/36kr/newsflashes</code> · <code>/cls/telegraph</code> · <code>/caixin/latest</code> · <a href="https://rsshub-doc.pages.dev/traditional-media.html#cai-xin-wang" target="_blank" rel="noopener" class="doc-link">官方文档</a></template>
+          </div>
         </el-form-item>
-        <el-form-item label="轮询间隔">
-          <el-input-number v-model="form.interval_sec" :min="10" :max="1800" :step="10" />
-          <span class="form-tip" style="margin-left:10px">秒</span>
+        <el-form-item label="订阅地址" required>
+          <el-input v-model="form.url" :placeholder="addressPlaceholder">
+            <template v-if="form.rss_type === 'rsshub_local'" #prepend>http://127.0.0.1:11200</template>
+          </el-input>
+          <div class="form-tip" style="display:block;width:100%;margin-left:0;margin-top:6px">
+            <template v-if="form.rss_type === 'rsshub_local'">
+              只需填 <code>/36kr/newsflashes</code> 这类后缀，系统自动在前面加上本地 RSSHub 地址（左侧「http://127.0.0.1:11200」辅助拼接）。已在新源快速入口提供财联社/金十/财新等炒股相关路由。
+            </template>
+            <template v-else>
+              填写 RSS / Atom / JSON Feed 完整链接，直接抓取。示例：<code>https://www.ithome.com/rss/</code>
+            </template>
+          </div>
+        </el-form-item>
+        <el-form-item label="轮询时间">
+          <el-input-number v-model="form.interval_min" :min="1" :max="1440" :step="1" />
+          <span class="form-tip" style="margin-left:10px">分钟（默认 5 分钟）</span>
+        </el-form-item>
+        <el-form-item label="关注标签">
+          <el-input v-model="form.tagsText" :placeholder="'逗号分隔，普通自定义标签，如：热点,财经,A股'" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="form.remark" placeholder="备注（可选）" />
         </el-form-item>
         <el-form-item label="启用">
           <el-switch v-model="form.enabled" />
         </el-form-item>
-        <el-form-item label="过滤 ST">
-          <el-switch v-model="form.filter_st" />
-          <span class="form-tip" style="margin-left:10px">过滤标题含 ST / *ST 的消息</span>
-        </el-form-item>
       </el-form>
       <template #footer>
-        <el-button v-if="addressValue" @click="testFeed" :loading="testing">
+        <el-button v-if="form.url" @click="testFeed" :loading="testing">
           测试地址
         </el-button>
         <span v-if="testResult" class="form-tip" :class="testResult.ok ? 'ok' : 'err'" style="margin-right:10px">
@@ -201,14 +198,16 @@
         <el-button type="primary" @click="saveSourceDialog">保存</el-button>
       </template>
     </el-dialog>
-  </div>
+    </div>
+  </MainLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
-import { settingsApi, rssApi, systemApi } from '../api'
+import MainLayout from '../layout/MainLayout.vue'
+import { settingsApi, rssApi } from '../api'
 
 const tab = ref('source')
 const sourceOptions = ref(['sina', 'tencent'])
@@ -221,38 +220,28 @@ const dbForm = ref({ database_url: '' })
 const dbTest = ref(null)
 const testingDb = ref(false)
 
-const platformMap = {
-  generic: { label: '直接 RSS（填完整链接）', route: '' },
-  weibo: { label: '微博（RSSHub 路径）', route: '/weibo/user/' },
-  wechat: { label: '微信公众号（RSSHub 路径）', route: '/wechat/sogou/' },
-  guba: { label: '东方财富股吧（RSSHub 路径）', route: '/eastmoney/guba/' },
-  weibo_hot: { label: '微博热搜（RSSHub 路径）', route: '/weibo/search/hot' }
+const rssTypeMap = {
+  http: { label: 'HTTP直连', ph: 'https://www.ithome.com/rss/' },
+  rsshub_local: { label: 'RSSHub本地', ph: '/36kr/newsflashes（只需填后缀）' }
 }
-const platformHint = computed(() => {
-  const p = platformMap[form.value.platform]
-  return p?.route ? '走 RSSHub 实例，填路径即可' : '直接抓取 RSS 链接，不走 RSSHub'
-})
-const isRssHub = computed(() => {
-  const p = platformMap[form.value.platform]
-  return !!(p && p.route)
-})
-const addressValue = computed({
-  get: () => isRssHub.value ? form.value.route : form.value.url,
-  set: (v) => { if (isRssHub.value) form.value.route = v; else form.value.url = v }
-})
-const addressPlaceholder = computed(() => {
-  if (isRssHub.value) {
-    const hint = { weibo: '1645823934（只填 uid，自动拼成 /weibo/user/uid）', wechat: '财经（关键词）', guba: '600519（股票代码）', weibo_hot: '（无需填写，直接保存）' }
-    return hint[form.value.platform] || '/路由/参数'
+const rssTypeLabel = (t) => (rssTypeMap[t] || {}).label || t || '-'
+const LOCAL_BASE = 'http://127.0.0.1:11200'
+const addressPlaceholder = computed(() => (rssTypeMap[form.value.rss_type] || {}).ph || 'https://...')
+
+function fullUrlFromForm() {
+  let u = (form.value.url || '').trim()
+  if (form.value.rss_type === 'rsshub_local') {
+    if (!u) return ''
+    if (/^https?:\/\//.test(u)) return u
+    u = u.replace(/^\/+/, '')
+    return LOCAL_BASE + '/' + u
   }
-  return 'https://example.com/feed.xml'
-})
+  return u
+}
 
 const sources = ref([])
 const previewItems = ref([])
 const itemTotal = ref(0)
-const rssStatus = ref({ enabled: true, base: '' })
-const rssHubBase = ref('')
 const weiboCookie = ref('')
 const lastPollText = ref('待轮询')
 const polling = ref(false)
@@ -260,9 +249,10 @@ const savingRssHub = ref(false)
 
 const dialogVisible = ref(false)
 const editing = ref(false)
-const form = ref({ name: '', platform: 'generic', route: '', url: '', tagsText: '', interval_sec: 30, enabled: true, filter_st: true })
+const form = ref({ name: '', rss_type: 'http', url: '', tagsText: '', remark: '', interval_min: 5, enabled: true })
 const testing = ref(false)
 const testResult = ref(null)
+const pollingId = ref(null)
 const firstLoad = ref(false)
 
 async function loadSettings() {
@@ -277,23 +267,7 @@ async function loadSettings() {
   }
   sourceTimeout.value = Number(eff.source_timeout || 5)
   dbForm.value.database_url = eff.database_url || ''
-  rssStatus.value = { enabled: eff.rsshub_enabled === '1', base: eff.rsshub_base || '', poll: eff.rsshub_poll_seconds || '30' }
-  rssHubBase.value = eff.rsshub_base || ''
   weiboCookie.value = eff.weibo_cookies || ''
-}
-
-async function saveRssHub() {
-  savingRssHub.value = true
-  try {
-    const url = (rssHubBase.value || '').trim().replace(/\/+$/, '')
-    if (url && !/^https?:\/\//.test(url)) { ElMessage.warning('实例地址需以 http:// 或 https:// 开头'); return }
-    await settingsApi.save({ rsshub_base: url, rsshub_enabled: rssStatus.value.enabled ? '1' : '0' })
-    rssHubBase.value = url
-    ElMessage.success('RSSHub 实例地址已保存并生效')
-    await loadRss()
-  } finally {
-    savingRssHub.value = false
-  }
 }
 
 async function saveWeiboCookie() {
@@ -311,9 +285,7 @@ async function saveSource() {
   try {
     await settingsApi.save({
       ...sourceForm.value,
-      source_timeout: String(sourceTimeout.value),
-      rsshub_enabled: rssStatus.value.enabled ? '1' : '0',
-      rsshub_base: rssStatus.value.base
+      source_timeout: String(sourceTimeout.value)
     })
     ElMessage.success('数据源配置已保存并生效')
   } finally {
@@ -340,32 +312,27 @@ async function testDb() {
   }
 }
 
-function onPlatform() {
-  form.value.route = ''
-  form.value.url = ''
-}
 function openDialog(row) {
   editing.value = !!row
   testResult.value = null
+  let url = row?.url || ''
+  if (row?.rss_type === 'rsshub_local' && /^https?:\/\//.test(url) && url.startsWith(LOCAL_BASE)) {
+    url = url.replace(LOCAL_BASE, '')
+  }
   form.value = {
     name: row?.name || '',
-    platform: row?.platform || 'generic',
-    route: row?.route || '',
-    url: row?.url || '',
+    rss_type: row?.rss_type || 'http',
+    url,
     tagsText: (row?.tags || []).join(','),
-    interval_sec: row?.interval_sec || 30,
-    enabled: row?.enabled ?? true,
-    filter_st: row?.filter_st ?? true
+    remark: row?.remark || '',
+    interval_min: row?.interval_min || 5,
+    enabled: row?.enabled ?? true
   }
   dialogVisible.value = true
 }
 
-function testUrl() {
-  return form.value.url || ((rssStatus.value.base || '') + (form.value.route || ''))
-}
-
 async function testFeed() {
-  const u = testUrl()
+  const u = fullUrlFromForm()
   if (!u) { ElMessage.warning('请填写订阅地址'); return }
   testing.value = true
   try {
@@ -376,26 +343,19 @@ async function testFeed() {
 }
 
 async function saveSourceDialog() {
-  const route = form.value.route || null
-  const url = form.value.url || null
-  if (!route && !url) { ElMessage.warning('请填写订阅地址'); return }
+  const url = fullUrlFromForm()
   let name = form.value.name
-  if (!name) {
-    if (url) {
-      try { name = new URL(url).hostname } catch { name = url.slice(0, 30) }
-    } else {
-      name = route
-    }
+  if (!name && url) {
+    try { name = new URL(url).hostname } catch { name = url.slice(0, 30) }
   }
   const payload = {
     name,
-    platform: form.value.platform,
-    route,
-    url,
+    rss_type: form.value.rss_type,
+    url: url || null,
     tags: form.value.tagsText.split(/[,，\s]+/).filter(Boolean),
-    interval_sec: form.value.interval_sec,
-    enabled: form.value.enabled,
-    filter_st: form.value.filter_st
+    remark: form.value.remark || '',
+    interval_min: Number(form.value.interval_min) || 5,
+    enabled: form.value.enabled
   }
   if (editing.value) {
     await rssApi.updateSource(editing.value.id, payload)
@@ -414,6 +374,23 @@ async function toggle(row, v) {
   await loadRss()
 }
 
+async function pollSource(row) {
+  pollingId.value = row.id
+  try {
+    const r = await rssApi.pollSource(row.id)
+    if (r && r.ok) {
+      ElMessage.success(`已轮询「${row.name}」，新增 ${r.added} 条`)
+    } else {
+      ElMessage.error(`轮询失败：${(r && r.error) || '未知错误'}`)
+    }
+  } catch (e) {
+    ElMessage.error('轮询失败：' + (e?.message || e))
+  } finally {
+    pollingId.value = null
+    await loadRss()
+  }
+}
+
 async function removeSource(row) {
   await ElMessageBox.confirm(`确认删除订阅源「${row.name}」及其已入库消息？`, '删除确认', { type: 'warning' })
   await rssApi.deleteSource(row.id)
@@ -424,11 +401,6 @@ async function removeSource(row) {
 async function pollNow() {
   polling.value = true
   try {
-    const url = (rssHubBase.value || '').trim().replace(/\/+$/, '')
-    if (rssHubBase.value && !/^https?:\/\//.test(url)) { ElMessage.warning('实例地址需以 http:// 或 https:// 开头'); return }
-    if (rssHubBase.value !== rssStatus.value.base) {
-      await settingsApi.save({ rsshub_base: url, rsshub_enabled: rssStatus.value.enabled ? '1' : '0' })
-    }
     const r = await rssApi.poll()
     lastPollText.value = `轮询 ${r.polled} 个源，新增 ${r.added} 条${r.errors && r.errors.length ? '，' + r.errors.length + ' 个失败' : ''}`
     ElMessage.success(lastPollText.value)
@@ -447,8 +419,6 @@ const fmtTime = (t) => (t ? t.slice(5, 16) : '')
 
 async function loadRss() {
   sources.value = await rssApi.sources()
-  const sys = await systemApi.status().catch(() => null)
-  if (sys && sys.rsshub) rssStatus.value = { enabled: sys.rsshub.enabled, base: sys.rsshub.base }
   previewItems.value = await rssApi.items({ limit: 30 })
   itemTotal.value = 30
 }
@@ -474,6 +444,8 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .form-tip.warn { color: #e6a23c; }
 .rss-status { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .rss-base-line { display: flex; align-items: center; gap: 6px; }
+.doc-link { color: #409eff; font-size: 12px; word-break: break-all; }
+.doc-link code { background: #f5f7fa; padding: 0 4px; border-radius: 3px; font-size: 11px; }
 .rss-tip { font-size: 12px; color: #e6a23c; background: #fdf6ec; border: 1px solid #f5dab1; border-radius: 6px; padding: 6px 10px; margin-bottom: 12px; line-height: 1.8; }
 .rss-table { margin-bottom: 12px; }
 .route { font-family: Consolas, monospace; font-size: 12px; color: #606266; word-break: break-all; }

@@ -1,5 +1,6 @@
 """定时任务调度 - 用 APScheduler 简化（替代 Celery，免去 Redis 依赖）"""
 from datetime import date
+from functools import partial
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import select, func
@@ -91,41 +92,38 @@ def setup_scheduler() -> AsyncIOScheduler:
             return await _run_all_accounts(db, "AI模拟交易/进化", skip_has_trades_today=True)
 
     async def run_rss_poll():
-        from app.core.settings import get_setting
-        if get_setting("rsshub_enabled") != "1":
-            return {"skipped": True, "reason": "rsshub disabled"}
         async with SessionLocal() as db:
             from app.core.rsshub.service import RssService
             return await RssService(db).poll_sources()
 
     # 每个交易日的收盘复盘任务（18:00 自动复盘）
     scheduler.add_job(
-        lambda: _job_wrapper("每日复盘", run_replay),
+        partial(_job_wrapper, "每日复盘", run_replay),
         CronTrigger(day_of_week="mon-fri", hour=18, minute=0, timezone="Asia/Shanghai"),
         id="daily_replay", replace_existing=True,
     )
     # 收盘后自动执行当日模拟交易
     scheduler.add_job(
-        lambda: _job_wrapper("模拟交易自动执行", lambda: run_auto_trade("收盘")),
+        partial(_job_wrapper, "模拟交易自动执行", run_auto_trade, "收盘"),
         CronTrigger(day_of_week="mon-fri", hour=15, minute=10, timezone="Asia/Shanghai"),
         id="auto_trade_close", replace_existing=True,
     )
     # 盘中交易窗口末点：10:25(9:30-10:25) / 13:30(13:00-13:30) / 14:50(14:30-14:50)
     for hour, minute, label in [(10, 25, "早盘"), (13, 30, "午盘"), (14, 50, "尾盘")]:
         scheduler.add_job(
-            lambda lbl=label: _job_wrapper(f"盘中模拟交易[{lbl}]", lambda lb=lbl: run_auto_trade(lb)),
+            partial(_job_wrapper, f"盘中模拟交易[{label}]", run_auto_trade, label),
             CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute, timezone="Asia/Shanghai"),
             id=f"auto_trade_{label}", replace_existing=True,
         )
     # 晚间 AI 自我进化/补跑
     scheduler.add_job(
-        lambda: _job_wrapper("AI模拟交易/进化", lambda: run_evolution()),
+        partial(_job_wrapper, "AI模拟交易/进化", run_evolution),
         CronTrigger(day_of_week="mon-fri", hour=20, minute=0, timezone="Asia/Shanghai"),
         id="ai_evolution", replace_existing=True,
     )
-    # RSSHub 轮询（每 30 秒，单源限频由 interval_sec 控制）
+    # RSSHub 轮询（每 30 秒调度，单源限频由 interval_min 控制）
     scheduler.add_job(
-        lambda: _job_wrapper("RSSHub轮询", lambda: run_rss_poll()),
+        partial(_job_wrapper, "RSSHub轮询", run_rss_poll),
         "interval", seconds=30, id="rss_poll", replace_existing=True,
     )
     logger.info("定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)")

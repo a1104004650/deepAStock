@@ -131,6 +131,11 @@ export const rssApi = {
   updateSource: (id, data) => http.put(`/rss/sources/${id}`, data),
   deleteSource: (id) => http.delete(`/rss/sources/${id}`),
   testFeed: (url) => http.post('/rss/test', { url }),
+  netTest: (id) => http.post(`/rss/sources/${id}/net-test`),
+  pollSource: (id) => http.post(`/rss/sources/${id}/poll`),
   items: (params) => http.get('/rss/items', { params }),
+  clearItems: () => http.delete('/rss/items'),
+  recent: (limit = 50) => http.get('/rss/recent', { params: { limit } }),
+  stats: () => http.get('/rss/stats'),
   poll: () => http.post('/rss/poll')
 }

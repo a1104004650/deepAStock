@@ -108,7 +108,8 @@ class SimulationEngine:
         run_ts = datetime.now(SHANGHAI)  # 真实决策时刻（盘中窗口用真实时间，不用未来收盘价）
 
         # 交易时段门禁：非官方收盘/进化任务，窗口外一律不交易（返回 noop，保留日志原文）
-        if window not in ("收盘", "进化") and not self._in_trade_window(run_ts):
+        # 手动触发（window="手动"）不受限：用户主动点击期望立即出决策日志
+        if window not in ("收盘", "进化", "手动") and not self._in_trade_window(run_ts):
             logger.info(f"account {account_id} {run_ts:%H:%M} 不在交易时段（9:30-10:25/13:00-13:30/14:30-14:50），跳过下单")
             return {"status": "noop", "date": target_date.isoformat(), "window": window,
                     "message": "当前不在模拟交易时段（9:30-10:25 / 13:00-13:30 / 14:30-14:50），未执行交易"}
@@ -177,10 +178,25 @@ class SimulationEngine:
                         {"capital": float(account.current_capital), "positions": len(positions),
                          "agent": cfg.get("name"), "agent_type": cfg.get("agent_type"), "window": window})
         if pool:
-            await self._log(account_id, target_date, "pool",
-                            f"候选股池 {len(pool)} 只",
-                            {"pool": [{"symbol": p.get("symbol"), "name": p.get("name"),
-                                       "source": p.get("source")} for p in pool]})
+            pool_log = {"pool": [{"symbol": p.get("symbol"), "name": p.get("name"),
+                                  "source": p.get("source")} for p in pool]}
+            # 选入/淘汰：与上次候选股池快照对比，记录新增与移除
+            prev = dict(account.rules or {}).get("_last_pool") or []
+            prev_symbols = {str(s).upper() for s in prev}
+            cur_symbols = {str(p.get("symbol")).upper() for p in pool if p.get("symbol")}
+            added = [p for p in pool if str(p.get("symbol")).upper() not in prev_symbols]
+            removed = [s for s in prev_symbols - cur_symbols]
+            pool_log["added"] = [p.get("symbol") for p in added]
+            pool_log["removed"] = sorted(removed)
+            pool_log["prev_count"] = len(prev_symbols)
+            title = f"候选股池 {len(pool)} 只"
+            if added or removed:
+                title = f"候选股池 {len(pool)} 只（选入 {len(added)} / 淘汰 {len(removed)}）"
+            rules = dict(account.rules or {})
+            rules["_last_pool"] = sorted(cur_symbols)
+            account.rules = rules
+            await self._log(account_id, target_date, "pool", title, pool_log)
+            await self.db.commit()
         try:
             result = await agent._run_json(prompt, agent._build_system_prompt())
         except Exception as e:

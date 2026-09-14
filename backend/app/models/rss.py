@@ -1,23 +1,26 @@
 """RSSHub 订阅源与已推送条目（本地数据库持久化）"""
 from datetime import datetime
 from sqlalchemy import (String, Integer, Text, DateTime, Boolean, JSON,
-                        ForeignKey, UniqueConstraint, Index)
+                        UniqueConstraint, Index)
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
 
 
 class RssSource(Base):
+    """订阅源
+    rss_type: http（直接 RSS/Atom/JSON）| rsshub_local（RSSHub 本地 Docker）
+    """
     __tablename__ = "rss_sources"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    platform: Mapped[str] = mapped_column(String(20), default="generic")  # weibo/wechat/guba/generic
-    route: Mapped[str] = mapped_column(String(300), nullable=True)        # RSSHub 路径（带前导斜杠）
-    url: Mapped[str] = mapped_column(String(600), nullable=True)          # 完整 RSS URL（优先于 route）
-    tags = mapped_column(JSON, default=list)                              # 关注标签（个股名/代码/关键词）
+    name: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    tags = mapped_column(JSON, default=list)                # 自定义标签（数组）
+    remark: Mapped[str] = mapped_column(String(300), nullable=True, default="")  # 备注
+    rss_type: Mapped[str] = mapped_column(String(20), default="rsshub_local")    # http / rsshub_local
+    url: Mapped[str] = mapped_column(String(600), nullable=True)                 # 订阅地址（完整 URL，不做校验）
+    interval_min: Mapped[int] = mapped_column(Integer, default=5)               # 轮询间隔（分钟）
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    interval_sec: Mapped[int] = mapped_column(Integer, default=30)        # 轮询间隔（秒），限频
-    filter_st: Mapped[bool] = mapped_column(Boolean, default=True)        # 过滤 ST/*ST 相关消息
+    net_status: Mapped[str] = mapped_column(String(300), nullable=True)         # 网络状态 untested/ok/err:xxx
     last_poll: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     last_status: Mapped[str] = mapped_column(String(300), nullable=True)
     last_item_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -26,7 +29,7 @@ class RssSource(Base):
 
 
 class RssItem(Base):
-    """已推送/已抓取的消息条目（按 source+guid 去重）"""
+    """已抓取的消息条目（按 source+guid 去重）"""
     __tablename__ = "rss_items"
     __table_args__ = (
         UniqueConstraint("source_id", "guid", name="uq_rss_source_guid"),

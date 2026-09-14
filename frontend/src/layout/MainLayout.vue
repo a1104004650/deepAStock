@@ -31,11 +31,11 @@
         <span>{{ item.label }}</span>
       </router-link>
     </nav>
-    <!-- 全局重要消息渐变通知（每条只提示一次，本地去重；含平台新闻 + RSS 重要推送） -->
+    <!-- 全局重要消息渐变通知（每条只提示一次，本地去重；含平台新闻 + RSS 增量推送） -->
     <transition name="news-pop">
       <div v-if="currentNews" class="news-toast" @click="openNews(currentNews)">
         <div class="news-toast-text">
-          <span class="news-toast-tag">重要</span>
+          <span class="news-toast-tag">{{ currentNews.source || '重要' }}</span>
           <span class="news-toast-title">{{ currentNews.title }}</span>
         </div>
         <el-icon class="news-toast-close" @click.stop="dismissNews"><Close /></el-icon>
@@ -66,30 +66,67 @@ function pollNewsInterval() {
 }
 async function pollImportantNews() {
   try {
-    const [platRows, rssRows] = await Promise.all([
-      marketApi.news(60).catch(() => []),
-      rssApi.items({ limit: 50, importance: 1 }).catch(() => [])
-    ])
-    const rows = []
-    for (const n of platRows || []) rows.push({ title: n.title, url: n.url, importance: Number(n.importance) || 3 })
-    for (const r of rssRows || []) rows.push({ title: r.title, url: r.link, importance: Number(r.importance) || 3 })
-    const imp = rows.filter((n) => Number(n.importance) === 1)
-      .sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')))[0]
-    if (!imp || !imp.title) return
-    const key = 'imp-news-' + (imp.title || '').slice(0, 40)
-    try {
-      if (localStorage.getItem(key)) return
-      localStorage.setItem(key, '1')
-    } catch { /* storage disabled */ }
-    currentNews.value = imp
+    const platRows = await marketApi.news(60).catch(() => [])
+    for (const n of platRows || []) {
+      if (Number(n.importance || 3) !== 1) continue
+      const key = 'plat-news-' + (n.title || '').slice(0, 80)
+      if (newsShown.has(key)) continue
+      newsShown.add(key)
+      try {
+        if (localStorage.getItem(key)) continue
+        localStorage.setItem(key, '1')
+      } catch { /* storage disabled */ }
+      const item = { title: n.title, url: n.url, source: '平台新闻' }
+      pushNews(item)
+    }
   } catch { /* ignore */ }
+}
+
+// RSS 纯增量轮询：所有新入库的消息都进全局通知（本地去重）
+const rssSeen = new Set()
+async function pollRssIncrement() {
+  try {
+    const rows = await rssApi.recent(50).catch(() => [])
+    for (const r of rows || []) {
+      if (!r || !r.title) continue
+      const key = 'rss-inc-' + (r.guid || ('i' + (r.id || r.title)))
+      if (rssSeen.has(key)) continue
+      rssSeen.add(key)
+      if (rssSeen.size > 2000) {
+        const oldest = [...rssSeen].slice(0, rssSeen.size - 2000)
+        oldest.forEach((k) => rssSeen.delete(k))
+      }
+      try {
+        if (localStorage.getItem(key)) continue
+        localStorage.setItem(key, '1')
+      } catch { /* storage disabled */ }
+      pushNews({ title: r.title, url: r.link || '', source: r.source_name || 'RSS', importance: Number(r.importance) || 3 })
+    }
+  } catch { /* ignore */ }
+}
+
+// 通知队列：逐条弹出，避免一次涌入多条只显示最后一条
+const newsQueue = ref([])
+let newsShown = new Set()
+function pushNews(n) {
+  if (!n || !n.title) return
+  const key = 'imp-news-' + n.title.slice(0, 40)
+  if (newsShown.has(key)) return
+  newsShown.add(key)
+  if (newsShown.size > 800) newsShown = new Set([...newsShown].slice(-400))
+  newsQueue.value.push({ ...n, source: n.source || '', importance: n.importance || 3 })
+  if (!currentNews.value) currentNews.value = newsQueue.value.shift() || null
+}
+function advanceNewsQueue() {
+  if (newsQueue.value.length) currentNews.value = newsQueue.value.shift()
+  else currentNews.value = null
 }
 function dismissNews() {
   currentNews.value = null
 }
 function openNews(n) {
   if (n && n.url) window.open(n.url, '_blank', 'noopener')
-  dismissNews()
+  currentNews.value = null
 }
 
 function updateClock() {
@@ -128,6 +165,8 @@ const isActive = (path) => {
 let timer = null
 let clockTimer = null
 let newsTimer = null
+let rssTimer = null
+let newsAdvTimer = null
 
 function checkHealth() {
   systemApi
@@ -145,12 +184,17 @@ onMounted(() => {
   updateClock()
   clockTimer = setInterval(updateClock, 1000)
   pollImportantNews()
+  pollRssIncrement()
   newsTimer = setInterval(pollImportantNews, pollNewsInterval())
+  rssTimer = setInterval(pollRssIncrement, 60000)
+  newsAdvTimer = setInterval(advanceNewsQueue, 15000)
 })
 onBeforeUnmount(() => {
   clearInterval(timer)
   clearInterval(clockTimer)
   if (newsTimer) clearInterval(newsTimer)
+  if (rssTimer) clearInterval(rssTimer)
+  if (newsAdvTimer) clearInterval(newsAdvTimer)
 })
 </script>
 

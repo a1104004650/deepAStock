@@ -269,20 +269,31 @@ def _decode(raw: bytes, ct: str) -> str:
 
 
 def _parse_dt(s: str) -> datetime | None:
+    """解析任意 RSS/Atom/JSON 时间，统一为北京时间（+08:00）的 naive 值存储。
+
+    带时区（+0800/+0000/Z 等）先转换到东八区；无时区的按东八区解释。
+    返回结果不携带 tzinfo（naive，北京墙钟时间），序列化时直接 isoformat。
+    """
     if not s:
         return None
     try:
-        return datetime(*email.utils.parsedate_tz(s)[:6],
-                        tzinfo=_CN_TZ if email.utils.parsedate_tz(s)[9] == 0 else None)
+        parts = email.utils.parsedate_tz(s)
+        if parts and parts[0]:
+            y, mo, d, h, mi, sec = parts[:6]
+            off = parts[9]  # 秒；None 表示未知时区
+            tz = timezone(timedelta(seconds=off)) if off is not None else _CN_TZ
+            return datetime(y, mo, d, h, mi, sec, tzinfo=tz) \
+                .astimezone(_CN_TZ).replace(tzinfo=None)
     except Exception:
         pass
-    for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z",
-                "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z",
+                "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d"):
         try:
             dt = datetime.strptime(s, fmt)
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=_CN_TZ)
-            return dt
+            return dt.astimezone(_CN_TZ).replace(tzinfo=None)
         except ValueError:
             continue
     return None

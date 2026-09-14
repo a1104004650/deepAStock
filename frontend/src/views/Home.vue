@@ -186,7 +186,7 @@
       <!-- 板块资金流：行业 / 概念，各流入·流出前5 -->
       <el-row :gutter="10" class="mt8">
         <el-col :xs="24" :sm="12">
-          <div class="card col-card">
+          <div class="card col-card flow-card">
             <div class="fs14 bold">行业资金流 <span class="fs12" style="color:#909399">（东方财富板块主力净流入，单位亿元）</span></div>
             <div class="split-grid mt8">
               <div>
@@ -197,8 +197,8 @@
                       @click.stop="goStock(r.leader_symbol, r.leader)">领涨 {{ r.leader }}</el-link>
                     <i v-else class="fs11" style="color:#b0b3b8;font-style:normal">领涨 {{ r.leader }}</i>
                   </span>
-                  <span class="mono fs12 up">{{ r.amount }}亿</span>
-                  <span class="mono fs12 up">{{ r.change_pct >= 0 ? '+' : '' }}{{ r.change_pct }}%</span>
+                  <span class="mono fs12" :class="r.net_inflow >= 0 ? 'up' : 'down'">{{ signed(r.net_inflow) }}亿</span>
+                  <span class="mono fs12" :class="r.change_pct >= 0 ? 'up' : 'down'">{{ signed(r.change_pct) }}%</span>
                 </div>
                 <el-empty v-if="!flowRank.industries.in.length" description="暂无" :image-size="34" />
               </div>
@@ -210,8 +210,8 @@
                       @click.stop="goStock(r.leader_symbol, r.leader)">领涨 {{ r.leader }}</el-link>
                     <i v-else class="fs11" style="color:#b0b3b8;font-style:normal">领涨 {{ r.leader }}</i>
                   </span>
-                  <span class="mono fs12 down">{{ r.amount }}亿</span>
-                  <span class="mono fs12 down">{{ r.change_pct >= 0 ? '+' : '' }}{{ r.change_pct }}%</span>
+                  <span class="mono fs12" :class="r.net_inflow >= 0 ? 'up' : 'down'">{{ signed(r.net_inflow) }}亿</span>
+                  <span class="mono fs12" :class="r.change_pct >= 0 ? 'up' : 'down'">{{ signed(r.change_pct) }}%</span>
                 </div>
                 <el-empty v-if="!flowRank.industries.out.length" description="暂无" :image-size="34" />
               </div>
@@ -219,7 +219,7 @@
           </div>
         </el-col>
         <el-col :xs="24" :sm="12">
-          <div class="card col-card">
+          <div class="card col-card flow-card">
             <div class="fs14 bold">概念资金流 <span class="fs12" style="color:#909399">（东方财富板块主力净流入，单位亿元）</span></div>
             <div class="split-grid mt8">
               <div>
@@ -230,8 +230,8 @@
                       @click.stop="goStock(r.leader_symbol, r.leader)">领涨 {{ r.leader }}</el-link>
                     <i v-else class="fs11" style="color:#b0b3b8;font-style:normal">领涨 {{ r.leader }}</i>
                   </span>
-                  <span class="mono fs12 up">{{ r.amount }}亿</span>
-                  <span class="mono fs12 up">{{ r.change_pct >= 0 ? '+' : '' }}{{ r.change_pct }}%</span>
+                  <span class="mono fs12" :class="r.net_inflow >= 0 ? 'up' : 'down'">{{ signed(r.net_inflow) }}亿</span>
+                  <span class="mono fs12" :class="r.change_pct >= 0 ? 'up' : 'down'">{{ signed(r.change_pct) }}%</span>
                 </div>
                 <el-empty v-if="!flowRank.concepts.in.length" description="暂无" :image-size="34" />
               </div>
@@ -243,8 +243,8 @@
                       @click.stop="goStock(r.leader_symbol, r.leader)">领涨 {{ r.leader }}</el-link>
                     <i v-else class="fs11" style="color:#b0b3b8;font-style:normal">领涨 {{ r.leader }}</i>
                   </span>
-                  <span class="mono fs12 down">{{ r.amount }}亿</span>
-                  <span class="mono fs12 down">{{ r.change_pct >= 0 ? '+' : '' }}{{ r.change_pct }}%</span>
+                  <span class="mono fs12" :class="r.net_inflow >= 0 ? 'up' : 'down'">{{ signed(r.net_inflow) }}亿</span>
+                  <span class="mono fs12" :class="r.change_pct >= 0 ? 'up' : 'down'">{{ signed(r.change_pct) }}%</span>
                 </div>
                 <el-empty v-if="!flowRank.concepts.out.length" description="暂无" :image-size="34" />
               </div>
@@ -319,6 +319,7 @@
             <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
               <span class="fs14 bold">消息滚动 <span class="fs12" style="color:#909399">（平台新闻 + RSSHub 订阅推送）</span></span>
               <el-radio-group v-model="newsFilter" size="small">
+                <el-radio-button value="">全部</el-radio-button>
                 <el-radio-button value="1">重要</el-radio-button>
                 <el-radio-button value="2">普通</el-radio-button>
                 <el-radio-button value="3">一般</el-radio-button>
@@ -351,7 +352,7 @@
                 <div class="fs12 bold" style="color:#f56c6c">净流入 TOP5</div>
                 <div v-for="(r, i) in etfIn" :key="'ei' + i" class="flow-row">
                   <span class="fs12">{{ r.name }}</span>
-                  <span class="mono fs12 up">{{ r[etfDim] }}亿</span>
+                  <span class="mono fs12" :class="r[etfDim] >= 0 ? 'up' : 'down'">{{ signed(r[etfDim]) }}亿</span>
                 </div>
                 <el-empty v-if="!etfIn.length" description="暂无" :image-size="34" />
               </div>
@@ -359,7 +360,7 @@
                 <div class="fs12 bold" style="color:#67c23a">净流出 TOP5</div>
                 <div v-for="(r, i) in etfOut" :key="'eo' + i" class="flow-row">
                   <span class="fs12">{{ r.name }}</span>
-                  <span class="mono fs12 down">{{ r[etfDim] }}亿</span>
+                  <span class="mono fs12" :class="r[etfDim] >= 0 ? 'up' : 'down'">{{ signed(r[etfDim]) }}亿</span>
                 </div>
                 <el-empty v-if="!etfOut.length" description="暂无" :image-size="34" />
               </div>
@@ -391,6 +392,7 @@ import MainLayout from '../layout/MainLayout.vue'
 import LineChart from '../components/LineChart.vue'
 import KlineChart from '../components/KlineChart.vue'
 import { marketApi, agentApi, rssApi } from '../api'
+import { formatNewsTime as _formatNewsTime, toEpochMs } from '../utils/time'
 
 const router = useRouter()
 function goStock(symbol, name) {
@@ -404,7 +406,7 @@ const mktSummary = ref('')
 const mktDate = ref('')
 const indices = ref([])
 const news = ref([])
-const newsFilter = ref('1')
+const newsFilter = ref('')
 const rssNews = ref([])
 const marketFlow = ref({ date: '', intraday: [], daily: [] })
 const mfMode = ref('intraday')
@@ -420,8 +422,16 @@ const mergedNews = computed(() => {
   return [...rss, ...plat]
 })
 const filteredNews = computed(() => {
-  const f = Number(newsFilter.value) || 1
-  return mergedNews.value.filter((n) => Number(n.importance) === f)
+  const cutoff = Date.now() - 3 * 24 * 3600 * 1000
+  let recent = mergedNews.value.filter((n) => {
+    const t = toEpochMs(n.time) ? toEpochMs(n.time) : 0
+    return !t || t >= cutoff
+  })
+  if (newsFilter.value !== '') {
+    const f = Number(newsFilter.value)
+    recent = recent.filter((n) => Number(n.importance) === f)
+  }
+  return recent.slice().sort((a, b) => (toEpochMs(b.time) || 0) - (toEpochMs(a.time) || 0))
 })
 const mfSeries = [
   { name: '主力', key: 'main_net', color: '#ef232a', area: false },
@@ -435,20 +445,7 @@ const mfChartData = computed(() => {
   return Array.isArray(src) ? src : []
 })
 function formatNewsTime(ts) {
-  if (!ts) return ''
-  const str = String(ts)
-  if (str.includes('T')) {
-    const d = new Date(str.includes('T') && /[Zz]|[+-]\d{2}:\d{2}$/.test(str) ? str : str + '+08:00')
-    if (!isNaN(d.getTime())) {
-      return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-    }
-  }
-  if (isNaN(Number(str))) return str
-  const d = new Date(Number(str) * 1000)
-  const now = new Date()
-  const isToday = d.toDateString() === now.toDateString()
-  if (isToday) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
+  return _formatNewsTime(ts)
 }
 const ladder = ref({})
 const distribution = ref({})
@@ -548,6 +545,10 @@ function ixOf(code) {
 function ixCls(code) {
   const pct = ixOf(code)?.change_pct ?? 0
   return Number(pct) >= 0 ? 'up' : 'down'
+}
+function signed(v) {
+  const n = Number(v) || 0
+  return (n > 0 ? '+' : n < 0 ? '-' : '') + Math.abs(n).toFixed(2)
 }
 const etfIn = computed(() => etfFlow.value.in_top || [])
 const etfOut = computed(() => etfFlow.value.out_top || [])
@@ -820,6 +821,8 @@ onUnmounted(() => {
 /* 四大板块（投资日历/监管异动/消息滚动/ETF资金流）统一等高 */
 @media (min-width: 768px) {
   .col-card { height: 440px; }
+  /* 行业/概念资金流只放 流入/流出 TOP5，无需 440px */
+  .col-card.flow-card { height: 300px; }
 }
 .news-scroll {
   flex: 1;

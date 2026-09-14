@@ -1,5 +1,5 @@
 """数据库会话管理"""
-from sqlalchemy import text
+from sqlalchemy import text, event
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 from pathlib import Path
@@ -21,6 +21,18 @@ def _ensure_sqlite_dir(url: str) -> str:
 
 
 engine = create_async_engine(_ensure_sqlite_dir(settings.DATABASE_URL), echo=False, future=True)
+
+
+@event.listens_for(engine.sync_engine, "connect")
+def _sqlite_busy_timeout(dbapi_conn, _record):
+    if dbapi_conn.__class__.__module__.startswith("sqlite3"):
+        try:
+            cur = dbapi_conn.cursor()
+            cur.execute("PRAGMA busy_timeout = 30000")
+            cur.close()
+        except Exception:
+            pass
+
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -43,9 +55,24 @@ async def init_db():
         rss,
     )
     async with engine.begin() as conn:
+        # 旧版 RSS 订阅表（旧字段结构 + filter_st 等旧列）整体重建，避免迁移残留
+        try:
+            r = await conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='rss_sources'"))
+            if r.scalar():
+                cols = [row[0] for row in await conn.execute(text("PRAGMA table_info(rss_sources)"))]
+                if not {"name", "rss_type", "url", "remark", "tags", "interval_min", "enabled", "net_status"}.issubset(set(cols)):
+                    await conn.execute(text("DROP TABLE IF EXISTS rss_sources"))
+                    await conn.execute(text("DROP TABLE IF EXISTS rss_items"))
+        except Exception:
+            pass
         await conn.run_sync(Base.metadata.create_all)
         # 轻量迁移：为既有库补齐新增列
         try:
             await conn.execute(text("ALTER TABLE agent_configs ADD COLUMN provider VARCHAR(20)"))
         except Exception:
             pass
+
+    # 空库写入默认订阅源（部署即自带）
+    async with SessionLocal() as _db:
+        from app.core.rsshub.service import seed_default_sources
+        await seed_default_sources(_db)
