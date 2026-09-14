@@ -45,8 +45,10 @@ def _fmt_cst(dt) -> str:
 
 
 class SimulationEngine:
-    # A股可下单交易时段（北京时间，分钟）：9:30-10:25 / 13:00-13:30 / 14:30-14:50
+    # 盘中调度决策窗口（北京时间，分钟，触发点对应 scheduler 10:25/13:30/14:50）：9:30-10:25 / 13:00-13:30 / 14:30-14:50
     TRADE_WINDOWS_MIN = ((570, 625), (780, 810), (870, 890))
+    # A股真实交易时段（北京时间，分钟）：9:30-11:30 / 13:00-15:00（手动触发同样仅在此时段内可下单）
+    REAL_SESSION_MIN = ((570, 690), (780, 900))
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -56,6 +58,11 @@ class SimulationEngine:
     def _in_trade_window(ts: datetime) -> bool:
         m = ts.hour * 60 + ts.minute + ts.second / 60.0
         return any(s <= m <= e + 10 for s, e in SimulationEngine.TRADE_WINDOWS_MIN)
+
+    @staticmethod
+    def _in_real_session(ts: datetime) -> bool:
+        m = ts.hour * 60 + ts.minute + ts.second / 60.0
+        return any(s <= m <= e for s, e in SimulationEngine.REAL_SESSION_MIN)
 
     async def create_account(self, user_id: int, name: str, agent_config_id: int = None,
                              initial_capital: float = 100000, prompt_template: str = "",
@@ -107,12 +114,17 @@ class SimulationEngine:
         target_date = target_date or date.today()
         run_ts = datetime.now(SHANGHAI)  # 真实决策时刻（盘中窗口用真实时间，不用未来收盘价）
 
-        # 交易时段门禁：非官方收盘/进化任务，窗口外一律不交易（返回 noop，保留日志原文）
-        # 手动触发（window="手动"）不受限：用户主动点击期望立即出决策日志
-        if window not in ("收盘", "进化", "手动") and not self._in_trade_window(run_ts):
-            logger.info(f"account {account_id} {run_ts:%H:%M} 不在交易时段（9:30-10:25/13:00-13:30/14:30-14:50），跳过下单")
+        # 交易时段门禁：
+        # - 盘中窗口（早盘/午盘/尾盘）：仅允许 9:30-10:25 / 13:00-13:30 / 14:30-14:50 内下单
+        # - 手动触发（window="手动"）：真实交易时段 9:30-11:30 / 13:00-15:00 内才允许下单（午休/盘前盘后只出不成交）
+        # - 收盘/进化：官方定时任务，豁免时段门禁（收盘后补跑 + 晚间进化）
+        if window not in ("收盘", "进化") and not (
+                (window == "手动" and self._in_real_session(run_ts))
+                or (window != "手动" and self._in_trade_window(run_ts))):
+            tip = "9:30-11:30 / 13:00-15:00" if window == "手动" else "9:30-10:25 / 13:00-13:30 / 14:30-14:50"
+            logger.info(f"account {account_id} {run_ts:%H:%M} 不在交易时段（{tip}），跳过下单")
             return {"status": "noop", "date": target_date.isoformat(), "window": window,
-                    "message": "当前不在模拟交易时段（9:30-10:25 / 13:00-13:30 / 14:30-14:50），未执行交易"}
+                    "message": f"当前不在交易时段（{tip}），未执行交易"}
 
         account = (await self.db.execute(select(SimulationAccount).where(SimulationAccount.id == account_id))).scalars().first()
         if not account or not account.is_active:

@@ -1387,3 +1387,147 @@
 2026-09-14 14:27:49,954 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
 2026-09-14 14:28:19,901 [INFO] quant: [定时任务] 开始: RSSHub轮询
 2026-09-14 14:28:19,950 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:28:49,902 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:28:49,942 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:29:19,895 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:29:19,935 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:29:49,903 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:29:49,936 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:30:19,890 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:30:19,929 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:30:49,898 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:30:52,761 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 1, 'added': 0, 'errors': [{'id': 11, 'error': 'HTTP Error 503: Service Unavailable'}]}
+2026-09-14 14:31:19,896 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:31:19,938 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:31:49,904 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:32:23,933 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 10, 'added': 13, 'errors': []}
+2026-09-14 14:32:49,906 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:32:49,953 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:33:19,891 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:33:19,923 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:33:49,891 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:33:49,918 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:34:19,890 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:34:19,923 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:34:49,900 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:34:49,932 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:35:19,895 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:35:19,937 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:35:49,902 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:35:52,281 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 1, 'added': 0, 'errors': [{'id': 11, 'error': 'HTTP Error 503: Service Unavailable'}]}
+2026-09-14 14:36:19,901 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:36:19,941 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:36:49,891 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:36:49,945 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:37:19,904 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:37:29,926 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 6, 'added': 11, 'errors': []}
+2026-09-14 14:37:49,903 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:37:49,973 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:38:19,894 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:38:19,907 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:38:49,240 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-14 14:38:49,901 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:38:49,959 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:39:19,904 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:39:19,954 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:39:42,575 [WARNING] quant: save kline cache failed SZ002161: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ002161', 'day', '2025-08-11 00:00:00.000000', 7.917, 8.167, 7.847, 8.077, 703823, 0.0, None, '2026-09-14 06:39:41.961873')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-14 14:39:42,665 [WARNING] quant: save kline cache failed SZ002161: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ002161', 'day', '2025-08-11 00:00:00.000000', 7.917, 8.167, 7.847, 8.077, 703823, 0.0, None, '2026-09-14 06:39:41.996094')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-14 14:39:49,898 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:39:49,943 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:40:19,808 [WARNING] quant: save kline cache failed SZ300656: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ300656', 'day', '2025-08-11 00:00:00.000000', 27.78, 28.06, 27.5, 27.97, 37407, 0.0, None, '2026-09-14 06:40:19.445237')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-14 14:40:20,054 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:40:20,055 [WARNING] quant: save kline cache failed SZ300656: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ300656', 'day', '2025-08-11 00:00:00.000000', 27.78, 28.06, 27.5, 27.97, 37407, 0.0, None, '2026-09-14 06:40:19.407667')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-14 14:40:20,156 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:40:49,894 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:40:49,955 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:40:55,212 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-14 14:41:19,904 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:41:22,246 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 1, 'added': 0, 'errors': [{'id': 11, 'error': 'HTTP Error 503: Service Unavailable'}]}
+2026-09-14 14:41:49,892 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:41:49,938 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:42:19,895 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:42:27,833 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 4, 'added': 2, 'errors': []}
+2026-09-14 14:42:49,894 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:42:56,788 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 6, 'added': 12, 'errors': []}
+2026-09-14 14:43:19,891 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:43:19,953 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:43:49,904 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:43:49,938 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:44:19,893 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:44:19,939 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:44:49,892 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:44:49,930 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:45:19,891 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:45:19,923 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:45:49,895 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:45:49,940 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:46:19,900 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:46:19,972 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:46:49,891 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:46:52,959 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 1, 'added': 0, 'errors': [{'id': 11, 'error': 'HTTP Error 503: Service Unavailable'}]}
+2026-09-14 14:47:06,362 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-14 14:47:19,897 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:47:19,957 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:47:39,246 [WARNING] quant: [sina] get_indices failed/timeout: 
+2026-09-14 14:47:49,897 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:47:51,180 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 6, 'added': 0, 'errors': []}
+2026-09-14 14:48:49,900 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:48:49,956 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:49:19,902 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:49:19,949 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:49:49,893 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:49:49,925 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:50:00,010 [INFO] quant: [定时任务] 开始: 盘中模拟交易[尾盘]
+2026-09-14 14:50:00,305 [WARNING] quant: tencent kline failed SH000001/day: HTTP Error 501: Not Implemented
+2026-09-14 14:50:00,306 [INFO] quant: 非交易日，跳过[尾盘]
+2026-09-14 14:50:00,307 [INFO] quant: [定时任务] 完成: 盘中模拟交易[尾盘] -> {'skipped': True, 'reason': '非交易日'}
+2026-09-14 14:50:19,904 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:50:19,953 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:50:49,904 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:50:49,944 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:51:19,898 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:51:19,925 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:51:49,898 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:51:52,101 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 1, 'added': 0, 'errors': [{'id': 11, 'error': 'HTTP Error 503: Service Unavailable'}]}
+2026-09-14 14:52:15,450 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-14 14:52:17,976 [WARNING] quant: [sina] get_market_money_flow failed/timeout: 
+2026-09-14 14:52:19,891 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:52:19,936 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:52:47,104 [WARNING] quant: [sina] get_indices failed/timeout: 
+2026-09-14 14:52:49,897 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:53:02,754 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 8, 'added': 7, 'errors': []}
+2026-09-14 14:53:19,904 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:53:19,938 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:53:49,900 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:53:49,943 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:54:19,897 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:54:19,938 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:54:49,893 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:54:49,917 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:55:19,900 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:55:19,932 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:55:49,897 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:55:49,929 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:56:19,905 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:56:19,942 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:56:36,614 [INFO] quant: 初始化数据库...
+2026-09-14 14:56:36,685 [INFO] quant: 启动定时任务...
+2026-09-14 14:56:36,686 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-14 14:56:42,194 [WARNING] quant: em boards m:90+t:3 p1: Remote end closed connection without response
+2026-09-14 14:56:45,006 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-14 14:57:06,692 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:57:12,557 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 10, 'added': 237, 'errors': []}
+2026-09-14 14:57:36,688 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:57:36,745 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
