@@ -2,7 +2,7 @@
 
 可访问真实数据端点：
   * 新浪实时行情  https://hq.sinajs.cn/list=sh600519,...
-  * 腾讯K线      https://ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh600519,day,,,N,qfq
+  * 腾讯K线      https://ifzq.gtimg.cn/appstock/app/newfqkline/get?param=sh600519,day,,,N,qfq
   * 腾讯分时      https://ifzq.gtimg.cn/appstock/app/minute/query?code=sh600519
   * 腾讯指数      https://qt.gtimg.cn/q=hkHSI,usIXIC,usDJI
   * 新浪联想搜索  https://suggest3.sinajs.cn/suggest/type=11,12,13,14,15&key=...
@@ -99,7 +99,7 @@ class SinaSource(DataSourceBase):
             url = (f"https://ifzq.gtimg.cn/appstock/app/kline/mkline"
                    f"?param={code},{tc_period},,{count}")
         else:
-            url = (f"https://ifzq.gtimg.cn/appstock/app/fqkline/get"
+            url = (f"https://ifzq.gtimg.cn/appstock/app/newfqkline/get"
                    f"?param={code},{tc_period},,,{count},qfq")
         try:
             body = _open(url, _UA)
@@ -1018,7 +1018,7 @@ class SinaSource(DataSourceBase):
             try:
                 sym = item["symbol"]
                 tc = sym[:2].lower() + sym[2:]
-                url = f"https://ifzq.gtimg.cn/appstock/app/fqkline/get?param={tc},day,,,15,qfq"
+                url = f"https://ifzq.gtimg.cn/appstock/app/newfqkline/get?param={tc},day,,,15,qfq"
                 payload = json.loads(_open(url, _UA, timeout=6).decode("utf-8", "ignore"))
                 data = (payload.get("data") or {}).get(tc) or {}
                 key = next((k for k in ("qfqday", "day", "qfq") if data.get(k)), None)

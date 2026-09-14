@@ -1531,3 +1531,80 @@
 2026-09-14 14:57:12,557 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 10, 'added': 237, 'errors': []}
 2026-09-14 14:57:36,688 [INFO] quant: [定时任务] 开始: RSSHub轮询
 2026-09-14 14:57:36,745 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:58:06,692 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:58:06,760 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:58:36,694 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:58:36,765 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:59:06,703 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:59:06,752 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 14:59:36,702 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 14:59:36,781 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:00:06,691 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:00:06,735 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:00:32,474 [WARNING] quant: [sina] get_indices failed/timeout: 
+2026-09-14 15:00:36,692 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:00:36,751 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:00:45,357 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-14 15:01:05,966 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-14 15:01:06,700 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:01:06,754 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:01:11,082 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-14 15:01:16,228 [WARNING] quant: [sina] get_limit_up failed/timeout: 
+2026-09-14 15:01:19,174 [WARNING] quant: tencent kline failed SH600869/day: HTTP Error 501: Not Implemented
+2026-09-14 15:01:19,538 [WARNING] quant: tencent kline failed SH600869/day: HTTP Error 501: Not Implemented
+2026-09-14 15:01:19,614 [WARNING] quant: tencent kline failed SH600869/day: HTTP Error 501: Not Implemented
+2026-09-14 15:01:32,332 [WARNING] quant: tencent kline failed SH600869/day: HTTP Error 501: Not Implemented
+2026-09-14 15:01:36,691 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:01:36,740 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:02:04,354 [WARNING] quant: tencent kline failed SH600869/day: HTTP Error 501: Not Implemented
+2026-09-14 15:02:06,690 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:02:06,733 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:02:32,153 [WARNING] quant: tencent kline failed SH600869/day: HTTP Error 501: Not Implemented
+2026-09-14 15:02:36,703 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:02:40,824 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 6, 'added': 17, 'errors': []}
+2026-09-14 15:03:02,195 [WARNING] quant: tencent kline failed SH600869/day: HTTP Error 501: Not Implemented
+2026-09-14 15:03:06,697 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:03:06,756 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:03:32,556 [WARNING] quant: tencent kline failed SH600869/day: HTTP Error 501: Not Implemented
+2026-09-14 15:03:36,698 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:03:36,727 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:04:02,166 [WARNING] quant: tencent kline failed SH600869/day: HTTP Error 501: Not Implemented
+2026-09-14 15:04:06,692 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:04:06,738 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:04:36,690 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:04:36,720 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:05:06,690 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:05:06,733 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:05:29,194 [WARNING] quant: tencent kline failed SH600869/day: HTTP Error 501: Not Implemented
+2026-09-14 15:05:36,687 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:05:36,710 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:05:57,315 [INFO] quant: 初始化数据库...
+2026-09-14 15:05:57,410 [INFO] quant: 启动定时任务...
+2026-09-14 15:05:57,412 [INFO] quant: 定时任务调度已配置 (10:25/13:30/14:50 交易时段决策, 15:10收盘, 18:00复盘, 20:00进化, 30s RSSHub轮询)
+2026-09-14 15:06:01,295 [WARNING] quant: em boards m:90+t:3 p1: Remote end closed connection without response
+2026-09-14 15:06:03,971 [WARNING] quant: em fflow kline 1.000001 klt=101 failed: Remote end closed connection without response
+2026-09-14 15:06:09,990 [WARNING] quant: save kline cache failed SH600869: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SH600869', 'day', '2025-08-11 00:00:00.000000', 5.87, 6.07, 5.85, 6.03, 534494, 0.0, None, '2026-09-14 07:06:09.743909')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-14 15:06:10,053 [WARNING] quant: save kline cache failed SH600869: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SH600869', 'day', '2025-08-11 00:00:00.000000', 5.87, 6.07, 5.85, 6.03, 534494, 0.0, None, '2026-09-14 07:06:09.712429')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-14 15:06:27,419 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:06:32,056 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 10, 'added': 240, 'errors': []}
+2026-09-14 15:06:57,415 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:06:57,471 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:07:09,792 [WARNING] quant: save kline cache failed SZ000537: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ000537', 'day', '2025-08-11 00:00:00.000000', 8.65, 8.7, 8.59, 8.63, 121087, 0.0, None, '2026-09-14 07:07:09.392245')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-14 15:07:10,132 [WARNING] quant: save kline cache failed SZ000537: (sqlite3.IntegrityError) UNIQUE constraint failed: klines.symbol, klines.period, klines.timestamp
+[SQL: INSERT INTO klines (symbol, period, timestamp, open, high, low, close, volume, amount, turnover, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]
+[parameters: ('SZ000537', 'day', '2025-08-11 00:00:00.000000', 8.65, 8.7, 8.59, 8.63, 121087, 0.0, None, '2026-09-14 07:07:09.364748')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-09-14 15:07:27,420 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:07:27,469 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:07:57,416 [INFO] quant: [定时任务] 开始: RSSHub轮询
+2026-09-14 15:07:57,481 [INFO] quant: [定时任务] 完成: RSSHub轮询 -> {'polled': 0, 'added': 0, 'errors': []}
+2026-09-14 15:08:27,422 [INFO] quant: [定时任务] 开始: RSSHub轮询
