@@ -49,7 +49,7 @@
                 v-for="row in displayItems"
                 :key="row.symbol"
                 class="wl-item"
-                :class="{ active: selectedSymbol === row.symbol }"
+                :class="{ active: symbolStore.selectedSymbol === row.symbol }"
                 @click="batchMode ? toggleDelete(row) : selectItem(row)"
               >
                 <div class="wl-line">
@@ -74,13 +74,13 @@
 
         <!-- 右侧：K线 + 详情 tabs -->
         <el-col :xs="24" :sm="16" :md="18">
-          <div class="card" v-if="selectedSymbol">
+          <div class="card" v-if="symbolStore.selectedSymbol">
             <div class="flex gap" style="align-items:center;flex-wrap:wrap">
-              <span class="fs16 bold">{{ selectedRealtime.name || selectedSymbol }}</span>
-              <span class="fs12" style="color:#909399">{{ selectedSymbol }}</span>
-              <span v-if="selectedRealtime.price" class="fs18 bold mono" :class="pctCls(selectedRealtime)">
-                {{ fmt(selectedRealtime.price) }}
-                <span class="fs12">{{ selectedRealtime.change_pct >= 0 ? '+' : '' }}{{ selectedRealtime.change }} / {{ selectedRealtime.change_pct >= 0 ? '+' : '' }}{{ selectedRealtime.change_pct }}%</span>
+              <span class="fs16 bold">{{ symbolStore.selectedRealtime.name || symbolStore.selectedSymbol }}</span>
+              <span class="fs12" style="color:#909399">{{ symbolStore.selectedSymbol }}</span>
+              <span v-if="symbolStore.selectedRealtime.price" class="fs18 bold mono" :class="pctCls(symbolStore.selectedRealtime)">
+                {{ fmt(symbolStore.selectedRealtime.price) }}
+                <span class="fs12">{{ symbolStore.selectedRealtime.change_pct >= 0 ? '+' : '' }}{{ symbolStore.selectedRealtime.change }} / {{ symbolStore.selectedRealtime.change_pct >= 0 ? '+' : '' }}{{ symbolStore.selectedRealtime.change_pct }}%</span>
               </span>
               <div style="flex:1"></div>
               <el-radio-group v-model="period" size="small">
@@ -100,11 +100,11 @@
 
             <!-- 行情数据条 -->
             <div class="flex gap fs12 mt4" style="color:#909399;flex-wrap:wrap">
-              <span>今开 {{ fmt(selectedRealtime.open) }}</span>
-              <span>最高 <span class="down">{{ fmt(selectedRealtime.high) }}</span></span>
-              <span>最低 <span class="up">{{ fmt(selectedRealtime.low) }}</span></span>
-              <span>成交量 {{ fmtVol(selectedRealtime.volume) }}</span>
-              <span>成交额 {{ fmtBig(selectedRealtime.amount) }}</span>
+              <span>今开 {{ fmt(symbolStore.selectedRealtime.open) }}</span>
+              <span>最高 <span class="down">{{ fmt(symbolStore.selectedRealtime.high) }}</span></span>
+              <span>最低 <span class="up">{{ fmt(symbolStore.selectedRealtime.low) }}</span></span>
+              <span>成交量 {{ fmtVol(symbolStore.selectedRealtime.volume) }}</span>
+              <span>成交额 {{ fmtBig(symbolStore.selectedRealtime.amount) }}</span>
             </div>
 
             <!-- K线图 -->
@@ -119,7 +119,7 @@
                 <el-empty v-if="!kline.length" description="暂无该周期K线" :image-size="70" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center" />
               </div>
               <div v-else style="position:relative;height:100%">
-                <LineChart v-if="intraday.length" :data="intraday" height="460px" :volume="true" :pre-close="selectedRealtime.pre_close" />
+                <LineChart v-if="intraday.length" :data="intraday" height="460px" :volume="true" :pre-close="symbolStore.selectedRealtime.pre_close" />
                 <el-empty v-else description="暂无分时数据" :image-size="70" style="position:absolute;inset:0" />
               </div>
             </div>
@@ -151,7 +151,11 @@
                 </div>
                 <!-- AI分析 -->
                 <el-divider content-position="left">AI分析</el-divider>
-                <div v-if="brain.agents?.length">
+                <div v-if="isStreaming">
+                  <div class="stream-box">{{ streamText }}<span class="stream-cursor"></span></div>
+                  <div class="fs11 mt4" style="color:#909399">AI 正在生成分析…</div>
+                </div>
+                <div v-else-if="brain.agents?.length">
                   <div class="flex gap fs12 mb8" style="flex-wrap:wrap">
                     <span>综合建议：<el-tag size="small" :type="overallRatingTag">{{ overallRatingText }}</el-tag></span>
                     <span class="flex gap" style="flex-wrap:wrap;justify-content:center">
@@ -410,7 +414,7 @@
               </el-tab-pane>
             </el-tabs>
 
-            <div v-if="selectedSymbol" class="mt8 flex gap">
+            <div v-if="symbolStore.selectedSymbol" class="mt8 flex gap">
               <el-popconfirm title="确认移除？" @confirm="removeSelected">
                 <template #reference>
                   <el-button size="small" type="danger" plain>移除自选</el-button>
@@ -451,6 +455,7 @@ import MainLayout from '../layout/MainLayout.vue'
 import HQChartKline from '../components/HQChartKline.vue'
 import LineChart from '../components/LineChart.vue'
 import { watchlistApi, stockApi, marketApi, agentApi } from '../api'
+import { useSymbolStore } from '../stores/symbol'
 
 const route = useRoute()
 const router = useRouter()
@@ -461,7 +466,7 @@ const searchKw = ref('')
 const searchResults = ref([])
 const searched = ref(false)
 const searchDialog = ref(false)
-const selectedSymbol = ref(null)
+const symbolStore = useSymbolStore()
 const VALID_PERIODS = ['mf', 'm5', 'm15', 'm30', 'm60', 'day']
 const period = ref('day')
 const kline = ref([])
@@ -479,13 +484,14 @@ const industryRanking = ref(null)
 const industryChain = ref(null)
 const brain = ref({})
 const brainLoading = ref(false)
+const streamText = ref('')
+const isStreaming = ref(false)
 const agentList = ref([])
 const detailTab = ref('detail')
 const showRecent = ref(false)
 const recentList = ref([])
 const recentPriceMap = ref({})
 const recentLoading = ref(false)
-const selectedRealtime = ref({})
 const batchMode = ref(false)
 const selectedForDelete = ref([])
 
@@ -518,7 +524,7 @@ const overallRatingTag = computed(() => {
 
 const techTags = computed(() => {
   const tags = []
-  const s = selectedRealtime.value
+  const s = symbolStore.selectedRealtime
   if (!s || !s.price) return tags
   const pct = Number(s.change_pct || 0)
   const last = kline.value[kline.value.length - 1]
@@ -616,7 +622,7 @@ async function loadRecentPrices() {
 
 function showRecentViewed() {
   showRecent.value = true
-  selectedSymbol.value = null
+  symbolStore.clear()
   batchMode.value = false
   selectedForDelete.value = []
   loadRecentPrices()
@@ -636,7 +642,7 @@ function anchorGroup(id) {
 function selectGroup(id) {
   showRecent.value = false
   currentGroupId.value = id
-  selectedSymbol.value = null
+  symbolStore.clear()
   const first = (groups.value.find(g => g.id === id)?.items || [])[0]
   if (first) selectItem(first)
 }
@@ -645,8 +651,7 @@ function selectItem(row) {
   showRecent.value = false
   batchMode.value = false
   selectedForDelete.value = []
-  selectedSymbol.value = row.symbol
-  selectedRealtime.value = { name: row.name, price: row.price, change_pct: row.change_pct, change: row.change, ...row }
+  symbolStore.select(row.symbol, { name: row.name, price: row.price, change_pct: row.change_pct, change: row.change, ...row })
   addToRecent(row.symbol, row.name)
   detailTab.value = 'detail'
   loadKline()
@@ -654,7 +659,7 @@ function selectItem(row) {
 }
 
 async function loadStockDetail() {
-  const sym = selectedSymbol.value
+  const sym = symbolStore.selectedSymbol
   if (!sym) return
   const [basic, czscData, formData, finData, finOv, flowData, fsData, seData, nzData, secData, rankData, chainData] = await Promise.allSettled([
     stockApi.basic(sym), stockApi.czsc(sym), stockApi.forms(sym),
@@ -663,7 +668,7 @@ async function loadStockDetail() {
     stockApi.industryRanking(sym), stockApi.industryChain(sym),
   ])
   if (basic.status === 'fulfilled' && basic.value) {
-    selectedRealtime.value = { ...selectedRealtime.value, ...basic.value.realtime, name: basic.value.name || selectedRealtime.value.name }
+    symbolStore.updateRealtime({ ...basic.value.realtime, name: basic.value.name || symbolStore.selectedRealtime.name })
   }
   if (czscData.status === 'fulfilled') czsc.value = czscData.value || {}
   if (formData.status === 'fulfilled') forms.value = formData.value || []
@@ -679,7 +684,7 @@ async function loadStockDetail() {
 }
 
 async function loadKline() {
-  const sym = selectedSymbol.value
+  const sym = symbolStore.selectedSymbol
   if (!sym) return
   try {
     if (period.value === 'mf') {
@@ -697,24 +702,52 @@ async function loadKline() {
 }
 
 async function loadBrain() {
-  const sym = selectedSymbol.value
+  const sym = symbolStore.selectedSymbol
   if (!sym) return
   try { brain.value = (await agentApi.brainstormGet(sym)) || {} } catch { brain.value = {} }
 }
 
-function runBrainOne(at) {
-  const sym = selectedSymbol.value
-  if (!at || !sym) return
+async function runBrainOne(at) {
+  const sym = symbolStore.selectedSymbol
+  if (!at || !sym || isStreaming.value) return
   brainLoading.value = at
+  isStreaming.value = true
+  streamText.value = ''
   const prev = brain.value.agents || []
-  return agentApi.brainstormOne(sym, at)
-    .then(r => {
-      brain.value = { symbol: sym, agents: [...prev.filter(a => a.agent_type !== at), r] }
-    })
-    .catch(() => {
-      try { ElMessage.warning(`智能体分析失败，请稍后重试 (${agentLabel(at)})`) } catch {}
-    })
-    .finally(() => { brainLoading.value = false })
+  try {
+    const resp = await agentApi.brainstormOneStream(sym, at)
+    if (!resp.body) throw new Error('no stream body')
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          const ev = JSON.parse(line.slice(6))
+          if (ev.type === 'delta') {
+            streamText.value += ev.text
+          } else if (ev.type === 'done') {
+            if (symbolStore.selectedSymbol === sym) {
+              brain.value = { symbol: sym, agents: [...prev.filter(a => a.agent_type !== at), ev.result] }
+            }
+          } else if (ev.type === 'error') {
+            try { ElMessage.warning(`分析失败：${ev.message}`) } catch {}
+          }
+        } catch {}
+      }
+    }
+  } catch (e) {
+    try { ElMessage.warning(`智能体分析失败，请稍后重试 (${agentLabel(at)})`) } catch {}
+  } finally {
+    isStreaming.value = false
+    brainLoading.value = false
+  }
 }
 
 async function loadAgentList() {
@@ -740,7 +773,7 @@ async function load(silent = false) {
     if (!currentGroupId.value || !groups.value.some(g => g.id === currentGroupId.value)) {
       currentGroupId.value = groups.value[0]?.id
     }
-    if (selectedSymbol.value) loadBrain()
+    if (symbolStore.selectedSymbol) loadBrain()
   } finally { loading.value = false }
 }
 
@@ -758,8 +791,7 @@ async function loadWithSymbol(sym) {
     const basic = await stockApi.basic(sym)
     if (basic) {
       const row = { symbol: sym, name: basic.name || sym, price: basic.realtime?.price, change_pct: basic.realtime?.change_pct }
-      selectedSymbol.value = sym
-      selectedRealtime.value = row
+      symbolStore.select(sym, row)
       addToRecent(sym, row.name)
       loadKline()
       loadStockDetail()
@@ -814,7 +846,7 @@ async function addStock(row) {
 function removeOne(row) {
   ElMessageBox.confirm(`确认删除 ${row.name}？`, '删除自选', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
     .then(() => watchlistApi.removeItem(row.id).then(() => {
-      if (selectedSymbol.value === row.symbol) selectedSymbol.value = null
+      if (symbolStore.selectedSymbol === row.symbol) symbolStore.clear()
       load()
     }))
     .catch(() => {})
@@ -835,7 +867,7 @@ async function batchRemove() {
         await watchlistApi.batchRemove(ids)
         ElMessage.success(`已删除 ${ids.length} 只`)
         const remain = groups.value.flatMap(g => g.items || []).filter(i => !ids.includes(i.id))
-        if (selectedSymbol.value && !remain.some(i => i.symbol === selectedSymbol.value)) selectedSymbol.value = null
+        if (symbolStore.selectedSymbol && !remain.some(i => i.symbol === symbolStore.selectedSymbol)) symbolStore.clear()
         selectedForDelete.value = []
         batchMode.value = false
         await load()
@@ -845,8 +877,8 @@ async function batchRemove() {
 }
 
 function removeSelected() {
-  const item = groups.value.flatMap(g => g.items || []).find(i => i.symbol === selectedSymbol.value)
-  if (item?.id) watchlistApi.removeItem(item.id).then(() => { selectedSymbol.value = null; load() })
+  const item = groups.value.flatMap(g => g.items || []).find(i => i.symbol === symbolStore.selectedSymbol)
+  if (item?.id) watchlistApi.removeItem(item.id).then(() => { symbolStore.clear(); load() })
 }
 
 watch(period, (v) => { if (VALID_PERIODS.includes(v)) loadKline() })
@@ -855,7 +887,7 @@ let timer = null
 onMounted(() => {
   const qSym = route.query.symbol
   if (qSym) { loadWithSymbol(qSym) } else { load() }
-  timer = setInterval(() => { if (selectedSymbol.value) loadKline() }, 30000)
+  timer = setInterval(() => { if (symbolStore.selectedSymbol) loadKline() }, 30000)
 })
 onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
@@ -875,4 +907,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .flex.gap { display: flex; gap: 8px; }
 .concept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
 .concept-item { padding: 8px; border: 1px solid #eef0f3; border-radius: 6px; background: #fafbfc; }
+.stream-box { background: #1a1a2e; color: #e6e6f0; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.7; padding: 12px 14px; border-radius: 6px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+.stream-cursor { display: inline-block; width: 7px; height: 14px; background: #4ade80; margin-left: 2px; vertical-align: text-bottom; animation: stream-blink 1s step-end infinite; }
+@keyframes stream-blink { 50% { opacity: 0; } }
 </style>

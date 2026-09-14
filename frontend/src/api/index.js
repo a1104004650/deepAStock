@@ -77,7 +77,12 @@ export const agentApi = {
   analyzeMarket: (data) => http.post('/agents/analyze/market', data),
   brainstorm: (data) => http.post('/agents/brainstorm', data),
   brainstormGet: (s) => http.get(`/agents/brainstorm/${s}`),
-  brainstormOne: (s, at) => http.post(`/agents/brainstorm/${s}/${at}`)
+  brainstormOne: (s, at) => http.post(`/agents/brainstorm/${s}/${at}`),
+  brainstormOneStream: (s, at) =>
+    fetch(`/api/v1/agents/brainstorm/${s}/${at}/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
 }
 
 // 模拟交易
@@ -138,4 +143,15 @@ export const rssApi = {
   recent: (limit = 50) => http.get('/rss/recent', { params: { limit } }),
   stats: () => http.get('/rss/stats'),
   poll: () => http.post('/rss/poll')
+}
+
+// 策略回测
+export const backtestApi = {
+  run: (data) => http.post('/backtest/run', data),
+  strategies: () => http.get('/backtest/strategies'),
+  createStrategy: (data) => http.post('/backtest/strategies', data),
+  updateStrategy: (id, data) => http.put(`/backtest/strategies/${id}`, data),
+  deleteStrategy: (id) => http.delete(`/backtest/strategies/${id}`),
+  duplicateStrategy: (id) => http.post(`/backtest/strategies/${id}/duplicate`),
+  testStrategy: (data) => http.post('/backtest/strategies/test', data)
 }

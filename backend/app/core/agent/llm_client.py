@@ -64,6 +64,61 @@ class LLMClient:
             return await self._complete_claude(prompt, system_prompt, response_format)
         return await self._complete_openai(prompt, system_prompt, response_format)
 
+    async def stream_complete(self, prompt: str, system_prompt: str = ""):
+        """流式输出 LLM tokens，yield 文本片段。Gemini/Claude 降级为一次性返回。"""
+        if self.provider in ("gemini", "claude"):
+            full = await self.complete(prompt, system_prompt)
+            yield full
+            return
+
+        if not self.api_key and self.provider != "ollama":
+            raise LLMNotConfigured("未配置 API Key，已切换本地启发式分析")
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "stream": True,
+        }
+
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        if self.provider == "ollama":
+            headers.pop("Authorization", None)
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with client.stream("POST", f"{self.api_base}/chat/completions",
+                                         headers=headers, json=payload) as resp:
+                    if resp.status_code != 200:
+                        body = await resp.aread()
+                        raise LLMError(f"API error {resp.status_code}: {body[:300]}")
+                    async for line in resp.aiter_lines():
+                        line = line.strip()
+                        if not line or not line.startswith("data: "):
+                            continue
+                        data_str = line[6:]
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(data_str)
+                            choices = data.get("choices", [])
+                            if choices:
+                                token = choices[0].get("delta", {}).get("content", "")
+                                if token:
+                                    yield token
+                        except json.JSONDecodeError:
+                            continue
+        except httpx.ConnectError as e:
+            raise LLMError(f"LLM 连接失败: {e}") from e
+
     async def _complete_openai(self, prompt: str, system_prompt: str = "", response_format: str = "text") -> str:
         messages = []
         if system_prompt:

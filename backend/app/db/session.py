@@ -53,6 +53,7 @@ async def init_db():
         replay,
         system,
         rss,
+        strategy,
     )
     async with engine.begin() as conn:
         # 旧版 RSS 订阅表（旧字段结构 + filter_st 等旧列）整体重建，避免迁移残留

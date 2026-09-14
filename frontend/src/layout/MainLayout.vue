@@ -33,26 +33,29 @@
     </nav>
     <!-- 全局重要消息渐变通知（每条只提示一次，本地去重；含平台新闻 + RSS 增量推送） -->
     <transition name="news-pop">
-      <div v-if="currentNews" class="news-toast" @click="openNews(currentNews)">
+      <div v-if="newsStore.currentNews" class="news-toast" @click="newsStore.openNews(newsStore.currentNews)">
         <div class="news-toast-text">
-          <span class="news-toast-tag">{{ currentNews.source || '重要' }}</span>
-          <span class="news-toast-title">{{ currentNews.title }}</span>
+          <span class="news-toast-tag">{{ newsStore.currentNews.source || '重要' }}</span>
+          <span class="news-toast-title">{{ newsStore.currentNews.title }}</span>
         </div>
-        <el-icon class="news-toast-close" @click.stop="dismissNews"><Close /></el-icon>
+        <el-icon class="news-toast-close" @click.stop="newsStore.dismissNews"><Close /></el-icon>
       </div>
     </transition>
   </el-container>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import { DataBoard, Star, Document, TrendCharts, Upload, MagicStick, Promotion, Setting, Close } from '@element-plus/icons-vue'
+import { DataBoard, Star, Document, TrendCharts, Histogram, Upload, MagicStick, Promotion, Setting, Close } from '@element-plus/icons-vue'
 import { systemApi, marketApi, rssApi } from '../api'
+import { useNewsStore } from '../stores/news'
+import { usePollingStore } from '../stores/polling'
 
 const route = useRoute()
+const newsStore = useNewsStore()
+const polling = usePollingStore()
 const clockText = ref('')
-const currentNews = ref(null)
 
 function isTradingHours() {
   const now = new Date()
@@ -64,6 +67,8 @@ function isTradingHours() {
 function pollNewsInterval() {
   return isTradingHours() ? 2 * 60 * 1000 : 4 * 60 * 60 * 1000
 }
+// 平台新闻入队去重（存 store 的 pushNews 会再次去重，这里只是轮询本地快速跳过）
+const newsShown = new Set()
 async function pollImportantNews() {
   try {
     const platRows = await marketApi.news(60).catch(() => [])
@@ -77,7 +82,7 @@ async function pollImportantNews() {
         localStorage.setItem(key, '1')
       } catch { /* storage disabled */ }
       const item = { title: n.title, url: n.url, source: '平台新闻' }
-      pushNews(item)
+      newsStore.pushNews(item)
     }
   } catch { /* ignore */ }
 }
@@ -100,33 +105,9 @@ async function pollRssIncrement() {
         if (localStorage.getItem(key)) continue
         localStorage.setItem(key, '1')
       } catch { /* storage disabled */ }
-      pushNews({ title: r.title, url: r.link || '', source: r.source_name || 'RSS', importance: Number(r.importance) || 3 })
+      newsStore.pushNews({ title: r.title, url: r.link || '', source: r.source_name || 'RSS', importance: Number(r.importance) || 3 })
     }
   } catch { /* ignore */ }
-}
-
-// 通知队列：逐条弹出，避免一次涌入多条只显示最后一条
-const newsQueue = ref([])
-let newsShown = new Set()
-function pushNews(n) {
-  if (!n || !n.title) return
-  const key = 'imp-news-' + n.title.slice(0, 40)
-  if (newsShown.has(key)) return
-  newsShown.add(key)
-  if (newsShown.size > 800) newsShown = new Set([...newsShown].slice(-400))
-  newsQueue.value.push({ ...n, source: n.source || '', importance: n.importance || 3 })
-  if (!currentNews.value) currentNews.value = newsQueue.value.shift() || null
-}
-function advanceNewsQueue() {
-  if (newsQueue.value.length) currentNews.value = newsQueue.value.shift()
-  else currentNews.value = null
-}
-function dismissNews() {
-  currentNews.value = null
-}
-function openNews(n) {
-  if (n && n.url) window.open(n.url, '_blank', 'noopener')
-  currentNews.value = null
 }
 
 function updateClock() {
@@ -147,6 +128,7 @@ const navItems = [
   { path: '/watchlist', label: '自选', icon: Star },
   { path: '/replay', label: '复盘', icon: Document },
   { path: '/simulation', label: '模拟', icon: TrendCharts },
+  { path: '/backtest', label: '回测', icon: Histogram },
   { path: '/trade', label: '实盘', icon: Upload },
   { path: '/agents', label: '智能体', icon: MagicStick },
   { path: '/rss', label: '订阅', icon: Promotion },
@@ -162,12 +144,6 @@ const isActive = (path) => {
   return p === path
 }
 
-let timer = null
-let clockTimer = null
-let newsTimer = null
-let rssTimer = null
-let newsAdvTimer = null
-
 function checkHealth() {
   systemApi
     .health()
@@ -180,21 +156,17 @@ function checkHealth() {
 
 onMounted(() => {
   checkHealth()
-  timer = setInterval(checkHealth, 30000)
+  polling.register('health', checkHealth, 30000)
   updateClock()
-  clockTimer = setInterval(updateClock, 1000)
+  polling.register('clock', updateClock, 1000)
   pollImportantNews()
   pollRssIncrement()
-  newsTimer = setInterval(pollImportantNews, pollNewsInterval())
-  rssTimer = setInterval(pollRssIncrement, 60000)
-  newsAdvTimer = setInterval(advanceNewsQueue, 15000)
+  polling.register('platnews', pollImportantNews, pollNewsInterval())
+  polling.register('rss', pollRssIncrement, 60000)
+  polling.register('newsadv', newsStore.advanceNewsQueue, 15000)
 })
 onBeforeUnmount(() => {
-  clearInterval(timer)
-  clearInterval(clockTimer)
-  if (newsTimer) clearInterval(newsTimer)
-  if (rssTimer) clearInterval(rssTimer)
-  if (newsAdvTimer) clearInterval(newsAdvTimer)
+  polling.clearAll()
 })
 </script>
 

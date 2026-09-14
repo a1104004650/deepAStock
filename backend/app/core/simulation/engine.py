@@ -141,6 +141,12 @@ class SimulationEngine:
         symbols = [p.symbol for p in positions]
         realtime = await self.dsm.get_realtime(symbols) if symbols else {}
 
+        pool = await self._candidate_pool(account)
+        # 账户差异化轮转：各账户看到不同的候选顺序/子集，避免所有 AI 扎堆同一标的
+        if pool and account:
+            start = int(account.id or 0) % len(pool)
+            pool = pool[start:] + pool[:start]
+
         ctx = AgentContext(
             date=target_date.isoformat(),
             market_data={
@@ -149,10 +155,16 @@ class SimulationEngine:
                 "realtime": realtime,
                 "capital": float(account.current_capital),
                 "initial_capital": float(account.initial_capital),
-                "stock_pool": (await self._candidate_pool(account)),
+                "stock_pool": pool,
             },
             user_rules=account.rules or {},
         )
+
+        style_desc = {
+            "research": "投研风格：注重基本面、主力资金流、缠论买点，偏好低估防御品种，持股周期偏长。",
+            "short_term": "短线风格：注重动量、放量、超买超卖区间，偏好当日活跃、波动大的品种，快进快出。",
+            "swing": "波段风格：注重均线趋势、MACD 金叉、波段买点，偏好趋势稳健、回撤可控的品种。",
+        }.get(str(cfg.get("agent_type")), "波段风格：注重趋势与买点质量，偏好稳健品种。")
 
         prompt = f"""# 模拟交易 - 每日决策 ({target_date})
 
@@ -168,6 +180,10 @@ class SimulationEngine:
 
 ## 实时行情
 {json.dumps(realtime, ensure_ascii=False, default=str)[:2000]}
+
+## 你的风格
+{style_desc}
+同期还有其他模拟账户在运行。请优先选择与你的风格匹配、资金效率最高的标的，避免与其它账户全部扎堆在同一两只股票上；风格不匹配的高分股可以放弃。
 
 ## 候选股票池
 {json.dumps(ctx.market_data.get('stock_pool', []), ensure_ascii=False, default=str)[:2000]}
@@ -214,7 +230,8 @@ class SimulationEngine:
         except Exception as e:
             logger.warning(f"sim agent LLM failed, use local: {e}")
             await self._log(account_id, target_date, "error", f"LLM 调用失败，回退本地规则决策: {e}", {})
-            actions = await self._local_decision(account, positions, realtime, pool, target_date)
+            actions = await self._local_decision(account, positions, realtime, pool, target_date,
+                                                 agent_type=str(cfg.get("agent_type", "swing")))
             result = {"actions": actions}
         actions = result.get("actions", [])[:5]
         await self._log(account_id, target_date, "decision", f"[{window}] 今日决策",
@@ -258,9 +275,11 @@ class SimulationEngine:
         await self._review(account, trades, target_date)
         return {"account_id": account_id, "trades": trades, "actions": actions}
 
-    async def _local_decision(self, account, positions, realtime, stock_pool, day_date: date = None) -> list:
+    async def _local_decision(self, account, positions, realtime, stock_pool, day_date: date = None,
+                              agent_type: str = "swing") -> list:
         """本地多因子决策：均线/MACD/RSI/量能 + 缠论信号 + 主力资金流 + 消息面，
-        止损止盈不再只看单一技术指标，理由由多个维度综合得出（供无 AI API 时模拟交易仍可运行）。"""
+        止损止盈不再只看单一技术指标，理由由多个维度综合得出（供无 AI API 时模拟交易仍可运行）。
+        风控差异化：不同智能体风格对不同因子加权，选股从合格池按账户轮转取用，避免扎堆。"""
         day_date = day_date or date.today()
         rules = account.rules or {}
         stop_loss = float(rules.get("stop_loss", 0.05))
@@ -471,11 +490,43 @@ class SimulationEngine:
                 score += 6
                 why.append("站稳MA60")
             if score >= 40:
+                # 风控差异化：按智能体风格加偏好分（投研重基本面/缠论，短线重量能/动量，波段重趋势/MACD）
+                bonus = 0
+                if agent_type == "research":
+                    if f["czsc_buy"]:
+                        bonus += 6
+                    if f["flow5"] > 0:
+                        bonus += 4
+                    if f["news_score"] > 0:
+                        bonus += 4
+                    if f["price"] > f["ma60"]:
+                        bonus += 3
+                elif agent_type == "short_term":
+                    if f["vol_r"] >= 1.2:
+                        bonus += 6
+                    if 45 <= f["rsi"] <= 62:
+                        bonus += 4
+                    if f["macd_cross_up"]:
+                        bonus += 4
+                else:  # swing
+                    if f["ma5"] > f["ma10"] > f["ma20"]:
+                        bonus += 5
+                    if f["macd_cross_up"]:
+                        bonus += 4
+                    if f["czsc_buy"]:
+                        bonus += 4
+                if bonus:
+                    score += bonus
+                    why.append(f"风控偏好+{bonus}")
                 cands.append({"symbol": symbol, "price": f["price"], "score": score,
                               "reason": "买入（综合评分" + str(score) + "：" + "；".join(why) + "）",
                               "confidence": round(min(0.5 + score / 180, 0.9), 2)})
 
         cands.sort(key=lambda x: x["score"], reverse=True)
+        # 多账户轮转取用合格候选：不同账户从不同起点选股，避免全部扎堆最高分
+        if cands:
+            start_i = int(account.id or 0) % len(cands)
+            cands = cands[start_i:] + cands[:start_i]
         for c in cands:
             if len([a for a in actions if a["action"] == "buy"]) >= max_daily or budget <= 0:
                 break

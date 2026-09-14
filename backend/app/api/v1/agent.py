@@ -1,7 +1,10 @@
 """AI智能体接口"""
+import json
 from datetime import datetime
+import asyncio
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db, SessionLocal
@@ -181,6 +184,103 @@ async def brainstorm_one(symbol: str, agent_type: str):
         except Exception:
             pass
     return {"symbol": symbol.upper(), "cached": False, "agent_type": agent_type, **data}
+
+
+async def _stream_analyze(agent_type: str, symbol: str):
+    """SSE 流式分析：不修改 agent 子类，用 wrapper 拦截 llm.complete 实时转发 tokens。"""
+    queue: asyncio.Queue = asyncio.Queue()
+    result_holder: list = [None]
+
+    class _StreamWrapper:
+        """拦截 llm.complete / complete_json，转成流式 SSE 事件，同时保留原返回供 agent 使用。"""
+
+        def __init__(self, real):
+            self._real = real
+
+        async def complete(self, prompt, system_prompt="", response_format="text"):
+            full = ""
+            try:
+                async for tok in self._real.stream_complete(prompt, system_prompt):
+                    full += tok
+                    await queue.put({"type": "delta", "text": tok})
+            except Exception as e:
+                await queue.put({"type": "error", "message": str(e)})
+                raise
+            await queue.put({"type": "_stream_done"})
+            return full
+
+        async def complete_json(self, prompt, system_prompt=""):
+            raw = await self.complete(prompt, system_prompt)
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                import re
+                m = re.search(r"```json\s*(.*?)\s*```", raw, re.DOTALL)
+                if m:
+                    return json.loads(m.group(1))
+                m2 = re.search(r"\{.*\}", raw, re.DOTALL)
+                if m2:
+                    return json.loads(m2.group(0))
+                from app.core.agent.llm_client import LLMError
+                raise LLMError(f"LLM返回无法解析为JSON: {raw[:200]}")
+
+        def __getattr__(self, name):
+            return getattr(self._real, name)
+
+    async with SessionLocal() as db:
+        ctx = await _build_stock_context(db, symbol)
+        executor = AgentExecutor(db)
+        config = await executor._load_config(None, agent_type)
+        agent = create_agent(config)
+        agent.llm = _StreamWrapper(agent.llm)
+
+        async def _run():
+            try:
+                result_holder[0] = await agent.analyze_stock(ctx)
+            except Exception as e:
+                logger.warning(f"stream brainstorm {agent_type} failed: {e}")
+                result_holder[0] = None
+
+        task = asyncio.create_task(_run())
+
+        yield f"data: {json.dumps({'type': 'started'}, ensure_ascii=False)}\n\n"
+
+        while not task.done():
+            try:
+                chunk = await asyncio.wait_for(queue.get(), timeout=0.2)
+                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+            except asyncio.TimeoutError:
+                continue
+
+        while not queue.empty():
+            chunk = await queue.get()
+            yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+
+        await task
+        result = result_holder[0]
+        if result:
+            data = result.model_dump()
+            data["agent_type"] = agent_type
+            yield f"data: {json.dumps({'type': 'done', 'result': data}, ensure_ascii=False)}\n\n"
+            if (data.get("summary") or "").strip() and float(data.get("confidence") or 0) >= 0.3:
+                try:
+                    await _save_agent_result(symbol, agent_type, data)
+                except Exception:
+                    pass
+        else:
+            yield f"data: {json.dumps({'type': 'error', 'message': '分析失败，请稍后重试'}, ensure_ascii=False)}\n\n"
+
+
+@router.post("/brainstorm/{symbol}/{agent_type}/stream")
+async def brainstorm_one_stream(symbol: str, agent_type: str):
+    """SSE 流式版单个智能体分析，前端实时看到 AI 生成过程。"""
+    if agent_type not in ("research", "short_term", "swing"):
+        raise HTTPException(400, "agent_type 必须是 research/short_term/swing")
+    return StreamingResponse(
+        _stream_analyze(agent_type, symbol),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/analyze/market")

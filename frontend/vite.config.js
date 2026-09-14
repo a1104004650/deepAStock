@@ -10,8 +10,8 @@ export default defineConfig({
         manualChunks: {
           'vue-vendor': ['vue', 'vue-router', 'pinia'],
           'element-plus': ['element-plus', '@element-plus/icons-vue'],
-          echarts: ['echarts'],
-          hqchart: ['hqchart']
+          'echarts': ['echarts'],
+          'hqchart': ['hqchart']
         }
       }
     }

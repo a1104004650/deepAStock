@@ -9,6 +9,7 @@ from app.models.trade import UserTrade, UserPosition
 from app.models.cache import CacheMetadata
 from app.models.system import Setting
 from app.models.rss import RssSource, RssItem
+from app.models.strategy import StrategyConfig
 
 __all__ = [
     "User", "WatchlistGroup", "WatchlistItem", "Stock", "FinancialQuarterly", "Shareholder",

@@ -6,6 +6,7 @@ const routes = [
   { path: '/stock/:symbol', redirect: to => ({ path: '/watchlist', query: { symbol: to.params.symbol } }) },
   { path: '/replay', name: 'replay', component: () => import('../views/Replay.vue'), meta: { title: '每日复盘' } },
   { path: '/simulation', name: 'simulation', component: () => import('../views/Simulation.vue'), meta: { title: '模拟交易' } },
+  { path: '/backtest', name: 'backtest', component: () => import('../views/Backtest.vue'), meta: { title: '策略回测' } },
   { path: '/trade', name: 'trade', component: () => import('../views/TradeImport.vue'), meta: { title: '实盘导入' } },
   { path: '/agents', name: 'agents', component: () => import('../views/Agents.vue'), meta: { title: '智能体中心' } },
   { path: '/rss', name: 'rss', component: () => import('../views/RssNews.vue'), meta: { title: '订阅消息' } },
