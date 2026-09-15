@@ -33,6 +33,8 @@
       RSSHub 官方路由文档（传统媒体）：
       <a href="https://rsshub-doc.pages.dev/traditional-media.html#cai-xin-wang" target="_blank" rel="noopener" class="doc-link">
         https://rsshub-doc.pages.dev/traditional-media.html#cai-xin-wang
+        <br/>
+        其他：https://juejin.cn/post/7459966392429101067
       </a>
     </div>
 
@@ -134,11 +136,6 @@
 
     <el-dialog v-model="dialogVisible" :title="editing ? '编辑订阅源' : '新增订阅源'" width="620px">
       <el-form label-width="96px" label-position="left">
-        <el-form-item label="快速添加">
-          <el-select v-model="quickCase" placeholder="一键填入默认的订阅源示例" clearable @change="onQuickCase">
-            <el-option v-for="c in cases" :key="c.key" :label="c.name" :value="c.key" />
-          </el-select>
-        </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="form.name" placeholder="给这个源起个名字（可不填，自动识别）" />
         </el-form-item>
@@ -160,7 +157,11 @@
         </el-form-item>
         <el-form-item :label="'订阅地址'" required>
           <el-input v-model="form.url" :placeholder="addressPlaceholder">
-            <template v-if="form.rss_type === 'rsshub_local'" #prepend>http://127.0.0.1:11200</template>
+            <template v-if="form.rss_type === 'rsshub_local'" #prepend>
+            <el-select v-model="form.base" style="width:250px" :placeholder="'选择 RSSHub 镜像前缀'">
+              <el-option v-for="b in RSSHUB_BASES" :key="b.value" :label="b.label" :value="b.value" />
+            </el-select>
+          </template>
           </el-input>
           <div class="form-tip" style="display:block;width:100%;margin-left:0;margin-top:6px">
             <template v-if="form.rss_type === 'rsshub_local'">
@@ -247,6 +248,17 @@ const rssTypeMap = {
 }
 const rssTypeLabel = (t) => (rssTypeMap[t] || {}).label || t || '-'
 const LOCAL_BASE = 'http://127.0.0.1:11200'
+const RSSHUB_BASES = [
+  { label: '本地 Docker（推荐）', value: LOCAL_BASE },
+  { label: '官方 https://rsshub.app（推荐）', value: 'https://rsshub.app' },
+  { label: '[推荐] https://i.scnu.edu.cn/sub', value: 'https://i.scnu.edu.cn/sub' },
+  { label: '[推荐] https://rss.injahow.cn/', value: 'https://rss.injahow.cn/' },
+  { label: 'https://rsshub.rssforever.com/', value: 'https://rsshub.rssforever.com/' },
+  { label: 'https://rss.shab.fun/', value: 'https://rss.shab.fun/' },
+  { label: 'https://hub.slarker.me/', value: 'https://hub.slarker.me/' },
+  { label: 'https://rsshub.anyant.xyz/', value: 'https://rsshub.anyant.xyz/' },
+  { label: 'http://rsshub.sksren.com/', value: 'http://rsshub.sksren.com/' }
+]
 const addressPlaceholder = computed(() => (rssTypeMap[form.value.rss_type] || {}).ph || 'https://...')
 
 // 本地 RSSHub：用户只填后缀，保存时自动拼本地地址；公网/直连原样保存
@@ -256,7 +268,7 @@ function fullUrlFromForm() {
     if (!u) return ''
     if (/^https?:\/\//.test(u)) return u
     u = u.replace(/^\/+/, '')
-    return LOCAL_BASE + '/' + u
+    return (form.value.base || LOCAL_BASE) + '/' + u
   }
   return u
 }
@@ -303,9 +315,9 @@ const cases = [
 ]
 
 const dialogVisible = ref(false)
-const editing = ref(false)
+const editing = ref(null)   // null=新增；编辑时为整行 row（含 id）
 const quickCase = ref('')
-const form = ref({ name: '', rss_type: 'http', url: '', interval_min: 5, tagsText: '', remark: '', enabled: true })
+const form = ref({ name: '', rss_type: 'http', url: '', base: LOCAL_BASE, interval_min: 5, tagsText: '', remark: '', enabled: true })
 const testing = ref(false)
 const testResult = ref(null)
 const netTestingId = ref(null)
@@ -360,17 +372,20 @@ async function pollNow() {
 }
 
 function openDialog(row) {
-  editing.value = !!row
+  editing.value = row || null
   testResult.value = null
   quickCase.value = ''
   let url = row?.url || ''
-  if (row?.rss_type === 'rsshub_local' && /^https?:\/\//.test(url) && url.startsWith(LOCAL_BASE)) {
-    url = url.replace(LOCAL_BASE, '')
+  let base = LOCAL_BASE
+  if (row?.rss_type === 'rsshub_local' && url) {
+    const hit = (row?.base && RSSHUB_BASES.find((x) => x.value === row.base)) || RSSHUB_BASES.find((x) => x.value !== LOCAL_BASE && url.startsWith(x.value))
+    if (hit) { base = hit.value; url = url.replace(hit.value, '') }
   }
   form.value = {
     name: row?.name || '',
     rss_type: row?.rss_type || 'http',
     url,
+    base,
     interval_min: row?.interval_min || 5,
     tagsText: (row?.tags || []).join(','),
     remark: row?.remark || '',

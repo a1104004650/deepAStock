@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.rss import RssSource, RssItem
 from app.core.settings import get_setting_int
-from app.core.rsshub.parser import fetch_feed
+from app.core.rsshub.parser import fetch_feed, clean_html, clean_text, clean_text
 from app.utils.logger import logger
 
 _CN_TZ = timezone(timedelta(hours=8))
@@ -209,7 +209,7 @@ class RssService:
                 continue
             item = RssItem(
                 source_id=src.id, source_name=src.name, guid=guid,
-                title=it.title, summary=(it.summary or "")[:2000],
+                title=clean_html(it.title), summary=clean_html(it.summary or "")[:2000],
                 link=it.link, author=it.author,
                 pub_time=it.pub_time, platform="generic",
                 tags=src.tags or [], is_st=bool(it.is_st), importance=it.importance)
@@ -218,7 +218,7 @@ class RssService:
             new_count += 1
             _RECENT_ADDED.append({
                 "guid": guid, "source_id": src.id, "source_name": src.name,
-                "title": it.title, "link": it.link,
+                "title": clean_html(it.title), "link": it.link,
                 "pub_time": it.pub_time.isoformat() if it.pub_time else None,
                 "importance": it.importance or 3,
             })
@@ -277,7 +277,8 @@ class RssService:
     def _item_dict(r: RssItem) -> dict:
         return {
             "id": r.id, "source_id": r.source_id, "source_name": r.source_name,
-            "guid": r.guid, "title": r.title, "summary": r.summary,
+            "guid": r.guid, "title": clean_text(r.title or ""),
+            "summary": clean_text(r.summary or ""),
             "link": r.link, "author": r.author,
             "pub_time": r.pub_time.isoformat() if r.pub_time else None,
             "platform": r.platform, "tags": r.tags or [],

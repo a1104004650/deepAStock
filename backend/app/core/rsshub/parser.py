@@ -1,4 +1,6 @@
 """RSS/Atom/JSON Feed 抓取与统一解析（仅读取，不做去重）"""
+from __future__ import annotations
+
 import re
 import json
 import urllib.request
@@ -8,6 +10,28 @@ from datetime import datetime, timezone, timedelta
 from xml.etree import ElementTree as ET
 
 from app.utils.logger import logger
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
+
+def clean_html(s: str) -> str:
+    """去除 HTML 标签（<span>/<br>/<img …）与实体，压缩空白，标题/摘要入库前清洗兜底"""
+    import html as _html
+    s = _HTML_TAG_RE.sub(" ", s or "")
+    s = _html.unescape(s)
+    return _WS_RE.sub(" ", s).strip()
+
+
+# 兼容旧名：早期版本读路径用了 clean_text，此处打别名避免 NameError
+clean_text = clean_html
+
+
+def _clean_item(r: FeedItem) -> FeedItem:
+    """返回清洗后的副本（只动 title/summary，其余字段保留）"""
+    r.title = clean_html(r.title)
+    r.summary = clean_html(r.summary)
+    return r
 
 _ST_RE = re.compile(r"(?<![A-Za-z0-9])(?:S[*★]?ST|\*?ST)(?![A-Za-z0-9])", re.IGNORECASE)
 _IMPORTANCE_KW_HIGH = ["暴雷", "违规", "处罚", "警示", "重大", "利空", "退市", "立案", "诉讼"]

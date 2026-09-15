@@ -157,7 +157,9 @@ class SinaSource(DataSourceBase):
             return out
         for m in _STOCK_RE.finditer(text):
             code, fields = m.group(1), m.group(2).split(",")
-            if len(fields) < 32 or not fields[0]:
+            if code.startswith("s_"):
+                code = code[2:]  # 还原 sina 指数 s_ 前缀
+            if len(fields) < 18 or not fields[0]:
                 continue
             sym = to_standard_symbol(code)
             try:
@@ -168,39 +170,37 @@ class SinaSource(DataSourceBase):
                 amount = _f(fields[9])
                 change = round(price - prev_close, 4)
                 change_pct = round(change / prev_close * 100, 2) if prev_close else 0.0
-                out[sym] = {"symbol": sym, "name": name, "price": price, "change": change,
-                            "change_pct": change_pct, "volume": volume, "amount": amount,
-                            "high": high, "low": low, "open": open_p, "prev_close": prev_close,
-                            "turnover": 0.0, "pe": None}
+                out[sym] = {"symbol": sym, "name": name, "price": round(price,2),
+                            "change": round(change,2), "change_pct": round(change_pct,2),
+                            "volume": volume, "amount": amount, "high": round(high,2),
+                            "low": round(low,2), "open": round(open_p,2),
+                            "prev_close": round(prev_close,2), "turnover": 0.0, "pe": None}
             except (ValueError, IndexError):
                 continue
-        for s in symbols:
-            sym = to_standard_symbol(s)
-            if sym not in out and s in _NAME_MAP:
-                out[sym] = {"symbol": sym, "name": _NAME_MAP[s], "price": 0.0, "change": 0.0,
-                            "change_pct": 0.0, "volume": 0.0, "amount": 0.0, "high": 0.0,
-                            "low": 0.0, "open": 0.0, "prev_close": 0.0, "turnover": 0.0, "pe": None}
         return out
 
-    # ---------- 指数（A股新浪 + 港美腾讯） ----------
     def get_indices(self) -> list[dict]:
         result: list[dict] = []
-        a_codes = _sina_codes([c for c, _, m in _INDICES if m == "A"])
+        # 新浪指数必须用 s_ 前缀（如 s_sh000001），否则返回个股协议行→字段全部错位
+        a_codes = ["s_" + c for c in _sina_codes([c for c, _, m in _INDICES if m == "A"])]
         try:
             body = _open("https://hq.sinajs.cn/list=" + ",".join(a_codes), _SINA_HEADERS)
             for m in _STOCK_RE.finditer(body.decode("gbk", "ignore")):
                 code, fields = m.group(1), m.group(2).split(",")
-                if len(fields) < 10 or not fields[0]:
+                if code.startswith("s_"):
+                    code = code[2:]   # 指数实时查询走的 s_sh000001 → 还原 SH000001
+                if len(fields) < 6 or not fields[0]:
                     continue
                 sym = to_standard_symbol(code)
+                # 新浪指数行布局(与个股不同): 名称,最新点位,涨跌额,涨跌幅%,成交量,成交额,...
                 try:
-                    price = _f(fields[1]); prev_close = _f(fields[2])
-                    if not prev_close:
+                    price = _f(fields[1]); change = _f(fields[2]); change_pct = _f(fields[3])
+                    if not price:
                         continue
-                    change = price - prev_close
+                    prev_close = round(price - change, 4)
                     result.append({"code": sym, "name": fields[0], "price": round(price, 2),
                                    "change": round(change, 2),
-                                   "change_pct": round(change / prev_close * 100, 2)})
+                                   "change_pct": round(change_pct, 2)})
                 except (ValueError, IndexError):
                     continue
         except Exception as e:
@@ -500,6 +500,50 @@ class SinaSource(DataSourceBase):
         self._HOT_CACHE = scored
         self._HOT_TS = now
         return scored[:top]
+
+    # ---------- 实时股价异动（腾讯涨速榜：快速拉升 / 快速下挫） ----------
+    _MOVERS_CACHE: Optional[dict] = None
+    _MOVERS_TS = 0.0
+
+    def get_price_movers(self, top: int = 5) -> dict:
+        import time as _t
+        now = _t.time()
+        if self._MOVERS_CACHE is not None and (now - self._MOVERS_TS) < 60:
+            return self._MOVERS_CACHE
+
+        def _rank(direct: str) -> list[dict]:
+            try:
+                url = ("https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList"
+                       f"?board_code=aStock&sort_type=speed&direct={direct}&offset=0&count={top}")
+                body = _open(url, {**_UA, "Referer": "https://gu.qq.com"}, timeout=8).decode("utf-8", "ignore")
+                return (json.loads(body).get("data", {}).get("rank_list") or [])
+            except Exception as e:
+                logger.warning(f"price movers failed (direct={direct}): {e}")
+                return []
+
+        out = {"rise": [], "fall": []}
+        for direct, key in (("down", "rise"), ("up", "fall")):
+            for r in _rank(direct):
+                code = (r.get("code") or "").strip().lower()
+                if not code:
+                    continue
+                try:
+                    speed = float(r.get("speed") or 0.0)
+                    zdf = float(r.get("zdf") or 0.0)
+                except (TypeError, ValueError):
+                    continue
+                out[key].append({
+                    "symbol": code.upper(), "name": r.get("name") or "",
+                    "price": round(float(r.get("zxj") or 0), 2),
+                    "change_pct": round(zdf, 2),
+                    "speed": round(speed, 2),
+                    "lb": round(float(r.get("lb") or 0), 2),
+                    "hsl": round(float(r.get("hsl") or 0), 2),
+                    "turnover": round(float(r.get("turnover") or 0), 0),
+                })
+        self._MOVERS_CACHE = out
+        self._MOVERS_TS = now
+        return out
 
     # ---------- ETF 资金流（东方财富实时含今日 + 新浪兜底） ----------
     _ETF_FLOW_CACHE: Optional[dict] = None

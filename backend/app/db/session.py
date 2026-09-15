@@ -60,7 +60,7 @@ async def init_db():
         try:
             r = await conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='rss_sources'"))
             if r.scalar():
-                cols = [row[0] for row in await conn.execute(text("PRAGMA table_info(rss_sources)"))]
+                cols = [row[1] for row in await conn.execute(text("PRAGMA table_info(rss_sources)"))]
                 if not {"name", "rss_type", "url", "remark", "tags", "interval_min", "enabled", "net_status"}.issubset(set(cols)):
                     await conn.execute(text("DROP TABLE IF EXISTS rss_sources"))
                     await conn.execute(text("DROP TABLE IF EXISTS rss_items"))

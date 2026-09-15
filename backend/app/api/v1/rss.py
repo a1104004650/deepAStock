@@ -1,6 +1,6 @@
 """RSS 订阅管理接口"""
-from fastapi import APIRouter, Depends, Body
-from pydantic import BaseModel
+from fastapi import APIRouter, Body, Depends
+from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -18,8 +18,25 @@ class SourceBody(BaseModel):
     url: str | None = None
     tags: list[str] = []
     remark: str = ""
-    interval_min: int = 5
+    interval_min: int | str | None = 5
     enabled: bool = True
+
+    @field_validator("interval_min", mode="before")
+    @classmethod
+    def _coerce_interval(cls, v):
+        """对任意输入宽容处理：空串/"null"/None → 5；str/float 一律转 int。"""
+        if v is None or v == "" or v == "null":
+            return 5
+        if isinstance(v, bool):
+            return 5 if v else 1
+        if isinstance(v, int):
+            return v
+        if isinstance(v, float):
+            return int(v)
+        try:
+            return int(float(str(v).strip()))
+        except (TypeError, ValueError):
+            return 5
 
 
 class TestFeedBody(BaseModel):

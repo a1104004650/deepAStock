@@ -4,6 +4,11 @@
       <div class="flex gap" style="align-items:center;margin-bottom:10px;flex-wrap:wrap">
         <h2 style="font-size:18px">每日复盘</h2>
         <el-button size="small" type="primary" :loading="loading" @click="load">刷新</el-button>
+        <el-select v-if="historyDates.length" v-model="viewDate" size="small" style="width:170px;margin-left:8px"
+          placeholder="历史复盘日期" @change="(d) => viewReport(d)">
+          <el-option v-for="d in historyDates" :key="d" :label="d" :value="d" />
+        </el-select>
+        <el-tag v-if="rpt?.date" size="small" type="info" style="margin-left:8px">查看 {{ rpt.date }}</el-tag>
         <el-select v-model="triggerDate" size="small" style="width:150px;margin-left:8px">
           <el-option v-for="i in 30" :key="i" :label="dateStr(i) + (i === 0 ? '（今日）' : '')" :value="dateStr(i)" />
         </el-select>
@@ -13,7 +18,6 @@
         </el-button>
         <el-tag v-if="status === 'pending'" size="small" type="warning">今日尚未生成，交易日 18:00 自动复盘</el-tag>
         <el-tag v-if="status === 'empty'" size="small" type="info">暂无复盘记录</el-tag>
-        <el-tag v-if="rpt?.date" size="small" type="info">{{ rpt.date }}</el-tag>
         <div style="flex:1"></div>
         <el-button v-if="rpt?.report_md" size="small" @click="mdDialog = true">查看复盘原文 (Markdown)</el-button>
       </div>
@@ -25,6 +29,15 @@
         show-icon
         class="mt8"
         :title="report?.message || '今日复盘尚未生成，交易日 18:00 将自动生成，也可点击「生成复盘」立即生成'"
+      />
+
+      <el-alert
+        v-if="status === 'gated'"
+        type="error"
+        :closable="false"
+        show-icon
+        class="mt8"
+        :title="report?.message || '当前时间受限，无法生成该日期复盘'"
       />
 
       <el-alert
@@ -259,6 +272,8 @@ const loading = ref(false)
 const triggering = ref(false)
 const report = ref(null)
 const triggerDate = ref('')
+const viewDate = ref('')
+const historyDates = ref([])
 const mdDialog = ref(false)
 const calendar = ref({ date: '', unlocks: [], dividends: [] })
 const calLoading = ref(false)
@@ -283,7 +298,12 @@ async function loadSeats() {
   } catch { seats.value = [] }
 }
 
-const rpt = computed(() => report.value?.status === 'ready' ? (report.value.data || null) : null)
+const rpt = computed(() => {
+  const v = report.value
+  if (!v) return null
+  if (v.status === 'ready' || v.status === 'pending') return v.data || null
+  return null
+})
 const status = computed(() => report.value?.status || '')
 
 function toAsiaShanghai() {
@@ -344,11 +364,42 @@ const maxBoard = computed(() => {
   return keys.length ? Math.max(...keys.map(Number)) : 0
 })
 
+async function loadHistory() {
+  try {
+    const rows = (await replayApi.history()) || []
+    const dates = (Array.isArray(rows) ? rows : []).map((r) => r.date || '').filter(Boolean)
+    historyDates.value = [...new Set(dates)]
+  } catch {
+    historyDates.value = []
+  }
+}
+
+async function viewReport(d) {
+  if (!d) return
+  try {
+    const data = await replayApi.byDate(d)
+    if (data) {
+      report.value = { status: 'ready', date: d, data }
+      viewDate.value = d
+      await loadSeats()
+    } else {
+      report.value = { status: 'empty', date: d, message: '该日期暂无复盘记录，可用底部「生成复盘」为该日期生成' }
+      viewDate.value = d
+    }
+  } catch {
+    report.value = { status: 'gated', date: d, message: '加载失败，请检查后端服务' }
+    viewDate.value = d
+  }
+}
+
 async function load() {
   loading.value = true
   try {
     report.value = await replayApi.latest()
+    const d = rpt.value?.date || report.value?.date
+    if (d) viewDate.value = d
     await loadSeats()
+    await loadHistory()
   } catch {
     report.value = null
   } finally {
@@ -359,8 +410,10 @@ async function load() {
 async function trigger() {
   triggering.value = true
   try {
-    await replayApi.trigger({ date: triggerDate.value || undefined })
-    await load()
+    const resp = await replayApi.trigger({ date: triggerDate.value || undefined })
+    await loadHistory()
+    if (resp?.status === 'success' && resp?.date) viewReport(resp.date)
+    else await load()
   } finally {
     triggering.value = false
   }

@@ -69,6 +69,10 @@ class DataSourceBase(ABC):
         """东财日内严重异常波动"""
         return {"date": "", "items": [], "count": []}
 
+    def get_price_movers(self) -> dict:
+        """实时股价异动（快速拉升 / 快速下挫）"""
+        return {"rise": [], "fall": []}
+
     def get_invest_calendar(self, days_ahead: int = 45) -> dict:
         """未来解禁 + 分红除权日历"""
         return {"date": "", "unlocks": [], "dividends": []}

@@ -183,6 +183,10 @@ class DataSourceManager:
         ans = await self._call("get_hot_stocks", top)
         return [r for r in ans if isinstance(r, dict)] if isinstance(ans, list) else []
 
+    async def get_price_movers(self) -> dict:
+        ans = await self._call("get_price_movers")
+        return ans if isinstance(ans, dict) else {"rise": [], "fall": []}
+
     async def get_industry_chain(self, symbol: str) -> dict:
         ans = await self._call("get_industry_chain", symbol)
         return ans if isinstance(ans, dict) else {"industry": None, "peers": [], "concepts": []}

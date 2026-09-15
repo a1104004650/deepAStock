@@ -20,6 +20,7 @@ export const marketApi = {
   sectorMonitor: () => http.get('/market/sectors/monitor'),
   sectorMonitorIntraday: (symbol) => http.get('/market/sectors/monitor/intraday', { params: { symbol } }),
   hotStocks: (top = 10) => http.get('/market/hot-stocks', { params: { top } }),
+  priceMovers: () => http.get('/market/price-movers'),
   marketFlow: () => http.get('/market/market-flow'),
   regulatory: () => http.get('/market/regulatory'),
   investCalendar: () => http.get('/market/invest-calendar'),
@@ -64,6 +65,7 @@ export const stockApi = {
 export const replayApi = {
   latest: () => http.get('/replay/latest'),
   history: () => http.get('/replay/history'),
+  byDate: (date) => http.get(`/replay/${date}`),
   trigger: (data) => http.post('/replay/trigger', data, { timeout: 300000 })
 }
 

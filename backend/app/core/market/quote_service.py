@@ -94,5 +94,8 @@ class MarketService:
             logger.warning(f"get_hot_stocks failed: {e}")
             return []
 
+    async def get_price_movers(self) -> dict:
+        return await self.dsm.get_price_movers()
+
     async def get_market_money_flow(self, days: int = 20) -> dict:
         return await self.dsm.get_market_money_flow(days)

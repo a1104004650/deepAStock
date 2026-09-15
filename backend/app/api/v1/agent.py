@@ -38,26 +38,36 @@ def _parse_curl(curl_text: str) -> dict:
     url = ""
     headers = {}
     body_str = ""
-    method = "POST"
     i = 0
     while i < len(tokens):
         t = tokens[i]
-        if t in ("curl", "--request", "-X"):
-            if t in ("--request", "-X"):
-                i += 1; method = tokens[i].upper() if i < len(tokens) else "POST"
+        if t in ("curl", "-s", "-S", "-g"):
             i += 1
-        elif t in ("--url", ""):
-            i += 1; url = tokens[i] if i < len(tokens) else url; i += 1
+        elif t in ("--request", "-X"):
+            i += 1
+            if i < len(tokens): method = tokens[i].upper()
+            i += 1
+        elif t in ("--url", "-L"):
+            i += 1
+            if i < len(tokens): url = tokens[i]
+            i += 1
         elif t in ("-H", "--header"):
             i += 1
             if i < len(tokens):
                 k, _, v = tokens[i].partition(":")
                 headers[k.strip()] = v.strip().strip("'\"")
             i += 1
-        elif t in ("-d", "--data", "--data-raw"):
+        elif t in ("-d", "--data", "--data-raw", "--data-binary", "--json"):
             i += 1
             body_str = tokens[i] if i < len(tokens) else body_str
             i += 1
+        elif t.startswith("http://") or t.startswith("https://"):
+            url = t
+            i += 1
+        elif t.startswith("-"):
+            i += 1  # skip unknown flags (+ one value token if present, unless it's a flag/URL)
+            if i < len(tokens) and not tokens[i].startswith("-") and not tokens[i].startswith("http"):
+                i += 1
         else:
             i += 1
 
@@ -88,28 +98,50 @@ def _parse_curl(curl_text: str) -> dict:
     model_l = result["model_name"].lower()
     if "anthropic" in url_l or "claude" in model_l:
         result["provider"] = "claude"
-        # Normalize base URL: strip /v1/messages path
-        result["api_base"] = re.sub(r'/v1/messages$', '', url_l)
-    elif "openai" in url_l or "gpt" in model_l or "o1-" in model_l or "o3-" in model_l:
-        result["provider"] = "openai"
-    elif "gemini" in url_l or "generativelanguage" in url_l:
+    elif "generativelanguage" in url_l or "gemini" in model_l:
         result["provider"] = "gemini"
+    elif "11434" in url_l or "ollama" in url_l:
+        result["provider"] = "ollama"
     elif "deepseek" in url_l or "deepseek" in model_l:
         result["provider"] = "deepseek"
-    elif "dashscope" in url_l or "qwen" in model_l:
+    elif "dashscope" in url_l or "tongyi" in url_l:
         result["provider"] = "qwen"
-    elif "bigmodel" in url_l or "glm" in model_l:
+    elif "bigmodel" in url_l or "zhipu" in url_l or "glm-" in model_l:
         result["provider"] = "zhipu"
-    elif "localhost" in url_l and ("11434" in url_l or "ollama" in url_l):
-        result["provider"] = "ollama"
     elif "x.ai" in url_l or "grok" in model_l:
-        result["provider"] = "grok"
+        result["provider"] = "openai"  # xAI/Grok uses OpenAI-compatible protocol
+    elif "openai" in url_l or "openrouter" in url_l or "moonshot" in url_l or \
+            "gpt" in model_l or "o1-" in model_l or "o3-" in model_l or "o4-" in model_l:
+        result["provider"] = "openai"
     else:
         result["provider"] = "openai"  # Default to OpenAI-compatible
 
-    # For Anthropic, base URL should end with /v1
-    if result["provider"] == "claude" and not result["api_base"].endswith("/v1"):
-        result["api_base"] = result["api_base"].rstrip("/") + "/v1"
+    # Derive the base URL: strip query string + known API action paths (keep host + /v1)
+    base = url.split("?", 1)[0].rstrip("/")
+    if result["provider"] == "gemini":
+        # gemini 模型在路径里, 去掉 /models/{model}:generateContent 段
+        if "/models/" in base:
+            base = base.split("/models/", 1)[0]
+    else:
+        for suf in ("/v1/chat/completions", "/v1beta/chat/completions",
+                    "/v1/chat", "/chat/completions",
+                    "/v1/messages", "/messages",
+                    "/v1/completions", "/completions",
+                    "/v1/embeddings", "/embeddings",
+                    "/api/chat", "/api/generate", "/api/embed",
+                    "/v1/models", "/models"):
+            if base.endswith(suf):
+                base = base[: -len(suf)]
+                break
+        if result["provider"] == "claude" and not base.endswith("/v1"):
+            base = base.rstrip("/") + "/v1"
+    if base:
+        result["api_base"] = base
+
+    # Gemini 模型通常写在路径中: /models/{model}:generateContent
+    if not result["model_name"] and "/models/" in url:
+        seg = url.split("/models/", 1)[1].split("?", 1)[0]
+        result["model_name"] = seg.split(":", 1)[0]
 
     return result
 

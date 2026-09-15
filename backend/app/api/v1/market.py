@@ -26,7 +26,7 @@ def _gi_sina_codes(symbols: list[str]) -> list[str]:
     for s in symbols:
         s = s.upper()
         if s.startswith(("SH", "SZ", "BJ")) and s[2:].isdigit():
-            out.append(s[:2].lower() + s[2:])
+            out.append("s_" + s[:2].lower() + s[2:])
     return out
 
 
@@ -55,19 +55,20 @@ async def get_global_indices():
         text = body.decode("gbk", "ignore")
         for m in re.finditer(r'var hq_str_(\w+)="(.*?)";', text):
             code, fields = m.group(1), m.group(2).split(",")
-            if len(fields) < 10 or not fields[0]:
+            if len(fields) < 6 or not fields[0]:
                 continue
             try:
-                price = _gi_f(fields[1]); prev_close = _gi_f(fields[2])
-                if not prev_close:
+                # 新浪指数协议（s_ 前缀）：名称,最新点位,涨跌额,涨跌幅%,成交量,成交额
+                price = _gi_f(fields[1]); change = _gi_f(fields[2]); change_pct = _gi_f(fields[3])
+                if not price:
                     continue
-                change = price - prev_close
-                sym = code[:2].upper() + code[2:]
+                raw = code[2:] if code.startswith("s_") else code
+                sym = raw[:2].upper() + raw[2:]
                 result.append({
                     "code": sym, "name": fields[0],
                     "price": round(price, 2),
                     "change": round(change, 2),
-                    "change_pct": round(change / prev_close * 100, 2),
+                    "change_pct": round(change_pct, 2),
                     "market": "A",
                 })
             except (ValueError, IndexError):
@@ -245,6 +246,13 @@ async def get_sector_monitor_intraday(symbol: str, db: AsyncSession = Depends(ge
 async def get_hot_stocks(top: int = 10, db: AsyncSession = Depends(get_db)):
     svc = MarketService(db)
     return await svc.get_hot_stocks(top)
+
+
+@router.get("/price-movers")
+async def get_price_movers(db: AsyncSession = Depends(get_db)):
+    """实时股价异动：快速拉升 / 快速下挫（腾讯涨速榜）"""
+    svc = MarketService(db)
+    return await svc.get_price_movers()
 
 
 @router.get("/market-flow")

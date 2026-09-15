@@ -81,15 +81,10 @@
         <el-col :xs="24" :sm="12">
           <div class="card" style="height:100%">
             <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
-              <span class="fs14 bold">沪深两市大盘资金流向 <span class="fs12" style="color:#909399">{{ marketFlow.date }}</span></span>
-              <el-radio-group v-model="mfMode" size="small">
-                <el-radio-button value="intraday">今日分时</el-radio-button>
-                <el-radio-button value="daily">逐日</el-radio-button>
-              </el-radio-group>
+              <span class="fs14 bold">沪深两市大盘资金流向 <span class="fs12" style="color:#909399">{{ marketFlow.date }} · 今日分时</span></span>
             </div>
             <div class="chart-box mt4">
-              <LineChart v-if="mfChartData.length" :data="mfChartData" height="235px"
-                :multi="mfSeries" :area="mfMode === 'intraday'" />
+              <LineChart v-if="mfChartData.length" :data="mfChartData" height="235px" :multi="mfSeries" :area="true" />
               <div v-else class="fs12" style="color:#909399;text-align:center;height:235px;line-height:235px">资金流向加载中…</div>
             </div>
             <div class="ai-comment" v-if="flowComment">💡 {{ flowComment }}</div>
@@ -123,6 +118,51 @@
               <el-empty v-if="!hotStocks.length" description="暂无人气排行" :image-size="40" />
             </div>
             <div class="ai-comment" v-if="hotComment">💡 人气点评：{{ hotComment }}</div>
+          </div>
+        </el-col>
+      </el-row>
+
+      <!-- 实时股价异动：快速拉升 / 快速下挫（与人气股票TOP10同风格） -->
+      <el-row :gutter="10" class="mt8">
+        <el-col :span="24">
+          <div class="card">
+            <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
+              <span class="fs14 bold">实时股价异动 <span class="fs12" style="color:#909399">（涨速榜 · 最近数分钟急拉 / 急跌）</span></span>
+              <span class="fs12" style="color:#909399">点击进入个股详情</span>
+            </div>
+            <div class="movers-grid mt8">
+              <div class="movers-col">
+                <div class="movers-title" style="color:#ef232a">🚀 快速拉升 <span class="fs11" style="color:#909399">TOP{{ movers.rise.length }}</span></div>
+                <div v-for="(r, i) in movers.rise" :key="r.symbol" class="hot-card" @click="goStock(r.symbol, r.name)">
+                  <div class="flex between" style="align-items:center;gap:4px">
+                    <span class="fs13 bold">{{ i + 1 }}. {{ r.name }}</span>
+                    <el-tag size="small" type="danger">+{{ r.speed }}%/分</el-tag>
+                  </div>
+                  <div class="mono fs15" style="color:#303133">
+                    {{ r.price }}
+                    <span class="fs12" :class="Number(r.change_pct) >= 0 ? 'up' : 'down'">{{ Number(r.change_pct) >= 0 ? '+' : '' }}{{ r.change_pct }}%</span>
+                  </div>
+                  <div class="fs11" style="color:#909399">量比 <b>{{ r.lb }}</b> · 换手 {{ r.hsl }}% · 成交 {{ fmtMoney(r.turnover * 1e4) }}</div>
+                </div>
+                <el-empty v-if="!movers.rise.length" description="暂无急拉标的" :image-size="40" />
+              </div>
+              <div class="movers-col">
+                <div class="movers-title" style="color:#14b143">⚡ 快速下挫 <span class="fs11" style="color:#909399">TOP{{ movers.fall.length }}</span></div>
+                <div v-for="(r, i) in movers.fall" :key="r.symbol" class="hot-card" @click="goStock(r.symbol, r.name)">
+                  <div class="flex between" style="align-items:center;gap:4px">
+                    <span class="fs13 bold">{{ i + 1 }}. {{ r.name }}</span>
+                    <el-tag size="small" type="success">{{ r.speed }}%/分</el-tag>
+                  </div>
+                  <div class="mono fs15" style="color:#303133">
+                    {{ r.price }}
+                    <span class="fs12" :class="Number(r.change_pct) >= 0 ? 'up' : 'down'">{{ Number(r.change_pct) >= 0 ? '+' : '' }}{{ r.change_pct }}%</span>
+                  </div>
+                  <div class="fs11" style="color:#909399">量比 <b>{{ r.lb }}</b> · 换手 {{ r.hsl }}% · 成交 {{ fmtMoney(r.turnover * 1e4) }}</div>
+                </div>
+                <el-empty v-if="!movers.fall.length" description="暂无急跌标的" :image-size="40" />
+              </div>
+            </div>
+            <div class="ai-comment" v-if="moversComment">💡 {{ moversComment }}</div>
           </div>
         </el-col>
       </el-row>
@@ -409,14 +449,13 @@ const news = ref([])
 const newsFilter = ref('')
 const rssNews = ref([])
 const marketFlow = ref({ date: '', intraday: [], daily: [] })
-const mfMode = ref('intraday')
 const mergedNews = computed(() => {
   const plat = (news.value || []).map((n) => ({
-    title: n.title, url: n.url, importance: Number(n.importance) || 3,
+    title: stripHtml(n.title), url: n.url, importance: Number(n.importance) || 3,
     category: n.category || '财经', time: n.time || '', src: '平台'
   }))
   const rss = (rssNews.value || []).map((r) => ({
-    title: r.title, url: r.link, importance: Number(r.importance) || 3,
+    title: stripHtml(r.title), url: r.link, importance: Number(r.importance) || 3,
     category: '订阅·' + (r.source_name || r.platform || 'RSS'), time: r.pub_time || '', src: 'RSS'
   }))
   return [...rss, ...plat]
@@ -441,9 +480,15 @@ const mfSeries = [
   { name: '小单', key: 'small_net', color: '#909399', area: false }
 ]
 const mfChartData = computed(() => {
-  const src = mfMode.value === 'intraday' ? marketFlow.value.intraday : marketFlow.value.daily
-  return Array.isArray(src) ? src : []
+  return Array.isArray(marketFlow.value.intraday) ? marketFlow.value.intraday : []
 })
+function stripHtml(s) {
+  if (!s) return ''
+  if (!/<[a-zA-Z]/.test(s)) return s
+  const div = document.createElement('div')
+  div.innerHTML = s
+  return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim()
+}
 function formatNewsTime(ts) {
   return _formatNewsTime(ts)
 }
@@ -498,6 +543,10 @@ function hotColor(heat) {
 
 async function loadHotStocks() {
   try { hotStocks.value = (await marketApi.hotStocks()) || [] } catch { /* 保留旧数据 */ }
+}
+
+async function loadPriceMovers() {
+  try { movers.value = (await marketApi.priceMovers()) || { rise: [], fall: [] } } catch { /* 保留旧数据 */ }
 }
 
 async function loadSectorMonitor() {
@@ -639,6 +688,19 @@ const hotComment = computed(() => {
   const up = rows.filter((r) => Number(r.change_pct) >= 0).length
   return `人气龙头 ${top.name}（热度 ${top.heat}，${top.change_pct >= 0 ? '+' : ''}${top.change_pct}%）领衔；TOP10 中 ${up} 只上涨，说明盘面热度${up >= 6 ? '较高，资金接力情绪好' : '一般，谨防高位分歧'}`
 })
+const movers = ref({ rise: [], fall: [] })
+const moversComment = computed(() => {
+  const rise = movers.value?.rise || []
+  const fall = movers.value?.fall || []
+  if (!rise.length && !fall.length) return ''
+  const parts = []
+  if (rise.length) parts.push(`急拉标兵：${rise.map((r) => r.name).join('、')}`)
+  if (fall.length) parts.push(`急跌警示：${fall.map((r) => r.name).join('、')}`)
+  if (rise.length && fall.length) parts.push('多空交战激烈，追涨杀跌需谨慎，优先跟随领涨分支')
+  else if (rise.length) parts.push('资金正在抢筹拉升，关注持续性')
+  else parts.push('盘面整体走弱，谨防进一步回落')
+  return parts.join('；')
+})
 const sectorComment = computed(() => {
   const rows = sectorList.value || []
   if (!rows.length) return ''
@@ -752,6 +814,7 @@ async function load() {
       loadLadder(),
       loadSectorMonitor(),
       loadHotStocks(),
+      loadPriceMovers(),
       loadMarketFlow(),
       loadCalendar(),
       loadRegulatory()
@@ -771,7 +834,7 @@ onMounted(() => {
   load()
   indexTimer = setInterval(() => { loadIndices(); mainIdxDefs.forEach((m) => loadPanel(m.code)) }, 15000)
   newsTimer = setInterval(() => { loadNews(); loadRssNews() }, 60000)
-  flowTimer = setInterval(() => { loadSectorFlowTop(); loadEtf(); loadHotStocks() }, 60000)
+  flowTimer = setInterval(() => { loadSectorFlowTop(); loadEtf(); loadHotStocks(); loadPriceMovers() }, 60000)
   distTimer = setInterval(() => { loadDistribution(); loadLadder(); loadMarketFlow(); loadCalendar(); loadRegulatory() }, 60000)
   sectorTimer = setInterval(loadSectorMonitor, 15000)
 })
@@ -806,9 +869,12 @@ onUnmounted(() => {
   color: #303133;
   text-decoration: none;
   flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-all;
 }
 .news-time {
   color: #c0c4cc;
@@ -902,6 +968,30 @@ onUnmounted(() => {
   height: 100%;
   border-radius: 3px;
   background: linear-gradient(90deg, #f7b32b, #ef232a);
+}
+.movers-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.movers-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+.movers-title {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 0 2px 2px;
+  border-left: 3px solid #ef232a;
+  padding-left: 8px;
+}
+.movers-col:last-child .movers-title { border-left-color: #14b143; }
+.movers-col .hot-card { min-height: 84px; }
+@media (max-width: 1100px) {
+  .movers-grid { grid-template-columns: 1fr; }
 }
 .dist-bars {
   display: flex;
