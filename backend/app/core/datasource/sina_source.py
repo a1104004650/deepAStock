@@ -1823,6 +1823,7 @@ class SinaSource(DataSourceBase):
                 if cons:
                     row["constituents"] = len(cons)
                     row["limit_up_count"] = sum(1 for c in cons if _f(c.get("f3")) >= 9.8)
+                    row["limit_down_count"] = sum(1 for c in cons if _f(c.get("f3")) <= -9.8)
                     top = sorted(cons, key=lambda c: -(c.get("f20") or 0))
                     row["mkt_cap_top"] = [{
                         "name": (c.get("f14") or "").strip(),

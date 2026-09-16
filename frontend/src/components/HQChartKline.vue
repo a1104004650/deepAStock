@@ -101,7 +101,7 @@ function render() {
   const legendData = ['K线', '成交量']
 
   if (indicators.value.includes('ma')) {
-    const ma5 = calcMa(d, 5), ma10 = calcMa(d, 10), ma20 = calcMa(d, 20), ma60 = calcMa(d, 60)
+    const ma5 = calcMa(d, 5), ma10 = calcMa(d, 10), ma20 = calcMa(d, 20), ma60 = calcMa(d, 60), ma250 = calcMa(d, 250)
     series.push(
       { name: 'MA5', type: 'line', data: ma5, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#f7b32b' } },
       { name: 'MA10', type: 'line', data: ma10, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#2f7ef9' } },
@@ -109,6 +109,10 @@ function render() {
       { name: 'MA60', type: 'line', data: ma60, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#ec4899' } },
     )
     legendData.push('MA5', 'MA10', 'MA20', 'MA60')
+    if (d.length >= 250) {
+      series.push({ name: 'MA250', type: 'line', data: ma250, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#909399' } })
+      legendData.push('MA250')
+    }
   }
 
   if (indicators.value.includes('boll')) {
