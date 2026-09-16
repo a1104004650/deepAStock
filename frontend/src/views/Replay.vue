@@ -90,8 +90,15 @@
                     <span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">{{ row.change_pct == null ? '-' : ((row.change_pct >= 0 ? '+' : '') + row.change_pct + '%') }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="涨停数" align="right" width="64">
-                  <template #default="{ row }">{{ row.limit_up_count ?? '-' }}</template>
+                <el-table-column label="涨停" align="right" width="64">
+                  <template #default="{ row }">
+                    <span class="mono up">{{ row.limit_up_count ?? '-' }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="跌停" align="right" width="64">
+                  <template #default="{ row }">
+                    <span class="mono down">{{ row.limit_down_count ?? '-' }}</span>
+                  </template>
                 </el-table-column>
                 <el-table-column label="领涨" min-width="90">
                   <template #default="{ row }">
@@ -465,4 +472,47 @@ onMounted(() => {
 .cal-val { flex-shrink: 0; }
 .cal-sub { flex: 1; min-width: 0; text-align: right; color: #909399; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seat-row { display: flex; align-items: center; gap: 5px; padding: 3px 0; border-bottom: 1px dashed #f5f5f5; font-size: 12px; }
+
+/* H5 移动端适配：单列堆叠 + 表格横滚 + 梯队换行 */
+@media (max-width: 820px) {
+  .page { padding: 8px; }
+  .card { padding: 10px; }
+  .card .el-table { width: 100%; }
+  .split-grid { grid-template-columns: 1fr; }
+  .ladder-stocks { justify-content: flex-start; }
+  .ladder-header { flex-wrap: wrap; row-gap: 4px; }
+  .fs14 { font-size: 13px; }
+  .cal-scroll { max-height: 180px; }
+}
+@media (max-width: 480px) {
+  .card { padding: 8px; }
+  .card .el-table { font-size: 11px; }
+  .ladder-stocks .el-link { margin-right: 6px; margin-bottom: 4px; }
+  .seat-row { flex-wrap: wrap; }
+  .mono, .fs12 { font-size: 11px; }
+}
+
+/* H5 deepen: 复盘游资工具手感 */
+@media (max-width: 820px) {
+  .ladder-stocks { display: flex; gap: 4px; flex-wrap: wrap; }
+  .ladder-link { color: #409eff; }
+  .seat-row { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow-x: auto; }
+  .dragon-row { overflow-x: auto; white-space: nowrap; }
+}
+@media (max-width: 480px) {
+  .card { padding: 10px; }
+  .card .fs14 { font-size: 13px; }
+  .el-table { font-size: 11px; }
+  .mt8 .el-tag { margin: 2px; }
+}
+
+/* 连板梯队横滚提示：右侧渐隐遮罩暗示可滑动（移动端游资可每天横向扫板） */
+.ladder-scroller { position: relative; }
+.ladder-scroller::after {
+  content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 28px;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.9) 100%);
+  pointer-events: none;
+}
+.ladder-scroller::-webkit-scrollbar { height: 4px; }
+.ladder-scroller::-webkit-scrollbar-thumb { background: #f7b32b; border-radius: 2px; }
 </style>

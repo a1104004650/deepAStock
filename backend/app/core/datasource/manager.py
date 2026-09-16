@@ -4,7 +4,8 @@ from datetime import date, timedelta
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.datasource.base import DataSourceBase
-from app.core.datasource.sina_source import SinaSource, to_standard_symbol
+from app.core.datasource.sina_source import SinaSource, to_standard_symbol, to_standard_symbol
+from app.core.datasource.hithink_source import HithinkSource
 from app.models.market import Kline, SectorMoneyFlow, DragonTiger, LimitUp
 from app.models.cache import CacheMetadata
 from app.core.settings import source_order, get_setting
@@ -15,6 +16,7 @@ PERIOD_STEP = {"day": 1, "week": 7, "month": 30, "1m": 1, "5m": 5, "15m": 15, "3
 # 数据源 token → 类（tencent 当前无独立实现，复用 sina）
 _SOURCE_REGISTRY: dict[str, type[DataSourceBase]] = {
     "sina": SinaSource,
+    "hithink": HithinkSource,
     "tencent": SinaSource,
 }
 

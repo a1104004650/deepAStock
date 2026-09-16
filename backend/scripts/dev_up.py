@@ -23,6 +23,55 @@ ROOT = BASE.parent
 FRONTEND = ROOT / "frontend"
 LOGS = BASE / "data" / "logs"
 
+# 本项目自己管理的端口段: 8000~8029 后端, 5173~5192 前端
+BACKEND_RANGE = range(8000, 8030)
+FRONTEND_RANGE = range(5173, 5193)
+
+
+def _port_rx():
+    import re
+    pat = ":(" + "|".join(str(p) for p in BACKEND_RANGE) + ")"
+    pat = "\\.*(:" + "|".join(str(p) for p in list(BACKEND_RANGE) + list(FRONTEND_RANGE)) + ")(?=:|\\s|$)"
+    return re.compile(pat)
+
+
+def _py_or_node_pids():
+    """找出项目残留的 uvicorn/app.main 与 vite/node 进程 pid"""
+    out = subprocess.run(["netstat", "-ano"], capture_output=True,
+                         encoding="gbk", errors="replace").stdout
+    pids = set()
+    for line in out.splitlines():
+        if "LISTENING" not in line:
+            continue
+        if not _port_rx().search(line):
+            continue
+        pid = line.rsplit(" ", 1)[-1].strip()
+        if pid.isdigit():
+            pids.add(int(pid))
+    return pids
+
+
+def _confirm_python_or_node(pid):
+    """tasklist 确认是 python 或 node 进程, 避免误杀用户其他程序"""
+    try:
+        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True,
+                             encoding="gbk", errors="replace").stdout
+        low = out.lower()
+        return ("python" in low or "node" in low)
+    except Exception:
+        return False
+
+
+def cleanup_stale():
+    """启动前清理本项目残留进程 (uvicorn 后端 + vite 前端)"""
+    stale = [p for p in sorted(_py_or_node_pids()) if _confirm_python_or_node(p)]
+    if not stale:
+        return
+    print(f"正在清理残留进程 {len(stale)} 个: {stale}")
+    for pid in stale:
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+    time.sleep(1)
+
 
 def find_free_port(start, tries=50):
     for p in range(start, start + tries):
@@ -94,6 +143,9 @@ def kill_tree(proc):
 
 
 def main():
+    # 启动前先清理本项目残留的后端(uvicorn)与前端(vite/node)进程, 避免端口越滚越多
+    cleanup_stale()
+
     backend_port = find_free_port(8000)
     # 抽出 vite 的监听端口: 也顺延寻找, 默认 5173
     frontend_port = find_free_port(5173)

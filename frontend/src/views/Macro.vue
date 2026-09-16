@@ -63,7 +63,7 @@ const indicators = ref([])
 const lastFetched = ref('')
 const hasError = ref(false)
 
-const GROUP_ORDER = ['价格', '景气', '增长', '消费', '贸易', '就业', '房价', '货币', '存款']
+const GROUP_ORDER = ['价格', '景气', '增长', '消费', '贸易', '就业', '房价', '货币', '存款', '美联储']
 const groups = GROUP_ORDER
 const byGroup = computed(() => {
   const m = {}

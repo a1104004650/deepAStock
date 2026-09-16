@@ -25,6 +25,9 @@ CATALOG = [
     {"key": "real_estate",   "name": "国房景气指数",                        "unit": "",           "group": "房价", "func": "macro_china_real_estate",              "type": "estate"},
     {"key": "m2",            "name": "M2（广义货币供应量）同比增长",        "unit": "%",          "group": "货币", "func": "macro_china_supply_of_money",          "type": "money_m2"},
     {"key": "deposits",      "name": "居民储蓄存款余额",                    "unit": "亿元",       "group": "存款", "func": "macro_china_supply_of_money",          "type": "money_save"},
+    {"key": "fed_funds",     "name": "美联储联邦基金目标利率",               "unit": "%",          "group": "美联储", "func": "macro_bank_usa_interest_rate",      "type": "jin10"},
+    {"key": "us_cpi",        "name": "美国CPI（消费价格指数）",              "unit": "%（同比）",  "group": "美联储", "func": "macro_usa_cpi_monthly",             "type": "jin10"},
+    {"key": "us_nfp",        "name": "美国非农就业（新增）",                 "unit": "万人",       "group": "美联储", "func": "macro_usa_non_farm",                  "type": "jin10"},
 ]
 
 # ---------------------------------------------------------------------------
