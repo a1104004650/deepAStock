@@ -1,26 +1,26 @@
-<template>
+﻿<template>
   <MainLayout>
     <div class="page">
-      <!-- 顶栏：标题 + 刷新 + 历史日期 + 触发生成 -->
+      <!-- 椤舵爮锛氭爣棰?+ 鍒锋柊 + 鍘嗗彶鏃ユ湡 + 瑙﹀彂鐢熸垚 -->
       <div class="flex gap" style="align-items:center;margin-bottom:10px;flex-wrap:wrap">
-        <h2 style="font-size:18px">每日复盘 <span class="fs12" style="color:#7d8390">· A股游资橙红主题</span></h2>
-        <el-button size="small" type="primary" :loading="loading" @click="load">刷新</el-button>
+        <h2 style="font-size:18px">姣忔棩澶嶇洏 <span class="fs12" style="color:#7d8390">路 A鑲℃父璧勬绾富棰?/span></h2>
+        <el-button size="small" type="primary" :loading="loading" @click="load">鍒锋柊</el-button>
         <el-select v-if="historyDates.length" v-model="viewDate" size="small" style="width:170px;margin-left:8px"
-          placeholder="历史复盘日期" @change="(d) => viewReport(d)">
+          placeholder="鍘嗗彶澶嶇洏鏃ユ湡" @change="(d) => viewReport(d)">
           <el-option v-for="d in historyDates" :key="d" :label="d" :value="d" />
         </el-select>
-        <el-tag v-if="rpt?.date" size="small" type="info" style="margin-left:8px">查看 {{ rpt.date }}</el-tag>
+        <el-tag v-if="rpt?.date" size="small" type="info" style="margin-left:8px">鏌ョ湅 {{ rpt.date }}</el-tag>
         <el-select v-model="triggerDate" size="small" style="width:150px;margin-left:8px">
-          <el-option v-for="i in 30" :key="i" :label="dateStr(i) + (i === 0 ? '（今日）' : '')" :value="dateStr(i)" />
+          <el-option v-for="i in 30" :key="i" :label="dateStr(i) + (i === 0 ? '锛堜粖鏃ワ級' : '')" :value="dateStr(i)" />
         </el-select>
         <el-button size="small" :loading="triggering" @click="trigger"
           :type="status === 'pending' ? 'danger' : 'warning'">
-          生成复盘
+          鐢熸垚澶嶇洏
         </el-button>
-        <el-tag v-if="status === 'pending'" size="small" type="warning">今日尚未生成，交易日 18:00 自动复盘</el-tag>
-        <el-tag v-if="status === 'empty'" size="small" type="info">暂无复盘记录</el-tag>
+        <el-tag v-if="status === 'pending'" size="small" type="warning">浠婃棩灏氭湭鐢熸垚锛屼氦鏄撴棩 18:00 鑷姩澶嶇洏</el-tag>
+        <el-tag v-if="status === 'empty'" size="small" type="info">鏆傛棤澶嶇洏璁板綍</el-tag>
         <div style="flex:1"></div>
-        <el-button v-if="rpt?.report_md" size="small" @click="mdDialog = true">查看复盘原文 (Markdown)</el-button>
+        <el-button v-if="rpt?.report_md" size="small" @click="mdDialog = true">鏌ョ湅澶嶇洏鍘熸枃 (Markdown)</el-button>
       </div>
 
       <el-alert
@@ -29,7 +29,7 @@
         :closable="false"
         show-icon
         class="mt8"
-        :title="report?.message || '今日复盘尚未生成，交易日 18:00 将自动生成，也可点击「生成复盘」立即生成'"
+        :title="report?.message || '浠婃棩澶嶇洏灏氭湭鐢熸垚锛屼氦鏄撴棩 18:00 灏嗚嚜鍔ㄧ敓鎴愶紝涔熷彲鐐瑰嚮銆岀敓鎴愬鐩樸€嶇珛鍗崇敓鎴?"
       />
 
       <el-alert
@@ -38,7 +38,7 @@
         :closable="false"
         show-icon
         class="mt8"
-        :title="report?.message || '当前时间受限，无法生成该日期复盘'"
+        :title="report?.message || '褰撳墠鏃堕棿鍙楅檺锛屾棤娉曠敓鎴愯鏃ユ湡澶嶇洏'"
       />
 
       <el-alert
@@ -47,7 +47,7 @@
         :closable="false"
         show-icon
         class="mt8"
-        title="市场数据以东方财富当日收盘为准；同一交易日多次生成只保留最新一份复盘"
+        title="甯傚満鏁版嵁浠ヤ笢鏂硅储瀵屽綋鏃ユ敹鐩樹负鍑嗭紱鍚屼竴浜ゆ槗鏃ュ娆＄敓鎴愬彧淇濈暀鏈€鏂颁竴浠藉鐩?
       />
       <el-alert
         v-if="rpt && rpt.sector_flow?.length === undefined"
@@ -55,112 +55,89 @@
         :closable="false"
         show-icon
         class="mt8"
-        title="板块资金流数据在休息时段可能为空"
+        title="鏉垮潡璧勯噾娴佹暟鎹湪浼戞伅鏃舵鍙兘涓虹┖"
       />
 
       <template v-if="rpt">
-        <!-- 情绪 KPI 条 -->
+        <!-- 鎯呯华 KPI 鏉?-->
         <div class="kpi-grid">
           <div class="kpi-card">
-            <div class="kpi-label">涨停家数</div>
-            <div class="kpi-val up">{{ rpt.limit_up_count ?? '-' }}<span class="kpi-unit">家</span></div>
+            <div class="kpi-label">娑ㄥ仠瀹舵暟</div>
+            <div class="kpi-val up">{{ rpt.limit_up_count ?? '-' }}<span class="kpi-unit">瀹?/span></div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">跌停家数</div>
-            <div class="kpi-val down">{{ rpt.limit_down_count ?? '-' }}<span class="kpi-unit">家</span></div>
+            <div class="kpi-label">璺屽仠瀹舵暟</div>
+            <div class="kpi-val down">{{ rpt.limit_down_count ?? '-' }}<span class="kpi-unit">瀹?/span></div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">上涨家数</div>
-            <div class="kpi-val up">{{ rpt.market_summary?.distribution?.up_count ?? '-' }}<span class="kpi-unit">家</span></div>
+            <div class="kpi-label">涓婃定瀹舵暟</div>
+            <div class="kpi-val up">{{ rpt.market_summary?.distribution?.up_count ?? '-' }}<span class="kpi-unit">瀹?/span></div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">下跌家数</div>
-            <div class="kpi-val down">{{ rpt.market_summary?.distribution?.down_count ?? '-' }}<span class="kpi-unit">家</span></div>
+            <div class="kpi-label">涓嬭穼瀹舵暟</div>
+            <div class="kpi-val down">{{ rpt.market_summary?.distribution?.down_count ?? '-' }}<span class="kpi-unit">瀹?/span></div>
           </div>
           <div class="kpi-card accent">
-            <div class="kpi-label">最高连板</div>
-            <div class="kpi-val" style="color:#f7b32b">{{ maxBoard || '-' }}<span class="kpi-unit">板</span></div>
+            <div class="kpi-label">鏈€楂樿繛鏉?/div>
+            <div class="kpi-val" style="color:#f7b32b">{{ maxBoard || '-' }}<span class="kpi-unit">鏉?/span></div>
           </div>
           <div class="kpi-card accent">
-            <div class="kpi-label">情绪温度</div>
+            <div class="kpi-label">鎯呯华娓╁害</div>
             <div class="kpi-val" style="color:#f7b32b">{{ sentimentScore }}<span class="kpi-unit">/100</span></div>
           </div>
         </div>
 
-        <!-- 指数概况 + 上证K线 -->
-        <div class="split-grid mt8">
-          <div class="card">
-            <div class="fs14 bold">大盘概况</div>
-            <el-table :data="arr(rpt.market_summary?.indices) || []" size="small" class="mt8">
-              <el-table-column prop="name" label="指数" />
-              <el-table-column prop="price" label="点位" align="right" />
-              <el-table-column label="涨跌幅" align="right">
-                <template #default="{ row }">
-                  <span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">{{ row.change_pct >= 0 ? '+' : '' }}{{ row.change_pct }}%</span>
-                </template>
-              </el-table-column>
-            </el-table>
-            <div class="fs12 mt8" style="color:#7d8390">
-              涨停 {{ arr(rpt.market_summary?.distribution) && (rpt.market_summary?.distribution) ? (rpt.market_summary?.distribution.up_count ?? '-') : '-' }} / 跌停 {{ arr(rpt.market_summary?.distribution) && (rpt.market_summary?.distribution) ? (rpt.market_summary?.distribution.down_count ?? '-') : '-' }}
-            </div>
-            <div class="fs12 mt8" v-if="arr(rpt.market_summary?.news).length">
-              <span class="bold">要闻：</span>{{ rpt.market_summary.news[0].title }}
-            </div>
+        <!-- 澶х洏姒傚喌锛堝幓鎺変笂璇佹寚鏁癒绾匡細澶嶇洏涓嶇湅K绾垮舰鎬侊級 -->
+        <div class="card mt8">
+          <div class="fs14 bold">澶х洏姒傚喌</div>
+          <el-table :data="arr(rpt.market_summary?.indices) || []" size="small" class="mt8">
+            <el-table-column prop="name" label="鎸囨暟" />
+            <el-table-column prop="price" label="鐐逛綅" align="right" />
+            <el-table-column label="娑ㄨ穼骞? align="right">
+              <template #default="{ row }">
+                <span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">{{ row.change_pct >= 0 ? '+' : '' }}{{ row.change_pct }}%</span>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div class="fs12 mt8" style="color:#7d8390">
+            娑ㄥ仠 {{ arr(rpt.market_summary?.distribution) && (rpt.market_summary?.distribution) ? (rpt.market_summary?.distribution.up_count ?? '-') : '-' }} / 璺屽仠 {{ arr(rpt.market_summary?.distribution) && (rpt.market_summary?.distribution) ? (rpt.market_summary?.distribution.down_count ?? '-') : '-' }}
           </div>
-
-          <!-- 大盘概况（复盘不看上证指数K线形态，已移除K线栏位） -->
-          <div class="card">
-            <div class="fs14 bold">大盘概况</div>
-            <el-table :data="arr(rpt.market_summary?.indices) || []" size="small" class="mt8">
-              <el-table-column prop="name" label="指数" />
-              <el-table-column prop="price" label="点位" align="right" />
-              <el-table-column label="涨跌幅" align="right">
-                <template #default="{ row }">
-                  <span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">{{ row.change_pct >= 0 ? '+' : '' }}{{ row.change_pct }}%</span>
-                </template>
-              </el-table-column>
-            </el-table>
-            <div class="fs12 mt8" style="color:#7d8390">
-              涨停 {{ arr(rpt.market_summary?.distribution) && (rpt.market_summary?.distribution) ? (rpt.market_summary?.distribution.up_count ?? '-') : '-' }} / 跌停 {{ arr(rpt.market_summary?.distribution) && (rpt.market_summary?.distribution) ? (rpt.market_summary?.distribution.down_count ?? '-') : '-' }}
-            </div>
-            <div class="fs12 mt8" v-if="arr(rpt.market_summary?.news).length">
-              <span class="bold">要闻：</span>{{ rpt.market_summary.news[0].title }}
-            </div>
+          <div class="fs12 mt8" v-if="arr(rpt.market_summary?.news).length">
+            <span class="bold">瑕侀椈锛?/span>{{ rpt.market_summary.news[0].title }}
           </div>
         </div>
 
-        <!-- 涨跌分布 + 板块资金流 TOP图表 -->
+        <!-- 娑ㄨ穼鍒嗗竷 + 鏉垮潡璧勯噾娴?TOP鍥捐〃 -->
         <el-row :gutter="10" class="mt8">
           <el-col :xs="24" :sm="12">
             <div class="card">
-              <div class="fs14 bold">涨跌分布</div>
+              <div class="fs14 bold">娑ㄨ穼鍒嗗竷</div>
               <div ref="distEl" style="height:200px" class="mt8"></div>
-              <div class="fs12 mt4" style="color:#7d8390">上涨 vs 下跌 vs 平盘（含涨停/跌停标记）</div>
+              <div class="fs12 mt4" style="color:#7d8390">涓婃定 vs 涓嬭穼 vs 骞崇洏锛堝惈娑ㄥ仠/璺屽仠鏍囪锛?/div>
             </div>
           </el-col>
           <el-col :xs="24" :sm="12">
             <div class="card">
-              <div class="fs14 bold">板块资金流 TOP10 <span class="fs12" style="color:#7d8390">（主力净流入）</span></div>
+              <div class="fs14 bold">鏉垮潡璧勯噾娴?TOP10 <span class="fs12" style="color:#7d8390">锛堜富鍔涘噣娴佸叆锛?/span></div>
               <div ref="sectorEl" style="height:200px" class="mt8"></div>
             </div>
           </el-col>
         </el-row>
 
-        <!-- 涨停梯队 连板高度图 + 梯队 -->
+        <!-- 娑ㄥ仠姊槦 杩炴澘楂樺害鍥?+ 姊槦 -->
         <div class="card mt8">
-          <div class="fs14 bold">涨停梯队 <span class="fs12" style="color:#7d8390">（连板高度柱状图）</span></div>
+          <div class="fs14 bold">娑ㄥ仠姊槦 <span class="fs12" style="color:#7d8390">锛堣繛鏉块珮搴︽煴鐘跺浘锛?/span></div>
           <div ref="ladderEl" style="height:200px" class="mt8"></div>
         </div>
 
         <div class="card mt8">
-          <div class="fs14 bold">涨停梯队明细</div>
+          <div class="fs14 bold">娑ㄥ仠姊槦鏄庣粏</div>
           <div class="ladder-scroller mt8">
             <div v-for="(stocks, board) in sortedLadder" :key="board" class="ladder-group">
               <div class="ladder-header">
                 <el-tag size="small" :type="Number(board) >= 3 ? 'danger' : Number(board) >= 2 ? 'warning' : 'info'">
-                  连板{{ board }}· {{ arr(stocks).length }}只
-                </el-tag>
-                <span v-if="Number(board) === maxBoard" class="fs11" style="color:#f7b32b;margin-left:4px">🔥最高板</span>
+                  杩炴澘{{ board }}路 {{ arr(stocks).length }}鍙?                </el-tag>
+                <span v-if="Number(board) === maxBoard" class="fs11" style="color:#f7b32b;margin-left:4px">馃敟鏈€楂樻澘</span>
               </div>
               <div class="ladder-stocks">
                 <el-link v-for="s in arr(stocks)" :key="s.symbol" type="primary" :underline="false"
@@ -170,41 +147,41 @@
                 </el-link>
               </div>
             </div>
-            <el-empty v-if="!Object.keys(sortedLadder).length" description="当日无涨停梯队（数据源受限）" :image-size="40" />
+            <el-empty v-if="!Object.keys(sortedLadder).length" description="褰撴棩鏃犳定鍋滄闃燂紙鏁版嵁婧愬彈闄愶級" :image-size="40" />
           </div>
         </div>
 
-        <!-- 板块资金流 明细表 -->
+        <!-- 鏉垮潡璧勯噾娴?鏄庣粏琛?-->
         <div class="card mt8">
-          <div class="fs14 bold">板块资金流明细 <span class="fs12" style="color:#7d8390">（主力净流入排序）</span></div>
+          <div class="fs14 bold">鏉垮潡璧勯噾娴佹槑缁?<span class="fs12" style="color:#7d8390">锛堜富鍔涘噣娴佸叆鎺掑簭锛?/span></div>
           <el-table :data="arr(rpt.sector_flow).slice(0, 12)" size="small" class="mt8">
-            <el-table-column prop="sector_name" label="板块" min-width="110">
+            <el-table-column prop="sector_name" label="鏉垮潡" min-width="110">
               <template #default="{ row }">{{ row.sector_name || row.name }}</template>
             </el-table-column>
-            <el-table-column label="主力净" align="right" width="90">
+            <el-table-column label="涓诲姏鍑€" align="right" width="90">
               <template #default="{ row }">
                 <span class="mono" :class="(row.net_inflow||0) >= 0 ? 'up' : 'down'">{{ fmtBig(row.net_inflow) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="净占比" align="right" width="70">
+            <el-table-column label="鍑€鍗犳瘮" align="right" width="70">
               <template #default="{ row }">{{ row.net_ratio == null ? '-' : row.net_ratio + '%' }}</template>
             </el-table-column>
-            <el-table-column label="涨幅" align="right" width="70">
+            <el-table-column label="娑ㄥ箙" align="right" width="70">
               <template #default="{ row }">
                 <span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">{{ row.change_pct == null ? '-' : ((row.change_pct >= 0 ? '+' : '') + row.change_pct + '%') }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="涨停" align="right" width="64">
+            <el-table-column label="娑ㄥ仠" align="right" width="64">
               <template #default="{ row }">
                 <span class="mono up">{{ row.limit_up_count ?? '-' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="跌停" align="right" width="64">
+            <el-table-column label="璺屽仠" align="right" width="64">
               <template #default="{ row }">
                 <span class="mono down">{{ row.limit_down_count ?? '-' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="领涨" min-width="90">
+            <el-table-column label="棰嗘定" min-width="90">
               <template #default="{ row }">
                 <el-link v-if="row.leader_symbol" type="primary" :underline="false" @click="goStock(row.leader_symbol, row.leader)">
                   {{ row.leader || '-' }}
@@ -212,86 +189,52 @@
                 <span v-else>-</span>
               </template>
             </el-table-column>
-            <el-table-column label="市值龙头" min-width="130">
+            <el-table-column label="甯傚€奸緳澶? min-width="130">
               <template #default="{ row }">
                 <span v-for="(m, i) in (row.mkt_cap_top || [])" :key="i" class="fs12 mr8">
-                  {{ ['龙一', '龙二', '龙三'][i] }}:
+                  {{ ['榫欎竴', '榫欎簩', '榫欎笁'][i] }}:
                   <el-link v-if="m.symbol" type="primary" :underline="false" @click="goStock(m.symbol, m.name)">{{ m.name }}</el-link>
                 </span>
                 <span v-if="!(row.mkt_cap_top || []).length">-</span>
               </template>
             </el-table-column>
-            <el-table-column label="人气票" width="70">
+            <el-table-column label="浜烘皵绁? width="70">
               <template #default="{ row }">
                 <el-link v-if="row.hot_pick?.symbol" type="primary" :underline="false" @click="goStock(row.hot_pick.symbol, row.hot_pick.name)">{{ row.hot_pick.name }}</el-link>
                 <span v-else>-</span>
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!arr(rpt.sector_flow).length" description="当日东方财富板块资金数据为空（休市或网络受限）" :image-size="50" />
+          <el-empty v-if="!arr(rpt.sector_flow).length" description="褰撴棩涓滄柟璐㈠瘜鏉垮潡璧勯噾鏁版嵁涓虹┖锛堜紤甯傛垨缃戠粶鍙楅檺锛? :image-size="50" />
         </div>
 
-        <!-- 板块涨停/跌停排行（近7交易日，真实数据本地累计） -->
+        <!-- 榫欒檸姒?+ 甯綅娓歌祫 -->
         <div class="card mt8">
-          <div class="flex between" style="align-items:center">
-            <span class="fs14 bold">板块涨停/跌停排行（近7交易日）</span>
-            <el-button size="small" :loading="sectorTrendLoading" @click="loadSectorTrend">拉取7日板块涨停/跌停</el-button>
-          </div>
-          <div class="fs12 mt8" style="color:#7d8390">
-            共 {{ sectorTrendDates.length }} 个交易日：每日 涨停家数/跌停家数 由当日真实报告写入 localStorage 累计，休市日显示 -（无伪造）
-          </div>
-          <el-table v-if="sectorTrendRows.length" :data="sectorTrendRows" size="small" class="mt8">
-            <el-table-column prop="sector" label="板块" min-width="110" fixed />
-            <el-table-column v-for="d in sectorTrendDates" :key="'d' + d" :label="d.slice(5)" align="right" min-width="92">
-              <template #default="{ row }">
-                <span v-if="row.days[d]" class="mono">
-                  <span class="up">{{ row.days[d].up ?? '-' }}</span>
-                  <span class="down">/{{ row.days[d].down ?? '-' }}</span>
-                </span>
-                <span v-else class="mono" style="color:#7d8390">-</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="7日合计涨停" align="right" width="104" fixed="right">
-              <template #default="{ row }">
-                <span class="mono up">{{ row.sum_up ?? '-' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="7日合计跌停" align="right" width="104" fixed="right">
-              <template #default="{ row }">
-                <span class="mono down">{{ row.sum_down ?? '-' }}</span>
-              </template>
-            </el-table-column>
-          </el-table>
-          <el-empty v-if="!sectorTrendRows.length" description="近7日板块涨停/跌停数据为空（休市或交易日报告未积累）" :image-size="50" />
-        </div>
-
-        <!-- 龙虎榜 + 席位游资 -->
-        <div class="card mt8">
-          <div class="fs14 bold">龙虎榜（{{ arr(rpt.limit_analysis?.dragon_tiger).length }}）</div>
+          <div class="fs14 bold">榫欒檸姒滐紙{{ arr(rpt.limit_analysis?.dragon_tiger).length }}锛?/div>
           <el-table :data="arr(rpt.limit_analysis?.dragon_tiger).slice(0, 10)" size="small" class="mt8"
             @row-click="(row) => goStock(row.symbol, row.name)">
-            <el-table-column prop="name" label="名称" width="74" />
-            <el-table-column prop="symbol" label="代码" width="88" />
-            <el-table-column label="净买额" align="right" width="86">
+            <el-table-column prop="name" label="鍚嶇О" width="74" />
+            <el-table-column prop="symbol" label="浠ｇ爜" width="88" />
+            <el-table-column label="鍑€涔伴" align="right" width="86">
               <template #default="{ row }">
                 <span class="mono" :class="(row.net_amount||0) >= 0 ? 'up' : 'down'">{{ fmtBig(row.net_amount) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="涨幅" width="62" align="right">
+            <el-table-column label="娑ㄥ箙" width="62" align="right">
               <template #default="{ row }">
                 <span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">{{ row.change_pct == null ? '-' : ((row.change_pct >= 0 ? '+' : '') + row.change_pct + '%') }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="原因" min-width="140">
+            <el-table-column label="鍘熷洜" min-width="140">
               <template #default="{ row }">{{ (row.reason || '').slice(0, 20) }}</template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!arr(rpt.limit_analysis?.dragon_tiger).length" description="当日龙虎榜数据为空（收盘后才发布）" :image-size="50" />
+          <el-empty v-if="!arr(rpt.limit_analysis?.dragon_tiger).length" description="褰撴棩榫欒檸姒滄暟鎹负绌猴紙鏀剁洏鍚庢墠鍙戝竷锛? :image-size="50" />
           <div v-if="seats.length" class="mt8" style="border-top:1px dashed #f0f0f0;padding-top:6px">
-            <div class="fs12 bold" style="color:#e6a23c">席位游资（{{ seats.length }}条，按净值）</div>
+            <div class="fs12 bold" style="color:#e6a23c">甯綅娓歌祫锛坽{ seats.length }}鏉★紝鎸夊噣鍊硷級</div>
             <div v-for="s in seats" :key="s.seat + s.symbol" class="seat-row">
               <el-tag v-if="s.tag" size="small" type="warning" effect="plain">{{ s.tag }}</el-tag>
-              <el-tag v-else size="small" type="info" effect="plain">营业部</el-tag>
+              <el-tag v-else size="small" type="info" effect="plain">钀ヤ笟閮?/el-tag>
               <el-link type="primary" :underline="false" @click="goStock(s.symbol, s.stock_name)">{{ s.stock_name }}</el-link>
               <span class="mono fs12" :class="(s.net||0) >= 0 ? 'up' : 'down'">{{ fmtBig(s.net) }}</span>
               <span class="fs11" style="color:#7d8390;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.seat_name }}</span>
@@ -299,71 +242,71 @@
           </div>
         </div>
 
-        <!-- 次日选股池 -->
+        <!-- 娆℃棩閫夎偂姹?-->
         <div class="card mt8">
-          <div class="fs14 bold">次日选股池（{{ arr(rpt.stock_pool).length }}）</div>
+          <div class="fs14 bold">娆℃棩閫夎偂姹狅紙{{ arr(rpt.stock_pool).length }}锛?/div>
           <el-table :data="arr(rpt.stock_pool)" size="small" class="mt8" @row-click="(row) => goStock(row.symbol, row.name)">
-            <el-table-column prop="symbol" label="代码" width="95" />
-            <el-table-column prop="name" label="名称" width="90" />
-            <el-table-column label="涨幅" width="75" align="right">
+            <el-table-column prop="symbol" label="浠ｇ爜" width="95" />
+            <el-table-column prop="name" label="鍚嶇О" width="90" />
+            <el-table-column label="娑ㄥ箙" width="75" align="right">
               <template #default="{ row }">
                 <span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">
                   {{ (row.change_pct||0) >= 0 ? '+' : '' }}{{ row.change_pct || '-' }}%
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="价格" width="70" align="right">
+            <el-table-column label="浠锋牸" width="70" align="right">
               <template #default="{ row }">{{ row.price || '-' }}</template>
             </el-table-column>
-            <el-table-column label="表现" min-width="100">
+            <el-table-column label="琛ㄧ幇" min-width="100">
               <template #default="{ row }">{{ row.performance || row.reason || '-' }}</template>
             </el-table-column>
-            <el-table-column label="建议" min-width="120">
+            <el-table-column label="寤鸿" min-width="120">
               <template #default="{ row }">
-                <el-tag size="small" :type="(row.suggestion||'').includes('关注') ? 'warning' : 'info'">
-                  {{ row.suggestion || '关注' }}
+                <el-tag size="small" :type="(row.suggestion||'').includes('鍏虫敞') ? 'warning' : 'info'">
+                  {{ row.suggestion || '鍏虫敞' }}
                 </el-tag>
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!arr(rpt.stock_pool).length" description="暂无选股池" :image-size="50" />
+          <el-empty v-if="!arr(rpt.stock_pool).length" description="鏆傛棤閫夎偂姹? :image-size="50" />
         </div>
 
-        <!-- 投资日历（未来45天 解禁 / 分红除权） -->
+        <!-- 鎶曡祫鏃ュ巻锛堟湭鏉?5澶?瑙ｇ / 鍒嗙孩闄ゆ潈锛?-->
         <div class="card mt8">
           <div class="flex between" style="align-items:center">
-            <span class="fs14 bold">投资日历 <span class="fs12" style="color:#7d8390">（未来45天 解禁 / 分红除权）</span></span>
-            <el-button size="small" :loading="calLoading" @click="loadCalendar">刷新</el-button>
+            <span class="fs14 bold">鎶曡祫鏃ュ巻 <span class="fs12" style="color:#7d8390">锛堟湭鏉?5澶?瑙ｇ / 鍒嗙孩闄ゆ潈锛?/span></span>
+            <el-button size="small" :loading="calLoading" @click="loadCalendar">鍒锋柊</el-button>
           </div>
           <div class="split-grid mt8">
             <div class="cal-scroll">
-              <div class="fs12 bold" style="color:#f56c6c;margin:2px 0">🛡 限售解禁 <span class="fs11" style="color:#7d8390">（{{ arr(calendar.unlocks).length }}笔，TOP解禁市值）</span></div>
+              <div class="fs12 bold" style="color:#f56c6c;margin:2px 0">馃洝 闄愬敭瑙ｇ <span class="fs11" style="color:#7d8390">锛坽{ arr(calendar.unlocks).length }}绗旓紝TOP瑙ｇ甯傚€硷級</span></div>
               <div v-for="(u, i) in topUnlocks" :key="'u' + i" class="cal-row">
                 <span class="cal-date">{{ (u.date || '').slice(5) }}</span>
                 <el-link v-if="u.symbol" class="cal-name" type="danger" :underline="false" @click="goStock(u.symbol, u.name)">{{ u.name }}</el-link>
                 <span v-else class="fs12 cal-name">{{ u.name }}</span>
-                <span class="cal-val mono fs12" style="color:#f56c6c">{{ u.market_cap_yi }}亿</span>
+                <span class="cal-val mono fs12" style="color:#f56c6c">{{ u.market_cap_yi }}浜?/span>
                 <span class="cal-sub">{{ u.type }}</span>
               </div>
-              <el-empty v-if="!topUnlocks.length" description="未来45天无解禁" :image-size="30" />
+              <el-empty v-if="!topUnlocks.length" description="鏈潵45澶╂棤瑙ｇ" :image-size="30" />
             </div>
             <div class="cal-scroll">
-              <div class="fs12 bold" style="color:#67c23a;margin:2px 0">💰 分红除权 <span class="fs11" style="color:#7d8390">（{{ arr(calendar.dividends).length }}笔）</span></div>
+              <div class="fs12 bold" style="color:#67c23a;margin:2px 0">馃挵 鍒嗙孩闄ゆ潈 <span class="fs11" style="color:#7d8390">锛坽{ arr(calendar.dividends).length }}绗旓級</span></div>
               <div v-for="(d, i) in topDividends" :key="'d' + i" class="cal-row">
                 <span class="cal-date">{{ (d.date || '').slice(5) }}</span>
                 <el-link v-if="d.symbol" class="cal-name" type="success" :underline="false" @click="goStock(d.symbol, d.name)">{{ d.name }}</el-link>
                 <span v-else class="fs12 cal-name">{{ d.name }}</span>
-                <span class="cal-val mono fs12" style="color:#67c23a">{{ (d.record_date || '').slice(5) }}除权</span>
+                <span class="cal-val mono fs12" style="color:#67c23a">{{ (d.record_date || '').slice(5) }}闄ゆ潈</span>
                 <span class="cal-sub">{{ d.plan }}</span>
               </div>
-              <el-empty v-if="!topDividends.length" description="未来45天无分红除权" :image-size="30" />
+              <el-empty v-if="!topDividends.length" description="鏈潵45澶╂棤鍒嗙孩闄ゆ潈" :image-size="30" />
             </div>
           </div>
         </div>
 
-        <!-- Agent 复盘 -->
+        <!-- Agent 澶嶇洏 -->
         <div v-if="arr(rpt.agent_reviews).length" class="card mt8">
-          <div class="fs14 bold">AI 复盘（{{ arr(rpt.agent_reviews).length }} 个 Agent）</div>
+          <div class="fs14 bold">AI 澶嶇洏锛坽{ arr(rpt.agent_reviews).length }} 涓?Agent锛?/div>
           <el-row :gutter="10" class="mt8">
             <el-col v-for="(rv, at) in rpt.agent_reviews" :key="at" :xs="24" :sm="8">
               <div class="card" style="background:#1d2229">
@@ -375,9 +318,9 @@
         </div>
       </template>
 
-      <el-empty v-else :description="(status === 'empty' && report?.message) || '暂无复盘报告，点击「生成复盘」手动触发（默认交易日 18:00 自动生成）'" />
+      <el-empty v-else :description="(status === 'empty' && report?.message) || '鏆傛棤澶嶇洏鎶ュ憡锛岀偣鍑汇€岀敓鎴愬鐩樸€嶆墜鍔ㄨЕ鍙戯紙榛樿浜ゆ槗鏃?18:00 鑷姩鐢熸垚锛?" />
 
-      <el-dialog v-model="mdDialog" title="复盘报告原文" width="700">
+      <el-dialog v-model="mdDialog" title="澶嶇洏鎶ュ憡鍘熸枃" width="700">
         <pre class="md">{{ report?.report_md }}</pre>
       </el-dialog>
     </div>
@@ -422,10 +365,6 @@ const rptv = computed(() => report.value)
 const status = computed(() => report.value?.status || '')
 
 const kline = ref([])
-const sectorTrendRows = ref([])
-const sectorTrendDates = ref([])
-const sectorTrendLoading = ref(false)
-const SECTOR_SNAP = 'replay_sector_snap_'
 
 const topUnlocks = computed(() => [...(calendar.value.unlocks || [])]
   .sort((a, b) => b.market_cap_yi - a.market_cap_yi).slice(0, 6))
@@ -434,7 +373,7 @@ const topDividends = computed(() => [...(calendar.value.dividends || [])]
 
 async function loadCalendar() {
   calLoading.value = true
-  try { calendar.value = (await marketApi.investCalendar()) || { date: '', unlocks: [], dividends: [] } } catch { /* 保留旧数据 */ }
+  try { calendar.value = (await marketApi.investCalendar()) || { date: '', unlocks: [], dividends: [] } } catch { /* 淇濈暀鏃ф暟鎹?*/ }
   calLoading.value = false
 }
 
@@ -477,8 +416,8 @@ function arr1(v) { return Array.isArray(v) ? v : [] }
 function fmtBig(v) {
   if (v == null) return '-'
   const n = Number(v)
-  if (Math.abs(n) >= 1e8) return (n / 1e8).toFixed(2) + '亿'
-  if (Math.abs(n) >= 1e4) return (n / 1e4).toFixed(2) + '万'
+  if (Math.abs(n) >= 1e8) return (n / 1e8).toFixed(2) + '浜?
+  if (Math.abs(n) >= 1e4) return (n / 1e4).toFixed(2) + '涓?
   return n.toFixed(0)
 }
 
@@ -520,41 +459,6 @@ async function loadHistory() {
   }
 }
 
-async function loadSectorTrend() {
-  sectorTrendLoading.value = true
-  try {
-    const rows = (await replayApi.history()) || []
-    const dates = [...new Set((Array.isArray(rows) ? rows : []).map((r) => r.date || '').filter(Boolean))].slice(-7)
-    sectorTrendDates.value = dates
-    const byName = {}
-    for (const d of dates) {
-      let snap = null
-      try { snap = JSON.parse(localStorage.getItem(SECTOR_SNAP + d)) } catch { snap = null }
-      if (!snap) {
-        const rep = await replayApi.byDate(d)
-        const flow = Array.isArray(rep?.sector_flow) ? rep.sector_flow : []
-        snap = flow.map((f) => ({ sector: f.sector_name, up: f.limit_up_count, down: f.limit_down_count }))
-        try { localStorage.setItem(SECTOR_SNAP + d, JSON.stringify(snap)) } catch { /* 本地存储满则跳过，不影响展示 */ }
-      }
-      for (const it of (snap || [])) {
-        if (!it.sector) continue
-        if (!byName[it.sector]) byName[it.sector] = { sector: it.sector, days: {}, sum_up: 0, sum_down: 0 }
-        byName[it.sector].days[d] = { up: it.up ?? 0, down: it.down ?? 0 }
-      }
-    }
-    for (const r of Object.values(byName)) {
-      r.sum_up = Object.values(r.days).reduce((s, v) => s + (Number(v.up) || 0), 0)
-      r.sum_down = Object.values(r.days).reduce((s, v) => s + (Number(v.down) || 0), 0)
-    }
-    sectorTrendRows.value = Object.values(byName).sort((a, b) => b.sum_up - a.sum_up)
-  } catch {
-    sectorTrendRows.value = []
-    sectorTrendDates.value = []
-  } finally {
-    sectorTrendLoading.value = false
-  }
-}
-
 async function load() {
   loading.value = true
   try {
@@ -564,7 +468,6 @@ async function load() {
     if (d) viewDate.value = d
     await loadSeats()
     await loadHistory()
-    loadSectorTrend()
     await loadKline()
     await nextTick()
     renderCharts()
@@ -586,11 +489,11 @@ async function viewReport(d) {
       await nextTick()
       renderCharts()
     } else {
-      report.value = { status: 'empty', date: d, message: '该日期暂无复盘记录，可用底部「生成复盘」为该日期生成' }
+      report.value = { status: 'empty', date: d, message: '璇ユ棩鏈熸殏鏃犲鐩樿褰曪紝鍙敤搴曢儴銆岀敓鎴愬鐩樸€嶄负璇ユ棩鏈熺敓鎴? }
       viewDate.value = d
     }
   } catch {
-    report.value = { status: 'gated', date: d, message: '加载失败，请检查后端服务' }
+    report.value = { status: 'gated', date: d, message: '鍔犺浇澶辫触锛岃妫€鏌ュ悗绔湇鍔? }
     viewDate.value = d
   }
 }
@@ -627,8 +530,8 @@ function renderDist() {
       type: 'pie', radius: ['52%', '78%'], center: ['38%', '55%'],
       label: { color: '#c8ccd4', fontSize: 11 },
       data: [
-        { value: up, name: '上涨 ' + up, itemStyle: { color: '#ef232a' } },
-        { value: down, name: '下跌 ' + down, itemStyle: { color: '#14b143' } },
+        { value: up, name: '涓婃定 ' + up, itemStyle: { color: '#ef232a' } },
+        { value: down, name: '涓嬭穼 ' + down, itemStyle: { color: '#14b143' } },
       ],
       labelLine: { lineStyle: { color: '#4d5461' } },
     }],
@@ -647,13 +550,13 @@ function renderSector() {
   sectorChart.setOption({
     backgroundColor: 'transparent',
     grid: { left: 8, right: 40, top: 8, bottom: 8, containLabel: true },
-    xAxis: { type: 'value', axisLabel: { color: '#7d8390', fontSize: 10, formatter: (v) => v.toFixed(1) + '亿' }, splitLine: { lineStyle: { color: '#2c3240' } } },
+    xAxis: { type: 'value', axisLabel: { color: '#7d8390', fontSize: 10, formatter: (v) => v.toFixed(1) + '浜? }, splitLine: { lineStyle: { color: '#2c3240' } } },
     yAxis: { type: 'category', data: names, axisLabel: { color: '#c8ccd4', fontSize: 10 } },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     series: [{
       type: 'bar', data: vals, barWidth: '55%',
       itemStyle: { color: (p) => (vals[p.dataIndex] >= 0 ? '#ef232a' : '#14b143'), borderRadius: 2 },
-      label: { show: true, position: 'right', color: '#c8ccd4', fontSize: 10, formatter: (p) => p.value.toFixed(1) + '亿' },
+      label: { show: true, position: 'right', color: '#c8ccd4', fontSize: 10, formatter: (p) => p.value.toFixed(1) + '浜? },
     }],
   }, true)
 }
@@ -669,7 +572,7 @@ function renderLadder() {
   ladderChart.setOption({
     backgroundColor: 'transparent',
     grid: { left: 8, right: 30, top: 10, bottom: 8, containLabel: true },
-    xAxis: { type: 'category', data: boards.map((b) => b + '板'), axisLabel: { color: '#c8ccd4', fontSize: 11 }, axisLine: { lineStyle: { color: '#2c3240' } } },
+    xAxis: { type: 'category', data: boards.map((b) => b + '鏉?), axisLabel: { color: '#c8ccd4', fontSize: 11 }, axisLine: { lineStyle: { color: '#2c3240' } } },
     yAxis: { type: 'value', axisLabel: { color: '#7d8390', fontSize: 10 }, splitLine: { lineStyle: { color: '#2c3240' } } },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     series: [{
@@ -755,7 +658,7 @@ onBeforeUnmount(() => {
 .cal-sub { flex: 1; min-width: 0; text-align: right; color: #7d8390; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seat-row { display: flex; align-items: center; gap: 5px; padding: 3px 0; border-bottom: 1px dashed #2a2f3a; font-size: 12px; }
 
-/* 深色表格微调 */
+/* 娣辫壊琛ㄦ牸寰皟 */
 :deep(.el-table) { background: transparent; color: #d8dce6; }
 :deep(.el-table tr), :deep(.el-table th.el-table__cell) { background: transparent; }
 :deep(.el-table th.el-table__cell) { color: #8b93a1; }
@@ -764,7 +667,7 @@ onBeforeUnmount(() => {
 :deep(.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell) { background: #232936; }
 :deep(.el-link) { color: #ef6c6d; }
 
-/* H5 移动端适配 */
+/* H5 绉诲姩绔€傞厤 */
 @media (max-width: 820px) {
   .page { padding: 8px; }
   .card { padding: 10px; }

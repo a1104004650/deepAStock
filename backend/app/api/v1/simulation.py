@@ -82,8 +82,17 @@ async def reset_account(account_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.get("/accounts/{account_id}/stats")
 async def stats(account_id: int, db: AsyncSession = Depends(get_db)):
-    engine = SimulationEngine(db)
-    return await engine.get_stats(account_id)
+    try:
+        engine = SimulationEngine(db)
+        return await engine.get_stats(account_id)
+    except Exception as e:
+        import traceback
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=500,
+            content={"error": "stats_failed", "message": str(e),
+                     "traceback": traceback.format_exc().splitlines()[-20:]},
+        )
 
 
 @router.get("/accounts/{account_id}/positions")

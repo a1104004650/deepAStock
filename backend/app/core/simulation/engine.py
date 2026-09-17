@@ -897,7 +897,10 @@ class SimulationEngine:
                 score += 15
             else:
                 avg_loss_pct = avg_loss / (avg_win + avg_loss) * 100 if (avg_win + avg_loss) else 0
-                notes.append(f"亏损控制偏松：最差单笔 {avg_loss_pct_note[0]:.1f}%（{avg_loss_pct_note[1]}），建议严守 {stop * 100:.0f}% 止损")
+                if avg_loss_pct_note:
+                    notes.append(f"亏损控制偏松：最差单笔 {avg_loss_pct_note[0]:.1f}%（{avg_loss_pct_note[1]}），建议严守 {stop * 100:.0f}% 止损")
+                else:
+                    notes.append(f"亏损控制偏松：暂无亏损样本用于评估止损纪律（{stop * 100:.0f}% 止损）")
                 score -= 10
             notes.append(f"盈亏比（盈利/亏损） {profit_factor or 0}")
         if not trades:

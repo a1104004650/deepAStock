@@ -24,6 +24,14 @@ BASE = "https://fuyao.aicubes.cn"
 
 
 def _api_key() -> str:
+    # DB 设置优先，env 兜底兼容；key 永不硬编码/回显
+    try:
+        from app.core.settings.service import get_setting
+        dbv = (get_setting("hithink_api_key") or "").strip()
+        if dbv:
+            return dbv
+    except Exception:
+        pass
     return (os.environ.get("HITHINK_API_KEY") or "").strip()
 
 

@@ -27,6 +27,10 @@
             <el-form-item label="单源超时(秒)">
               <el-input-number v-model="sourceTimeout" :min="1" :max="60" :step="1" />
             </el-form-item>
+            <el-form-item label="同花顺 API Key">
+              <el-input v-model="sourceForm.hithink_api_key" type="password" show-password
+                        placeholder="填写保存；留空不覆盖（不回显明文）" autocomplete="new-password" />
+            </el-form-item>
           </el-form>
         </el-card>
       </el-tab-pane>
@@ -95,7 +99,7 @@ import { settingsApi, systemApi } from '../api'
 const tab = ref('source')
 const sourceOptions = ref(['sina', 'tencent'])
 const sourceLabel = (s) => (s === 'sina' ? '新浪财经 (sina)' : '腾讯证券 (tencent)')
-const sourceForm = ref({ primary_source: 'sina', backup_source_1: '', backup_source_2: '', backup_source_3: '' })
+const sourceForm = ref({ primary_source: 'sina', backup_source_1: '', backup_source_2: '', backup_source_3: '', hithink_api_key: '' })
 const sourceTimeout = ref(5)
 const savingSource = ref(false)
 
@@ -114,7 +118,8 @@ async function loadSettings() {
     primary_source: eff.primary_source || 'sina',
     backup_source_1: eff.backup_source_1 || '',
     backup_source_2: eff.backup_source_2 || '',
-    backup_source_3: eff.backup_source_3 || ''
+    backup_source_3: eff.backup_source_3 || '',
+    hithink_api_key: ''
   }
   sourceTimeout.value = Number(eff.source_timeout || 5)
   dbForm.value.database_url = eff.database_url || ''
@@ -123,10 +128,9 @@ async function loadSettings() {
 async function saveSource() {
   savingSource.value = true
   try {
-    await settingsApi.save({
-      ...sourceForm.value,
-      source_timeout: String(sourceTimeout.value)
-    })
+    const pld = { ...sourceForm.value, source_timeout: String(sourceTimeout.value) }
+    if (!pld.hithink_api_key) delete pld.hithink_api_key
+    await settingsApi.save(pld)
     ElMessage.success('数据源配置已保存并生效')
   } finally {
     savingSource.value = false
