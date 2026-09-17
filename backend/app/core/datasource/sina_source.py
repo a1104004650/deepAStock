@@ -1792,6 +1792,7 @@ class SinaSource(DataSourceBase):
         try:
             ind = self._em_flow_boards("m:90+t:2")
             con = self._em_flow_boards("m:90+t:3")
+            ind_codes = {(b.get("f12") or "").strip() for b in ind}
         except Exception as e:
             logger.warning("em sector money flow boards failed: %s" % e)
             return []
@@ -1806,6 +1807,7 @@ class SinaSource(DataSourceBase):
             seen_names.add(bname)
             row = {
                 "sector_name": bname,
+                "kind": "行业" if (code and code in ind_codes) else "概念",
                 "symbol": code, "source": "eastmoney",
                 "net_inflow": _f(b.get("f62")),
                 "net_ratio": round(_f(b.get("f184")), 2),
