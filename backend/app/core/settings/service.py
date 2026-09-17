@@ -22,6 +22,7 @@ DEFAULTS = {
     "rsshub_poll_seconds": str(settings.RSSHUB_POLL_SECONDS),
     "rsshub_item_retention_days": str(settings.RSSHUB_ITEM_RETENTION_DAYS),
     "weibo_cookies": "",
+    "hithink_api_key": "",
 }
 
 # 内存快照：DB 中的覆盖值（key -> value）
@@ -81,7 +82,11 @@ def snapshot() -> dict:
         "defaults": dict(DEFAULTS),
         "overridden": [k for k in EFFECTIVE
                        if EFFECTIVE[k] != DEFAULTS.get(k, "")],
-        "effective": {k: get_setting(k) for k in DEFAULTS},
+        "effective": {
+            k: ('' if k == 'hithink_api_key' else get_setting(k))
+            for k in DEFAULTS
+        },
+        "hithink_key_configured": "1" if EFFECTIVE.get("hithink_api_key") else "0",
         "source_options": SOURCE_OPTIONS,
     }
 
