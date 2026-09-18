@@ -214,12 +214,18 @@
           </div>
         </div>
 
-        <!-- 板块资金流 明细表 -->
+        <!-- 板块资金流 · 涨停/跌停排行（合并） -->
         <div class="card mt8">
-          <div class="fs14 bold">板块资金流明细 <span class="fs12" style="color:#7d8390">（主力净流入排序）</span></div>
-          <el-table :data="arr(rpt.sector_flow).slice(0, 12)" size="small" class="mt8">
-            <el-table-column prop="sector_name" label="板块" min-width="110">
-              <template #default="{ row }">{{ row.sector_name || row.name }}</template>
+          <div class="flex between" style="align-items:center">
+            <span class="fs14 bold">板块资金流 · 涨停/跌停排行</span>
+            <el-button size="small" :loading="sectorTrendLoading" @click="loadSectorTrend">加载7日累计</el-button>
+          </div>
+          <el-table :data="mergedSectors" size="small" class="mt8" :default-sort="{ prop: 'net_inflow', order: 'descending' }">
+            <el-table-column prop="sector_name" label="板块" min-width="110" fixed>
+              <template #default="{ row }">
+                <div>{{ row.sector_name || row.name }}</div>
+                <div class="fs11" style="color:#7d8390">{{ row.kind }}</div>
+              </template>
             </el-table-column>
             <el-table-column label="主力净" align="right" width="90">
               <template #default="{ row }">
@@ -229,36 +235,37 @@
             <el-table-column label="净占比" align="right" width="70">
               <template #default="{ row }">{{ row.net_ratio == null ? '-' : row.net_ratio + '%' }}</template>
             </el-table-column>
-            <el-table-column label="涨幅" align="right" width="70">
+            <el-table-column label="涨幅" align="right" width="66">
               <template #default="{ row }">
                 <span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">{{ row.change_pct == null ? '-' : ((row.change_pct >= 0 ? '+' : '') + row.change_pct + '%') }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="涨停" align="right" width="64">
+            <el-table-column label="今涨停" align="right" width="64">
               <template #default="{ row }">
                 <span class="mono up">{{ row.limit_up_count ?? '-' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="跌停" align="right" width="64">
+            <el-table-column label="今跌停" align="right" width="64">
               <template #default="{ row }">
                 <span class="mono down">{{ row.limit_down_count ?? '-' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="领涨" min-width="90">
+            <el-table-column v-if="sectorTrendDates.length" label="7日涨停" align="right" width="72" fixed="right">
+              <template #default="{ row }">
+                <span class="mono up">{{ row._trend?.sum_up ?? '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column v-if="sectorTrendDates.length" label="7日跌停" align="right" width="72" fixed="right">
+              <template #default="{ row }">
+                <span class="mono down">{{ row._trend?.sum_down ?? '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="领涨" min-width="80">
               <template #default="{ row }">
                 <el-link v-if="row.leader_symbol" type="primary" :underline="false" @click="goStock(row.leader_symbol, row.leader)">
                   {{ row.leader || '-' }}
                 </el-link>
                 <span v-else>-</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="市值龙头" min-width="130">
-              <template #default="{ row }">
-                <span v-for="(m, i) in (row.mkt_cap_top || [])" :key="i" class="fs12 mr8">
-                  {{ ['龙一', '龙二', '龙三'][i] }}:
-                  <el-link v-if="m.symbol" type="primary" :underline="false" @click="goStock(m.symbol, m.name)">{{ m.name }}</el-link>
-                </span>
-                <span v-if="!(row.mkt_cap_top || []).length">-</span>
               </template>
             </el-table-column>
             <el-table-column label="人气票" width="70">
@@ -268,41 +275,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!arr(rpt.sector_flow).length" description="当日东方财富板块资金数据为空（休市或网络受限）" :image-size="50" />
-        </div>
-
-        <!-- 板块涨停/跌停排行（近7交易日，真实数据本地累计） -->
-        <div class="card mt8">
-          <div class="flex between" style="align-items:center">
-            <span class="fs14 bold">板块涨停/跌停排行（近7交易日）</span>
-            <el-button size="small" :loading="sectorTrendLoading" @click="loadSectorTrend">拉取7日板块涨停/跌停</el-button>
-          </div>
-          <div class="fs12 mt8" style="color:#7d8390">
-            共 {{ sectorTrendDates.length }} 个交易日：每日 涨停家数/跌停家数 由当日真实报告写入 localStorage 累计，休市日显示 -（无伪造）
-          </div>
-          <el-table v-if="sectorTrendRows.length" :data="sectorTrendRows" size="small" class="mt8">
-            <el-table-column prop="sector" label="板块" min-width="110" fixed />
-            <el-table-column v-for="d in sectorTrendDates" :key="'d' + d" :label="d.slice(5)" align="right" min-width="92">
-              <template #default="{ row }">
-                <span v-if="row.days[d]" class="mono">
-                  <span class="up">{{ row.days[d].up ?? '-' }}</span>
-                  <span class="down">/{{ row.days[d].down ?? '-' }}</span>
-                </span>
-                <span v-else class="mono" style="color:#7d8390">-</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="7日合计涨停" align="right" width="104" fixed="right">
-              <template #default="{ row }">
-                <span class="mono up">{{ row.sum_up ?? '-' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="7日合计跌停" align="right" width="104" fixed="right">
-              <template #default="{ row }">
-                <span class="mono down">{{ row.sum_down ?? '-' }}</span>
-              </template>
-            </el-table-column>
-          </el-table>
-          <el-empty v-if="!sectorTrendRows.length" description="近7日板块涨停/跌停数据为空（休市或交易日报告未积累）" :image-size="50" />
+          <el-empty v-if="!arr(rpt.sector_flow).length" description="当日板块资金数据为空（休市或网络受限）" :image-size="50" />
         </div>
 
         <!-- 龙虎榜 + 席位游资聚合 -->
@@ -486,6 +459,18 @@ const topUnlocks = computed(() => [...(calendar.value.unlocks || [])]
   .sort((a, b) => b.market_cap_yi - a.market_cap_yi).slice(0, 6))
 const topDividends = computed(() => [...(calendar.value.dividends || [])]
   .sort((a, b) => (a.date || '').localeCompare(b.date || '')).slice(0, 6))
+
+const mergedSectors = computed(() => {
+  const flow = arr(rpt.value?.sector_flow).slice(0, 15)
+  const trendMap = {}
+  for (const r of sectorTrendRows.value) {
+    trendMap[r.sector] = r
+  }
+  return flow.map(f => ({
+    ...f,
+    _trend: trendMap[f.sector_name] || null
+  }))
+})
 
 async function loadCalendar() {
   calLoading.value = true

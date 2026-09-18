@@ -419,25 +419,114 @@ def _default_params(cfg: StrategyConfig) -> dict:
 
 def _finish_metrics(equity_curve: list, trades: list, capital: float) -> dict:
     """由权益曲线 + 交易记录汇总指标，单只与组合回测共用。"""
+    import math
     capital = float(capital)
     final_equity = equity_curve[-1]["equity"] if equity_curve else capital
     total_return = final_equity / capital - 1 if capital else 0
 
     max_dd = 0.0
     peak = -float("inf")
-    for c in equity_curve:
+    dd_start_idx = 0
+    dd_end_idx = 0
+    cur_start = 0
+    for i, c in enumerate(equity_curve):
         e = c["equity"]
         if e > peak:
             peak = e
+            cur_start = i
         if peak > 0:
             dd = (peak - e) / peak
             if dd > max_dd:
                 max_dd = dd
+                dd_start_idx = cur_start
+                dd_end_idx = i
+
+    # 修复周期
+    recovery_idx = len(equity_curve) - 1
+    for i in range(dd_end_idx, len(equity_curve)):
+        if equity_curve[i]["equity"] >= peak:
+            recovery_idx = i
+            break
+    recovery_days = recovery_idx - dd_end_idx
 
     wins = [t for t in trades if t.get("pnl", 0) > 0]
+    losses = [t for t in trades if t.get("pnl", 0) <= 0]
     n_bars = len(equity_curve)
     years = n_bars / 244
     ann = (final_equity / capital) ** (1 / years) - 1 if capital > 0 and years > 0 else 0
+
+    # Sharpe ratio (日收益率)
+    if n_bars > 1:
+        daily_returns = []
+        for i in range(1, n_bars):
+            prev = equity_curve[i-1]["equity"]
+            if prev > 0:
+                daily_returns.append(equity_curve[i]["equity"] / prev - 1)
+        if daily_returns:
+            avg_r = sum(daily_returns) / len(daily_returns)
+            std_r = (sum((r - avg_r)**2 for r in daily_returns) / len(daily_returns)) ** 0.5
+            sharpe = (avg_r / std_r * math.sqrt(244)) if std_r > 0 else 0
+        else:
+            sharpe = 0
+    else:
+        sharpe = 0
+
+    # Sortino ratio (只用下行波动率)
+    if n_bars > 1:
+        down_returns = [r for r in daily_returns if r < 0]
+        if down_returns:
+            down_std = (sum(r**2 for r in down_returns) / len(down_returns)) ** 0.5
+            sortino = (avg_r / down_std * math.sqrt(244)) if down_std > 0 else 0
+        else:
+            sortino = 0
+    else:
+        sortino = 0
+
+    # Calmar ratio
+    calmar = ann / max_dd if max_dd > 0 else 0
+
+    # 盈亏比
+    avg_win = sum(t["pnl"] for t in wins) / len(wins) if wins else 0
+    avg_loss = abs(sum(t["pnl"] for t in losses) / len(losses)) if losses else 0
+    profit_factor = avg_win / avg_loss if avg_loss > 0 else 0
+
+    # 平均持仓天数
+    holding_days = []
+    for t in trades:
+        try:
+            d1 = date.fromisoformat(t["entry_date"])
+            d2 = date.fromisoformat(t["exit_date"])
+            holding_days.append((d2 - d1).days)
+        except:
+            pass
+    avg_holding = sum(holding_days) / len(holding_days) if holding_days else 0
+
+    # 最大连续盈利/亏损
+    max_consec_win = max_consec_loss = cur_win = cur_loss = 0
+    for t in trades:
+        if t.get("pnl", 0) > 0:
+            cur_win += 1
+            cur_loss = 0
+            max_consec_win = max(max_consec_win, cur_win)
+        else:
+            cur_loss += 1
+            cur_win = 0
+            max_consec_loss = max(max_consec_loss, cur_loss)
+
+    # 月度收益
+    monthly = {}
+    for c in equity_curve:
+        dt = c["dt"][:7]
+        if dt not in monthly:
+            monthly[dt] = {"start": c["equity"], "end": c["equity"]}
+        monthly[dt]["end"] = c["equity"]
+    monthly_returns = []
+    prev_end = capital
+    for dt in sorted(monthly.keys()):
+        m = monthly[dt]
+        ret = (m["end"] - prev_end) / prev_end if prev_end > 0 else 0
+        monthly_returns.append({"month": dt, "return": round(ret, 4), "equity": round(m["end"], 2)})
+        prev_end = m["end"]
 
     return {
         "initial_capital": round(capital, 2),
@@ -445,9 +534,22 @@ def _finish_metrics(equity_curve: list, trades: list, capital: float) -> dict:
         "total_return": round(total_return, 4),
         "annualized_return": round(ann, 4),
         "max_drawdown": round(max_dd, 4),
+        "dd_start": equity_curve[dd_start_idx]["dt"] if dd_start_idx < len(equity_curve) else "",
+        "dd_end": equity_curve[dd_end_idx]["dt"] if dd_end_idx < len(equity_curve) else "",
+        "recovery_days": recovery_days,
         "win_rate": round(len(wins) / len(trades), 4) if trades else 0,
         "trade_count": len(trades),
         "bars": n_bars,
+        "sharpe": round(sharpe, 4),
+        "sortino": round(sortino, 4),
+        "calmar": round(calmar, 4),
+        "profit_factor": round(profit_factor, 4),
+        "avg_holding_days": round(avg_holding, 1),
+        "max_consec_win": max_consec_win,
+        "max_consec_loss": max_consec_loss,
+        "avg_win": round(avg_win, 2),
+        "avg_loss": round(avg_loss, 2),
+        "monthly_returns": monthly_returns,
     }
 
 

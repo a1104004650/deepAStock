@@ -5,7 +5,7 @@
 
 ## 项目目标
 构建个人深度 A 股 AI 交易平台（PC/H5），闭环：**看盘 → 选股 → 交易 → 复盘 → 进化**。
-项目名 **deepAStock（深度A股交易）**，版本 **1.3.1**。
+项目名 **deepAStock（深度A股交易）**，版本 **1.3.2**。
 需求来源：`提示词.txt`（功能要求）、`量化交易系统开发需求讨论.markdown`（工程文档）。
 
 ## 关键环境事实（务必遵守）
@@ -53,7 +53,7 @@
 | 设置 | `app/core/settings/service.py` `api/v1/settings.py` `models/system.py` | DB 持久化覆盖 env 默认值（`Setting` 表 + `EFFECTIVE` 内存快照）；数据源主+备用1/2/3 顺序回退；数据库连接测试；`snapshot()` 只显示与默认值不同的覆盖项 |
 | RSSHub 订阅 | `app/core/rsshub/parser.py` `app/core/rsshub/service.py` `api/v1/rss.py` `models/rss.py` 前端 `views/RssNews.vue` | 本地 RSSHub 自建实例；订阅源 CRUD（微博/公众号/股吧/自定义，**path(route) 或 url 二选一**）、RSS/Atom/JSON Feed 解析（`fetch_feed`；**页面地址 HTML 会显式报错而非静默 0 条**）、限频轮询去重落库（`rss_sources`/`rss_items` 表）；ST 标题过滤；`_upsert_items` 按 source+guid 去重；`_prune` 按天数/每源上限清理。导航「订阅」为**独立整页**（`RssNews.vue` 包裹 `MainLayout`，保留顶部导航栏；桌面双栏网格：消息流 + 订阅源状态表），页内直接维护 **RSSHub 配置**（启用开关/实例地址/保存，等同步「设置 → RSSHub 订阅」）；轮询后**重要消息全局通知为多条同叠**（`stores/news.js` 的 `toasts` 数组，每条独立 15s 自动消失；`MainLayout.pollImportantNews` 合并平台新闻`importance=1` + `pollRssIncrement` 只推 RSS `importance ≤ 2`，按标题本地去重）；「设置 → RSSHub 订阅」可编辑实例地址（本机开发 `http://127.0.0.1:11200`，容器内 `http://rsshub:1200`）；已预置 4 个**实测可直连解析**的案例源（雪球热帖/钛媒体/IT之家/爱范儿） |
 | API | `app/api/v1/` 11 个路由模块 | market/watchlist/stock/replay/agent/simulation/trade/system/settings/rss/backtest |
-| 策略回测 | `app/api/v1/backtest.py` `models/strategy.py` 前端 `views/Backtest.vue` | 策略 DB 化管理（`strategy_configs` 表，增删改/停用/复制/测试）；`run(bars, params)` 自定义策略代码（内置 `sma/ema`）；单只 `list` / 自选组合 `dict {symbol: K线}` 双模式；**100股整手建仓**（`int(spend/fill/100)*100`）；**未来函数检测**（`_check_future_function` 正则扫描）；内置 4 个策略（均线金叉/RSI超卖/MACD/布林带）；**沪深300基准对比** + **最大回撤标记+修复周期**；新建策略即时插入临时条目 |
+| 策略回测 | `app/api/v1/backtest.py` `models/strategy.py` 前端 `views/Backtest.vue` | 策略 DB 化管理；**100股整手建仓**；**未来函数检测**；内置 4 策略（均线/RSI/MACD/布林带）；**沪深300基准对比** + **最大回撤标记+修复周期**；**专业指标**（Sharpe/Sortino/Calmar/盈亏比/连赢连亏/月度收益表）；新建策略临时条目 |
 
 ## 已修复的坑（避免重蹈）
 1. **`date: Optional[date] = None` 在 Python3.13 类字段上会解析成 NoneType** → 用 `from datetime import date as _date` 别名（见 `schemas/common.py`）。
@@ -97,6 +97,7 @@
 - v1.1.4：**一键本地启动**（`start.bat` → `backend/scripts/dev_up.py`，后端 8000/前端 5173 起自动顺延空闲端口，Ctrl+C 一并停止）；**微博 Cookie 移到应用内配置**（设置页/订阅页新增「微博 Cookie」，`weibo_cookies` 存 DB；`/weibo/user/{uid}` 由后端直连 m.weibo.cn 拉取，不再依赖 RSSHub WEIBO_COOKIES/docker），vite 代理目标读 `BACKEND_PORT` 跟随启动端口。版本号 1.1.4 已同步。
 - v1.1.5：**AI 流式输出**（`/brainstorm/{symbol}/{agent_type}/stream` SSE + 自选股页流式渲染）；**策略回测**（导航「回测」，内置均线金叉死叉；策略 DB 化管理 + `run(bars, params)` 自定义代码 + 「测试代码」；浮点份额连续持仓修复高价股 0 交易；**自选组合回测** `symbols` 入参 / `_simulate_portfolio` / `list`+`dict` 双模式模板 + 「组合建仓比例」weight 参数 + 「从自选股导入」；模拟账户 AI 分散化（候选池轮转 + 风格评分）；前端状态管理重构为 Pinia。版本号 1.1.5 已同步。
 - v1.3.1：**复盘趋势图**（涨停/跌停/连板率/断板率近一周折线图）；**龙虎榜席位聚合**（按游资标签分组，显示操作个股+净额）；**选股池形态识别**（十字星/弱转强/二次回踩/底部反转）；**回测增强**（100股整手、未来函数检测、沪深300基准对比、最大回撤标记+修复周期、3个新内置策略、新建策略临时条目）；**自选优化**（分组删除、K线增量刷新不丢缩放）；**板块成分股接口**。版本号 1.3.1 已同步。
+- v1.3.2：**K线默认显示最近90根**（缩放到尾部）；**板块资金流+涨停排行合并**为一个表格（含7日累计列）；**回测专业指标**（Sharpe/Sortino/Calmar/盈亏比/连赢连亏/月度收益表/回撤修复天数）；**宏观数据新增美债5Y/30Y+金价银价**。版本号 1.3.2 已同步。
 
 ## 常用命令
 ```bash
@@ -111,7 +112,7 @@ cd C:\aiStock && docker compose config --quiet  # 验证 compose 配置
 ```
 
 ## Roadmap / 未完成项
-- v1.3.1：版本号 1.3.1 已同步（frontend package.json / CHANGELOG.md / agent.md）。
+- v1.3.2：版本号 1.3.2 已同步（frontend package.json / CHANGELOG.md / agent.md）。
 - 待优化：前端按需引入 (echarts/core、element-plus 按组件) 减少厂商包体积；release smoke 测试脚本（解压→compose→health 断言）。
 - 数据：恢复东财板块涨速/个股新闻/股东/情绪等（网络放开时）；复盘 Markdown 原文渲染；财务图表化。
 - 性能容量：SQLite→PostgreSQL（已支持）；TimescaleDB 预留。

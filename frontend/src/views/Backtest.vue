@@ -143,6 +143,16 @@
               </el-col>
             </el-row>
             <div ref="chartEl" style="width:100%;height:320px" />
+            <div v-if="result.metrics.dd_start" class="fs12 mt4" style="color:#909399">
+              最大回撤：{{ result.metrics.dd_start }} → {{ result.metrics.dd_end }}（{{ result.metrics.recovery_days }}天修复）
+            </div>
+            <el-divider content-position="left">月度收益</el-divider>
+            <div v-if="result.metrics.monthly_returns && result.metrics.monthly_returns.length" class="monthly-grid">
+              <div v-for="m in result.metrics.monthly_returns" :key="m.month" class="monthly-cell">
+                <div class="fs11" style="color:#909399">{{ m.month }}</div>
+                <div class="fs12 mono" :class="m.return >= 0 ? 'up' : 'down'">{{ m.return >= 0 ? '+' : '' }}{{ (m.return * 100).toFixed(2) }}%</div>
+              </div>
+            </div>
             <el-divider content-position="left">交易明细（{{ result.trades.length }} 笔）</el-divider>
             <el-table v-if="result.trades.length" :data="result.trades" size="small" max-height="320">
               <el-table-column prop="symbol" label="标的" width="110" />
@@ -319,8 +329,18 @@ const metricCards = computed(() => {
     { label: '累计收益', value: ((m.total_return * 100).toFixed(2)) + '%', cls: pctCls(m.total_return) },
     { label: '年化收益', value: ((m.annualized_return * 100).toFixed(2)) + '%', cls: pctCls(m.annualized_return) },
     { label: '最大回撤', value: ((m.max_drawdown * 100).toFixed(2)) + '%', cls: 'down' },
-    { label: '胜率', value: ((m.win_rate * 100).toFixed(1)) + '%', cls: 'flat' },
+    { label: 'Sharpe', value: m.sharpe?.toFixed(2) || '-', cls: m.sharpe > 1 ? 'up' : m.sharpe > 0 ? 'flat' : 'down' },
+    { label: 'Sortino', value: m.sortino?.toFixed(2) || '-', cls: m.sortino > 1 ? 'up' : m.sortino > 0 ? 'flat' : 'down' },
+    { label: 'Calmar', value: m.calmar?.toFixed(2) || '-', cls: m.calmar > 1 ? 'up' : 'flat' },
+    { label: '胜率', value: ((m.win_rate * 100).toFixed(1)) + '%', cls: m.win_rate > 0.5 ? 'up' : 'down' },
+    { label: '盈亏比', value: m.profit_factor?.toFixed(2) || '-', cls: m.profit_factor > 1 ? 'up' : 'down' },
     { label: '交易次数', value: String(m.trade_count), cls: 'flat' },
+    { label: '平均持仓', value: (m.avg_holding_days || 0).toFixed(1) + '天', cls: 'flat' },
+    { label: '最大连赢', value: String(m.max_consec_win || 0), cls: 'up' },
+    { label: '最大连亏', value: String(m.max_consec_loss || 0), cls: 'down' },
+    { label: '平均盈利', value: fmtNum(m.avg_win || 0), cls: 'up' },
+    { label: '平均亏损', value: fmtNum(m.avg_loss || 0), cls: 'down' },
+    { label: '回撤修复', value: (m.recovery_days || 0) + '天', cls: 'flat' },
     { label: '期末资金', value: fmtNum(m.final_equity), cls: 'flat' }
   ]
 })
@@ -624,4 +644,6 @@ onBeforeUnmount(() => {
   background: #0d1117; color: #e6edf3; resize: vertical;
 }
 .code-editor:focus { outline: none; border-color: #409eff; }
+.monthly-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+.monthly-cell { padding: 4px 8px; border: 1px solid #ebeef5; border-radius: 4px; text-align: center; min-width: 70px; }
 </style>
