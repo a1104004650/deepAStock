@@ -14,36 +14,46 @@
       <el-row :gutter="10">
         <el-col :xs="24" :sm="14">
           <div class="card">
-            <div class="fs14 bold">手动录入一条交易</div>
-            <el-form inline class="mt8" label-width="0" @submit.prevent>
+            <div class="fs14 bold">手动录入交易</div>
+            <el-form inline class="mt8" label-width="0" @submit.prevent="addManual">
               <el-form-item>
-                <el-select v-model="form.symbol" filterable remote :remote-method="searchStock" placeholder="搜索股票（代码/名称）" style="width:200px" :loading="searching" @change="onSymbol">
+                <el-select v-model="form.symbol" filterable remote :remote-method="searchStock" placeholder="搜索股票" style="width:160px" :loading="searching" @change="onSymbol">
                   <el-option v-for="s in searchResults" :key="s.symbol" :label="`${s.name} ${s.symbol}`" :value="s.symbol" />
                 </el-select>
               </el-form-item>
               <el-form-item>
-                <el-input v-model="form.name" placeholder="名称（可自动填充）" style="width:130px" />
+                <el-input v-model="form.name" placeholder="名称" style="width:100px" />
               </el-form-item>
               <el-form-item>
-                <el-radio-group v-model="form.action">
+                <el-radio-group v-model="form.action" size="small">
                   <el-radio-button value="buy">买入</el-radio-button>
                   <el-radio-button value="sell">卖出</el-radio-button>
                 </el-radio-group>
               </el-form-item>
               <el-form-item>
-                <el-input-number v-model="form.quantity" :min="1" placeholder="数量" style="width:110px" />
+                <el-input-number v-model="form.quantity" :min="1" placeholder="数量" style="width:90px" size="small" />
               </el-form-item>
               <el-form-item>
-                <el-input-number v-model="form.price" :min="0.01" :precision="2" placeholder="价格" style="width:110px" />
+                <el-input-number v-model="form.price" :min="0.01" :precision="2" placeholder="价格" style="width:100px" size="small" />
               </el-form-item>
               <el-form-item>
-                <el-date-picker v-model="form.date" type="date" value-format="YYYY-MM-DD" placeholder="日期" style="width:140px" />
+                <el-date-picker v-model="form.date" type="date" value-format="YYYY-MM-DD" placeholder="日期" style="width:130px" size="small" />
               </el-form-item>
               <el-form-item>
-                <el-button type="primary" :loading="adding" @click="addManual">添加</el-button>
+                <el-button type="primary" :loading="adding" @click="addManual" size="small">添加</el-button>
               </el-form-item>
             </el-form>
-            <div class="fs12" style="color:#909399">支持买卖方向、数量、价格、日期；录入后自动重算持仓与盈亏。</div>
+            <div class="flex gap" style="margin-top:4px">
+              <el-button size="small" text @click="quickBuy(100)">买100</el-button>
+              <el-button size="small" text @click="quickBuy(200)">买200</el-button>
+              <el-button size="small" text @click="quickBuy(500)">买500</el-button>
+              <el-button size="small" text @click="quickBuy(1000)">买1000</el-button>
+              <el-button size="small" text type="success" @click="quickSell(100)">卖100</el-button>
+              <el-button size="small" text type="success" @click="quickSell(200)">卖200</el-button>
+              <el-button size="small" text type="success" @click="quickSell(500)">卖500</el-button>
+              <el-button size="small" text type="success" @click="quickSell(1000)">卖1000</el-button>
+            </div>
+            <div class="fs12 mt4" style="color:#909399">支持买卖方向、数量、价格、日期；回车提交；录入后自动重算持仓与盈亏。</div>
           </div>
 
           <div class="card mt8">
@@ -94,12 +104,24 @@
             <div class="fs14 bold">当前持仓</div>
             <el-table :data="positions" size="small" class="mt8">
               <el-table-column prop="symbol" label="代码" width="100" />
-              <el-table-column prop="name" label="名称" width="100" />
-              <el-table-column prop="remaining_qty" label="数量" align="right" />
-              <el-table-column prop="avg_cost" label="均价" align="right" />
-              <el-table-column label="盈亏" align="right">
+              <el-table-column prop="name" label="名称" width="90" />
+              <el-table-column prop="remaining_qty" label="数量" align="right" width="70" />
+              <el-table-column prop="avg_cost" label="均价" align="right" width="70" />
+              <el-table-column label="盈亏" align="right" width="85">
                 <template #default="{ row }">
                   <span class="mono" :class="(row.total_return||0) >= 0 ? 'up' : 'down'">{{ fmt(row.total_return) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="收益率" align="right" width="65">
+                <template #default="{ row }">
+                  <span class="mono" :class="(row.return_rate||0) >= 0 ? 'up' : 'down'">
+                    {{ row.return_rate == null ? '-' : (row.return_rate * 100).toFixed(1) + '%' }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="持仓天" align="right" width="55">
+                <template #default="{ row }">
+                  <span class="mono">{{ getHoldingDays(row.symbol) }}</span>
                 </template>
               </el-table-column>
             </el-table>
@@ -111,31 +133,40 @@
         <div class="flex between" style="align-items:center">
           <span class="fs14 bold">交易记录（{{ trades.length }} 条）</span>
           <div class="flex gap">
-            <el-tag v-if="trades.length" size="small" type="info">支持逐条删除，导入错误可纠正</el-tag>
+            <el-tag v-if="trades.length" size="small" type="info">支持逐条删除、AI点评</el-tag>
           </div>
         </div>
-        <el-table :data="trades.slice(0, 100)" size="small" class="mt8">
-          <el-table-column prop="trade_date" label="日期" width="110" />
-          <el-table-column prop="symbol" label="代码" width="110" />
-          <el-table-column prop="name" label="名称" width="120" />
-          <el-table-column label="方向" width="80">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.action === 'buy' ? 'danger' : 'success'">{{ row.action === 'buy' ? '买入' : '卖出' }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="quantity" label="数量" align="right" />
-          <el-table-column prop="price" label="价格" align="right" />
-          <el-table-column prop="amount" label="金额" align="right">
-            <template #default="{ row }">{{ fmt(row.amount) }}</template>
-          </el-table-column>
-          <el-table-column label="操作" width="90" align="center">
-            <template #default="{ row }">
-              <el-popconfirm title="删除该条记录？" @confirm="deleteOne(row)">
-                <template #reference><el-button size="small" type="danger" link>删除</el-button></template>
-              </el-popconfirm>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div v-for="row in trades.slice(0, 50)" :key="row.id" class="trade-item">
+          <div class="trade-row">
+            <span class="trade-date">{{ row.trade_date }}</span>
+            <span class="trade-symbol">{{ row.symbol }}</span>
+            <span class="trade-name">{{ row.name }}</span>
+            <el-tag size="small" :type="row.action === 'buy' ? 'danger' : 'success'">{{ row.action === 'buy' ? '买' : '卖' }}</el-tag>
+            <span class="trade-qty">{{ row.quantity }}</span>
+            <span class="trade-price">{{ row.price }}</span>
+            <span class="trade-amount">{{ fmt(row.amount) }}</span>
+            <el-button size="small" type="primary" link :loading="reviewingId === row.id" @click="reviewTrade(row)">
+              {{ getReview(row) ? '重新点评' : 'AI点评' }}
+            </el-button>
+            <el-popconfirm title="删除该条记录？" @confirm="deleteOne(row)">
+              <template #reference><el-button size="small" type="danger" link>删除</el-button></template>
+            </el-popconfirm>
+          </div>
+          <!-- AI 点评结果内嵌显示 -->
+          <div v-if="getReview(row)" class="trade-review">
+            <div class="review-line">
+              <el-tag size="small" :type="getReview(row).rating === 'good' ? 'success' : getReview(row).rating === 'poor' ? 'danger' : 'warning'">
+                {{ getReview(row).rating === 'good' ? '合理' : getReview(row).rating === 'poor' ? '需改进' : '中性' }}
+              </el-tag>
+              <span class="mono fs12" style="margin-left:8px">{{ getReview(row).score }}分</span>
+              <span v-if="getReview(row).support" class="fs11" style="margin-left:12px;color:#67c23a">支撑 {{ getReview(row).support }}</span>
+              <span v-if="getReview(row).resistance" class="fs11" style="margin-left:8px;color:#f56c6c">止盈 {{ getReview(row).resistance }}</span>
+              <span v-if="getReview(row).stop_loss" class="fs11" style="margin-left:8px;color:#e6a23c">止损 {{ getReview(row).stop_loss }}</span>
+            </div>
+            <div class="review-text">{{ getReview(row).analysis }}</div>
+            <div v-if="getReview(row).logic" class="review-logic">{{ getReview(row).logic }}</div>
+          </div>
+        </div>
         <el-empty v-if="!trades.length" description="暂无交易记录" :image-size="50" />
       </div>
     </div>
@@ -160,6 +191,18 @@ const fileInput = ref(null)
 const form = ref({ symbol: '', name: '', action: 'buy', quantity: 100, price: 0, date: new Date().toISOString().slice(0, 10) })
 const searchResults = ref([])
 const searching = ref(false)
+
+// AI 点评
+const reviewingId = ref(null)
+
+function getReview(row) {
+  if (!row.note) return null
+  try {
+    return JSON.parse(row.note)
+  } catch {
+    return null
+  }
+}
 
 function fmt(v) {
   return v == null ? '-' : Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -268,6 +311,38 @@ async function clearAll() {
   }
 }
 
+function quickBuy(qty) {
+  form.value.action = 'buy'
+  form.value.quantity = qty
+}
+
+function quickSell(qty) {
+  form.value.action = 'sell'
+  form.value.quantity = qty
+}
+
+function getHoldingDays(symbol) {
+  const symTrades = trades.value.filter(t => t.symbol === symbol).sort((a, b) => a.trade_date.localeCompare(b.trade_date))
+  if (!symTrades.length) return 0
+  const first = new Date(symTrades[0].trade_date)
+  const now = new Date()
+  return Math.max(1, Math.ceil((now - first) / 86400000))
+}
+
+async function reviewTrade(row) {
+  reviewingId.value = row.id
+  try {
+    const r = await tradeApi.reviewTrade(row.id)
+    // 保存到本地trade数据
+    row.note = JSON.stringify(r)
+    ElMessage.success('点评完成')
+  } catch (e) {
+    ElMessage.error('点评失败')
+  } finally {
+    reviewingId.value = null
+  }
+}
+
 async function load() {
   loading.value = true
   try {
@@ -282,3 +357,65 @@ async function load() {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.up { color: #ef232a; }
+.down { color: #14b143; }
+.mono { font-family: Consolas, monospace; }
+.page { }
+.card {
+  background: #fff; border: 1px solid #e4e7ed; border-radius: 8px;
+  padding: 12px; color: #303133;
+}
+.mt8 { margin-top: 8px; }
+.mt4 { margin-top: 4px; }
+.fs11 { font-size: 11px; }
+.fs12 { font-size: 12px; }
+.fs13 { font-size: 13px; }
+.fs14 { font-size: 14px; }
+.bold { font-weight: 600; }
+.flex { display: flex; }
+.between { justify-content: space-between; }
+.gap { gap: 8px; }
+
+.trade-item {
+  border-bottom: 1px solid #ebeef5;
+  padding: 8px 0;
+}
+.trade-item:last-child { border-bottom: none; }
+.trade-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.trade-date { color: #606266; width: 90px; }
+.trade-symbol { color: #409eff; width: 80px; font-family: Consolas, monospace; }
+.trade-name { width: 70px; }
+.trade-qty { width: 60px; text-align: right; font-family: Consolas, monospace; }
+.trade-price { width: 60px; text-align: right; font-family: Consolas, monospace; }
+.trade-amount { width: 80px; text-align: right; font-family: Consolas, monospace; color: #606266; }
+
+.trade-review {
+  margin-top: 6px;
+  padding: 8px 12px;
+  background: #f5f7fa;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.review-line {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.review-text { color: #606266; }
+.review-logic { color: #909399; margin-top: 4px; font-style: italic; }
+
+:deep(.el-table) { background: transparent; color: #303133; }
+:deep(.el-table tr), :deep(.el-table th.el-table__cell) { background: transparent; }
+:deep(.el-table th.el-table__cell) { color: #606266; }
+:deep(.el-table--border, .el-table--group) { border-color: #ebeef5; }
+:deep(.el-table td.el-table__cell), :deep(.el-table th.el-table__cell.is-leaf) { border-bottom: 1px solid #ebeef5; }
+:deep(.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell) { background: #f5f7fa; }
+</style>

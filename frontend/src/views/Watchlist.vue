@@ -123,8 +123,25 @@
                 <el-empty v-if="!kline.length" description="暂无该周期K线" :image-size="70" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center" />
               </div>
               <div v-else style="position:relative;height:100%">
-                <LineChart v-if="intraday.length" :data="intraday" height="460px" :volume="true" :pre-close="symbolStore.selectedRealtime.pre_close" />
+                <LineChart v-if="intraday.length" :data="intraday" height="430px" :volume="true"
+                  :pre-close="symbolStore.selectedRealtime.prev_close"
+                  :signals="intradaySignals" :show-vwap="!!intradaySignals.length"
+                  :show-t="intradayShowT" />
                 <el-empty v-else description="暂无分时数据" :image-size="70" style="position:absolute;inset:0" />
+                <!-- 分时图工具栏：做T开关 -->
+                <div v-if="intraday.length" class="intraday-toolbar">
+                  <el-checkbox v-model="intradayShowT" size="small">做T信号</el-checkbox>
+                </div>
+                <!-- 主力意图标签 -->
+                <div v-if="intradaySummary?.intent" class="intent-bar">
+                  <span class="intent-label" :class="'intent-' + (intradaySummary.intent.primary === '真拉升' ? 'rally' : intradaySummary.intent.primary === '诱多' ? 'trap' : intradaySummary.intent.primary === '诱空' ? 'bear' : intradaySummary.intent.primary === '吸筹' ? 'accumulate' : intradaySummary.intent.primary === '洗盘' ? 'shakeout' : 'wait')">
+                    {{ intradaySummary.intent.primary }}
+                  </span>
+                  <span v-if="intradaySummary.intent.confidence > 0" class="fs11" style="color:#606266">{{ intradaySummary.intent.confidence }}%</span>
+                  <template v-for="(v, k) in intradaySummary.intent.all_scores" :key="k">
+                    <span v-if="v > 10" class="fs11" style="color:#606266">{{ k }}{{ Math.round(v) }}%</span>
+                  </template>
+                </div>
               </div>
             </div>
 
@@ -485,6 +502,10 @@ const VALID_PERIODS = ['mf', 'm5', 'm15', 'm30', 'm60', 'day']
 const period = ref('day')
 const kline = ref([])
 const intraday = ref([])
+const intradaySignals = ref([])
+const intradaySummary = ref(null)
+const intradayPctMode = ref(false)
+const intradayShowT = ref(false)
 const czsc = ref({})
 const stockNews = ref([])
 const sentiment = ref({})
@@ -687,23 +708,41 @@ async function loadStockDetail() {
 }
 
 let _klineLoading = false
+let _klineSeq = 0
 async function loadKline() {
   const sym = symbolStore.selectedSymbol
   if (!sym || _klineLoading) return
   _klineLoading = true
+  const seq = ++_klineSeq
+  // 先清空旧数据，避免切换个股时旧图表残留
+  intraday.value = []
+  intradaySignals.value = []
+  intradaySummary.value = null
+  kline.value = []
   try {
     if (period.value === 'mf') {
-      const r = await marketApi.intraday({ symbol: sym })
-      intraday.value = r || []
-      kline.value = []
+      let preClose = symbolStore.selectedRealtime?.prev_close || 0
+      if (!preClose) {
+        try {
+          const b = await stockApi.basic(sym)
+          if (b?.realtime?.prev_close) {
+            preClose = b.realtime.prev_close
+            symbolStore.updateRealtime(b.realtime)
+          }
+        } catch {}
+      }
+      const r = await marketApi.intradayAnalysis({ symbol: sym, pre_close: preClose })
+      if (seq !== _klineSeq) return
+      intraday.value = r.bars || []
+      intradaySignals.value = r.signals || []
+      intradaySummary.value = r.summary || null
       return
     }
     const r = await stockApi.kline(sym, { period: period.value })
+    if (seq !== _klineSeq) return
     const newData = r.data || []
-    // 增量更新：如果旧数据存在且长度一致，只更新最后几条；否则整体替换
     const old = kline.value
     if (old.length > 0 && newData.length > 0 && Math.abs(old.length - newData.length) <= 3) {
-      // 只更新尾部差异
       const minLen = Math.min(old.length, newData.length)
       for (let i = 0; i < minLen; i++) {
         if (old[i].dt === newData[i].dt) {
@@ -720,8 +759,7 @@ async function loadKline() {
     } else {
       kline.value = newData
     }
-    intraday.value = []
-  } catch { /* 保留旧数据 */ } finally { _klineLoading = false }
+  } catch (e) { console.warn('loadKline error:', e) } finally { _klineLoading = false }
 }
 
 async function loadBrain() {
@@ -797,7 +835,16 @@ async function load(silent = false) {
     if (!currentGroupId.value || !groups.value.some(g => g.id === currentGroupId.value)) {
       currentGroupId.value = groups.value[0]?.id
     }
-    if (symbolStore.selectedSymbol) loadBrain()
+    if (symbolStore.selectedSymbol) {
+      loadBrain()
+      loadKline()
+      loadStockDetail()
+    } else {
+      // 自动选中第一个分组的第一个个股
+      const firstGroup = groups.value.find(g => g.items?.length)
+      const firstItem = firstGroup?.items?.[0]
+      if (firstItem) selectItem(firstItem)
+    }
   } finally { loading.value = false }
 }
 
@@ -937,14 +984,24 @@ function persistTabState() {
 watch([currentGroupId, showRecent], persistTabState)
 
 let timer = null
+let loaded = false
 onMounted(() => {
   restoreTabState()
   const qSym = route.query.symbol
   if (qSym) { loadWithSymbol(qSym) } else { load() }
+  loaded = true
   timer = setInterval(() => {
     if (symbolStore.selectedSymbol) loadKline()
     if (showRecent.value && recentList.value.length) loadRecentPrices()
   }, 30000)
+})
+// 路由变化时重新加载（解决导航回自选股不刷新的问题）
+watch(() => route.path, (p) => {
+  if (p === '/watchlist' && loaded) {
+    const qSym = route.query.symbol
+    if (qSym) { loadWithSymbol(qSym) }
+    else if (!symbolStore.selectedSymbol) { load() }
+  }
 })
 onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
@@ -967,4 +1024,13 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .stream-box { background: #1a1a2e; color: #e6e6f0; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.7; padding: 12px 14px; border-radius: 6px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
 .stream-cursor { display: inline-block; width: 7px; height: 14px; background: #4ade80; margin-left: 2px; vertical-align: text-bottom; animation: stream-blink 1s step-end infinite; }
 @keyframes stream-blink { 50% { opacity: 0; } }
+.intent-bar { position: absolute; top: 8px; left: 56px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.95); border: 1px solid #dcdfe6; border-radius: 6px; padding: 4px 10px; z-index: 10; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.intent-label { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; color: #fff; background: #909399; }
+.intent-rally { background: #409eff; }
+.intent-trap { background: #f56c6c; }
+.intent-bear { background: #67c23a; }
+.intent-accumulate { background: #e6a23c; }
+.intent-shakeout { background: #909399; }
+.intent-wait { background: #c0c4cc; }
+.intraday-toolbar { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
 </style>

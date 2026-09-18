@@ -378,6 +378,190 @@ class TradeImportService:
             ))
         await self.db.commit()
 
+    async def review_trade(self, user_id: int, trade_id: int) -> dict:
+        """AI 点评单笔交易（综合量价、板块、情绪分析）"""
+        import json
+        trade = (await self.db.execute(
+            select(UserTrade).where(UserTrade.id == trade_id, UserTrade.user_id == user_id)
+        )).scalars().first()
+        if not trade:
+            return {"error": "交易记录不存在"}
+
+        # 获取同股票历史交易
+        sym_trades = (await self.db.execute(
+            select(UserTrade).where(UserTrade.user_id == user_id, UserTrade.symbol == trade.symbol)
+            .order_by(UserTrade.trade_date)
+        )).scalars().all()
+
+        # 获取当前持仓
+        positions = await self.get_positions(user_id)
+        pos = next((p for p in positions if p["symbol"] == trade.symbol), None)
+
+        # 获取股票基本信息
+        stock_info = ""
+        try:
+            basic = await self.dsm.get_realtime([trade.symbol])
+            if basic and trade.symbol in basic:
+                rt = basic[trade.symbol]
+                stock_info = (
+                    f"\n实时行情:\n"
+                    f"  最新价: {rt.get('price', 0)}\n"
+                    f"  涨跌幅: {rt.get('change_pct', 0)}%\n"
+                    f"  量比: {rt.get('volume_ratio', 0)}\n"
+                    f"  换手率: {rt.get('turnover_rate', 0)}%\n"
+                )
+        except Exception:
+            pass
+
+        # 获取日K线（近20根）
+        kline_info = ""
+        try:
+            kline_data = await self.dsm.get_kline(trade.symbol, period="day", count=20)
+            if kline_data:
+                recent = kline_data[-5:] if len(kline_data) >= 5 else kline_data
+                kline_info = "\n近5日K线:\n"
+                for k in recent:
+                    kline_info += f"  {k.get('dt', '')}: 开{k.get('open', 0):.2f} 高{k.get('high', 0):.2f} 低{k.get('low', 0):.2f} 收{k.get('close', 0):.2f}\n"
+                
+                # 计算支撑位和压力位
+                if len(kline_data) >= 10:
+                    lows = [k.get('low', 0) for k in kline_data[-10:]]
+                    highs = [k.get('high', 0) for k in kline_data[-10:]]
+                    support = min(lows)
+                    resistance = max(highs)
+                    kline_info += f"  近10日支撑位: {support:.2f}\n"
+                    kline_info += f"  近10日压力位: {resistance:.2f}\n"
+        except Exception:
+            pass
+
+        # 构建 prompt
+        trade_info = (
+            f"交易日期: {trade.trade_date.isoformat()}\n"
+            f"股票: {trade.name}({trade.symbol})\n"
+            f"方向: {'买入' if trade.action == 'buy' else '卖出'}\n"
+            f"数量: {trade.quantity}股\n"
+            f"价格: {float(trade.price):.2f}元\n"
+        )
+
+        position_info = ""
+        if pos:
+            position_info = (
+                f"\n当前持仓:\n"
+                f"  持仓数量: {pos['remaining_qty']}股\n"
+                f"  持仓均价: {pos['avg_cost']:.2f}元\n"
+                f"  浮动盈亏: {pos['total_return']:.2f}元 ({pos['return_rate']*100:.2f}%)\n"
+            )
+
+        prompt = f"""请作为专业A股交易分析师，综合分析以下交易：
+
+{trade_info}{position_info}{stock_info}{kline_info}
+
+请从以下维度深度分析：
+
+1. **量价分析**：结合K线形态、成交量、换手率判断买卖点合理性
+2. **板块分析**：该股票所属板块当前强弱，是否为板块龙头
+3. **位置分析**：当前股价在近期走势中的位置（高位/中位/低位）
+4. **情绪分析**：市场情绪对该板块/个股的影响
+5. **逻辑预期**：后续走势的逻辑判断
+
+**输出格式（严格JSON）**：
+{{
+    "rating": "good/neutral/poor",
+    "score": 0-100,
+    "analysis": "量价分析+板块分析+位置分析（3-4句话）",
+    "support": "支撑位（具体价格，防量化精确到分）",
+    "resistance": "止盈位（具体价格）",
+    "stop_loss": "止损位（具体价格）",
+    "suggestion": "操作建议（1-2句话）",
+    "logic": "后续逻辑预期（1-2句话）"
+}}"""
+
+        system_prompt = (
+            "你是专业A股短线交易分析师，擅长量价分析和板块轮动分析。"
+            "给出的支撑位要精确到分（如10.23），且支撑位要设在当前价下方防止量化扫货。"
+            "止盈位和止损位也要具体。"
+            "分析要客观专业，风险第一。"
+        )
+
+        try:
+            from app.core.agent.llm_client import LLMClient, LLMNotConfigured
+            from app.models.agent import AgentConfig
+            from sqlalchemy import select as sa_select
+
+            cfg = (await self.db.execute(
+                sa_select(AgentConfig).limit(1)
+            )).scalars().first()
+
+            llm = LLMClient(
+                api_base=cfg.api_base if cfg else "",
+                api_key=cfg.api_key if cfg else "",
+                model=cfg.model_name if cfg else "deepseek-chat",
+                temperature=0.3,
+                max_tokens=1500,
+            )
+
+            result = await llm.complete_json(prompt, system_prompt)
+            
+            # 保存点评到交易记录
+            trade.note = json.dumps(result, ensure_ascii=False)
+            await self.db.commit()
+            
+            return result
+
+        except LLMNotConfigured:
+            return self._local_trade_review(trade, pos, sym_trades)
+        except Exception as e:
+            logger.warning(f"AI review failed: {e}")
+            return self._local_trade_review(trade, pos, sym_trades)
+
+    def _local_trade_review(self, trade, pos, sym_trades) -> dict:
+        """本地启发式交易点评"""
+        import json
+        is_buy = trade.action == "buy"
+        price = float(trade.price)
+        score = 60
+        analysis = ""
+
+        if pos:
+            avg_cost = pos["avg_cost"]
+            if is_buy and price < avg_cost * 0.98:
+                score += 10
+                analysis = "买入价格低于持仓均价，有摊薄成本效果"
+            elif is_buy and price > avg_cost * 1.02:
+                score -= 10
+                analysis = "买入价格高于持仓均价，追高风险"
+            elif not is_buy and price > avg_cost:
+                score += 10
+                analysis = "卖出价格高于均价，盈利出局"
+            elif not is_buy and price < avg_cost:
+                score -= 5
+                analysis = "卖出价格低于均价，止损出局"
+        
+        if not analysis:
+            analysis = "交易操作符合常规逻辑"
+
+        # 计算支撑位和压力位（基于价格估算）
+        support = round(price * 0.97, 2)  # 下方3%
+        resistance = round(price * 1.05, 2)  # 上方5%
+        stop_loss = round(price * 0.95, 2)  # 止损5%
+
+        rating = "good" if score >= 70 else "neutral" if score >= 50 else "poor"
+
+        result = {
+            "rating": rating,
+            "score": min(max(score, 30), 95),
+            "analysis": analysis,
+            "support": str(support),
+            "resistance": str(resistance),
+            "stop_loss": str(stop_loss),
+            "suggestion": "建议设定明确的止盈止损位，严格执行交易纪律",
+            "logic": "后续走势需观察量能配合和板块轮动情况",
+        }
+
+        # 保存点评
+        trade.note = json.dumps(result, ensure_ascii=False)
+        return result
+
     @staticmethod
     def _pos_dict(p) -> dict:
         return {"symbol": p.symbol, "name": p.name, "remaining_qty": p.remaining_qty,

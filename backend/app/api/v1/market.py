@@ -230,6 +230,13 @@ async def get_intraday(symbol: str, date: str = None, db: AsyncSession = Depends
     return await svc.get_intraday(symbol, date)
 
 
+@router.get("/intraday-analysis")
+async def get_intraday_analysis(symbol: str, pre_close: float = 0, db: AsyncSession = Depends(get_db)):
+    """分时主力行为分析（VWAP/量比/吸筹洗盘诱多诱空真拉升信号）"""
+    svc = KlineService(db)
+    return await svc.get_intraday_analysis(symbol, pre_close)
+
+
 @router.get("/sectors/monitor")
 async def get_sector_monitor(db: AsyncSession = Depends(get_db)):
     svc = MarketService(db)

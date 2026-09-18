@@ -1261,13 +1261,21 @@ class SinaSource(DataSourceBase):
 
     def _em_sector_groups_rows(self) -> list[dict]:
         """按 _EM_SECTOR_GROUPS 聚合东方财富板块：实时涨跌幅/成交额 + 领涨股。
-        板块无 ETF 分时，前端展示实时行情与可点击的领涨股。"""
+        板块无 ETF 分时，前端展示实时行情与可点击的领涨股。
+        新增 kind 字段区分 行业/概念。"""
         import time as _t
         import concurrent.futures
         now = _t.time()
         if self._EM_TRACKED_CACHE and (now - self._EM_TRACKED_CACHE_TS) < 60:
             return self._EM_TRACKED_CACHE
-        boards = self._em_boards("m:90+t:3") + self._em_boards("m:90+t:2")
+        # t:2 = 行业, t:3 = 概念；分别打标签
+        concept_boards = self._em_boards("m:90+t:3")
+        industry_boards = self._em_boards("m:90+t:2")
+        for b in concept_boards:
+            b["_kind"] = "概念"
+        for b in industry_boards:
+            b["_kind"] = "行业"
+        boards = concept_boards + industry_boards
         used = set()
         result: list[dict] = []
         leader_names: set = set()
@@ -1298,6 +1306,7 @@ class SinaSource(DataSourceBase):
                 "price": 0, "change_pct": round(_f(best.get("f3")), 2),
                 "amount": _f(best.get("f6")), "change": 0,
                 "is_etf": False, "leader_name": leader, "leader_symbol": "", "count": 0,
+                "kind": best.get("_kind", "概念"),
             })
         if leader_names:
             syms: dict = {}
@@ -2192,6 +2201,7 @@ class SinaSource(DataSourceBase):
                 "price": info.get("price", 0), "change_pct": info.get("change_pct", 0),
                 "amount": info.get("amount", 0), "change": info.get("change", 0),
                 "is_etf": True, "leader_name": "", "leader_symbol": "", "count": 0,
+                "kind": "指数",
             })
         # 概念/行业监控板块（东方财富板块信源：跨境电商/IT软件/液冷服务器/云游戏/白银/铜/钻石培育/稀土/贵金属/风电/火电/传媒/旅游/航运）
         try:

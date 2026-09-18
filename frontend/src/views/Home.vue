@@ -262,15 +262,23 @@
             <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
               <span class="fs14 bold">板块监控</span>
               <div class="flex gap" style="align-items:center">
+                <el-radio-group v-model="sectorKind" size="small">
+                  <el-radio-button value="all">全部</el-radio-button>
+                  <el-radio-button value="行业">行业</el-radio-button>
+                  <el-radio-button value="概念">概念</el-radio-button>
+                </el-radio-group>
                 <span class="fs12" style="color:#909399">点击板块查看分时</span>
                 <el-button size="small" :loading="sectorLoading" @click="loadSectorMonitor">刷新</el-button>
               </div>
             </div>
             <div class="sector-grid mt8">
-              <div v-for="s in sectorList" :key="s.symbol"
+              <div v-for="s in filteredSectors" :key="s.symbol"
                 class="sector-card" :class="{ active: selectedSector?.symbol === s.symbol }"
                 @click="selectSector(s)">
-                <div class="fs12 bold">{{ s.sector }}</div>
+                <div class="fs12 bold">
+                  <span v-if="s.kind && !s.is_etf" class="kind-badge" :class="'kind-' + (s.kind === '行业' ? 'industry' : 'concept')">{{ s.kind }}</span>
+                  {{ s.sector }}
+                </div>
                 <div class="mono fs13" :class="Number(s.change_pct) >= 0 ? 'up' : 'down'">
                   {{ Number(s.change_pct) >= 0 ? '+' : '' }}{{ (s.change_pct || 0).toFixed(2) }}%
                 </div>
@@ -601,6 +609,17 @@ const sectorLoading = ref(false)
 const selectedSector = ref(null)
 const sectorIntraday = ref([])
 const sectorPreClose = ref(0)
+const sectorKind = ref('all')
+const filteredSectors = computed(() => {
+  let list = sectorList.value || []
+  if (sectorKind.value !== 'all') {
+    list = list.filter(s => s.kind === sectorKind.value || s.is_etf === true)
+  }
+  // ETF 排前面，其余按涨幅降序
+  const etfs = list.filter(s => s.is_etf === true).sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0))
+  const boards = list.filter(s => s.is_etf !== true).sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0))
+  return [...etfs, ...boards]
+})
 const hotStocks = ref([])
 
 const calendar = ref({ date: '', unlocks: [], dividends: [] })
@@ -1378,4 +1397,7 @@ onUnmounted(() => {
   margin-top: 3px;
 }
 .unk { color: #909399; }
+.kind-badge { display: inline-block; font-size: 10px; padding: 0 4px; border-radius: 3px; margin-right: 3px; font-weight: 400; line-height: 16px; vertical-align: middle; }
+.kind-industry { background: #ecf5ff; color: #409eff; }
+.kind-concept { background: #fdf6ec; color: #e6a23c; }
 </style>
