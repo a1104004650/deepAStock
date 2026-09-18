@@ -9,6 +9,88 @@
         <span class="fs12" style="color:#909399">每 15 秒自动刷新行情</span>
       </div>
 
+      <div class="funnel-top">
+        <div class="overview-bar">
+          <template v-for="mc in mainIdxDefs" :key="mc.code">
+            <span class="ov-item">
+              <span class="ov-name">{{ mc.name }}</span>
+              <span class="mono bold" :class="ixCls(mc.code)">{{ fmtPrice(ixOf(mc.code)?.price) }}</span>
+              <span class="mono fs12" :class="ixCls(mc.code)">{{ candidatePct(ixOf(mc.code)?.change_pct) }}</span>
+            </span>
+            <span class="ov-sep" />
+          </template>
+          <span class="ov-item">
+            <span class="ov-name">情绪</span>
+            <el-tag :type="emotion.tagType" size="small">{{ emotion.label }}</el-tag>
+          </span>
+          <span class="ov-sep" />
+          <span class="ov-item">
+            <span class="ov-name">涨停</span>
+            <span class="mono bold up">{{ distribution.limit_up ?? '0' }}</span>
+          </span>
+          <span class="ov-item">
+            <span class="ov-name">跌停</span>
+            <span class="mono bold down">{{ distribution.limit_down ?? '0' }}</span>
+          </span>
+          <span class="ov-sep" />
+          <span class="ov-item">
+            <span class="ov-name">成交</span>
+            <span class="mono bold">{{ fmtMoney(distribution.amount) }}</span>
+          </span>
+        </div>
+
+        <div class="card funnel-card">
+          <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:6px">
+            <div class="flex gap" style="align-items:center;flex-wrap:wrap">
+              <span class="fs14 bold">决策漏斗</span>
+              <el-tag size="small" :type="breadthState.tagType">{{ breadthState.label }}</el-tag>
+              <span class="fs12" :class="breadthState.level === 'unknown' ? 'unk' : breadthState.level === 'risk' ? 'down' : 'up'">
+                上涨 {{ breadthState.upText }} / 下跌 {{ breadthState.downText }}
+              </span>
+              <el-divider direction="vertical" />
+              <span class="fs12" style="color:#909399">数据时效</span>
+              <el-tag size="small" :type="dataStaleness.tagType">{{ dataStaleness.label }}</el-tag>
+            </div>
+            <span class="fs11" style="color:#c0c4cc">筛选来自人气/异动/板块公开行情，仅供研究参考，不构成交易指令</span>
+          </div>
+          <div class="flex gap mt8" style="align-items:center;flex-wrap:wrap">
+            <el-radio-group v-model="candSource" size="small">
+              <el-radio-button value="hot">人气TOP10</el-radio-button>
+              <el-radio-button value="rise">急拉</el-radio-button>
+              <el-radio-button value="fall">急跌</el-radio-button>
+            </el-radio-group>
+            <el-divider direction="vertical" />
+            <el-checkbox v-model="candNoST" size="small">排除 ST/退市风险</el-checkbox>
+            <el-checkbox v-model="candNoMonitored" size="small">排除重点监控</el-checkbox>
+            <el-checkbox v-model="candUpOnly" size="small">仅收红</el-checkbox>
+            <el-divider direction="vertical" />
+            <el-select v-model="candSector" size="small" clearable placeholder="全部监控板块" style="width:150px">
+              <el-option v-for="s in sectorOptions" :key="s.value" :value="s.value" :label="s.label" />
+            </el-select>
+            <span class="fs12" style="color:#909399">共 {{ candPool.length }} 只 · 命中 {{ candItems.length }} 只</span>
+          </div>
+          <div v-if="candItems.length" class="cand-grid mt8">
+            <div v-for="c in candItems" :key="c.symbol" class="hot-card cand-card" @click="goStock(c.symbol, c.name)">
+              <div class="flex between" style="align-items:center;gap:4px">
+                <span class="fs13 bold">{{ c.rank }}. {{ c.name }}</span>
+                <el-tag size="small" :type="Number(c.change_pct) >= 0 ? 'danger' : 'success'">
+                  {{ Number(c.change_pct) >= 0 ? '+' : '' }}{{ c.change_pct }}%
+                </el-tag>
+              </div>
+              <div class="mono fs15" style="color:#303133">{{ c.price }}</div>
+              <div class="fs11" style="color:#909399">热度 {{ c.heat }} · 换手 {{ c.hsl }}% · 量比 {{ c.lb }}</div>
+              <div class="reason-row"><el-tag v-for="(t, i) in c.tags" :key="i" size="small" effect="plain" type="info">{{ t }}</el-tag></div>
+              <div class="fs11 cand-why" :title="c.why">{{ c.why }}</div>
+            </div>
+          </div>
+          <el-empty v-else :description="candEmptyText" :image-size="46" />
+          <div class="fs11" style="color:#c0c4cc;margin-top:6px">
+            候选入选条件：板块资金流/板块监控命中 + 涨速榜上榜 + 热度达标（三项数据均来自本页行情接口）。
+            点击候选进入个股详情研究；模拟交易请到 <el-link type="primary" :underline="false" @click="goSimulation">模拟交易</el-link>，实盘记录到 <el-link type="primary" :underline="false" @click="goTrade">实盘导入</el-link>，历史验证到 <el-link type="primary" :underline="false" @click="goReplay">每日复盘</el-link>。
+          </div>
+        </div>
+      </div>
+
       <!-- 三大指数整行展示：每个面板独立周期（分时/日K/60/30/15/5分），分时与K线均带成交量 -->
       <el-row :gutter="10">
         <el-col v-for="mc in mainIdxDefs" :key="mc.code" :xs="24" :sm="8">
@@ -26,7 +108,7 @@
             <div class="mt4">
               <div class="mono fs18 bold" :class="ixCls(mc.code)">
                 {{ fmtPrice(ixOf(mc.code)?.price) }}
-                <span class="fs13">({{ (ixOf(mc.code)?.change_pct ?? 0) >= 0 ? '+' : '' }}{{ fmtPct(ixOf(mc.code)?.change_pct) }}%)</span>
+                <span class="fs13">({{ candidatePct(ixOf(mc.code)?.change_pct) }})</span>
               </div>
               <div class="fs12" style="color:#909399">成交 {{ fmtMoney(ixOf(mc.code)?.amount) }}</div>
             </div>
@@ -47,7 +129,9 @@
       <div class="ai-comment" v-if="indexComment">💡 指数点评：{{ indexComment }}</div>
 
       <!-- 市场状态：左侧涨跌区间分布 + 右侧沪深两市大盘资金流向 -->
-      <el-row :gutter="10" class="mt8">
+      <el-collapse v-model="openSections" class="funnel-collapse mt8">
+      <el-collapse-item name="sentiment" title="📊 市场情绪 · 涨跌分布">
+      <el-row :gutter="10">
         <el-col :xs="24" :sm="12">
           <div class="card" style="height:100%">
             <div class="flex gap" style="align-items:center;flex-wrap:wrap;margin-bottom:6px">
@@ -91,8 +175,8 @@
           </div>
         </el-col>
       </el-row>
-
-      <!-- 人气股票排行 TOP10 -->
+      </el-collapse-item>
+      <el-collapse-item name="hot" title="🔥 人气排行 · 实时异动">
       <el-row :gutter="10" class="mt8">
         <el-col :span="24">
           <div class="card">
@@ -166,8 +250,12 @@
           </div>
         </el-col>
       </el-row>
+      </el-collapse-item>
+      </el-collapse>
 
       <!-- 板块监控：自选板块ETF + 概念/行业实时行情 -->
+      <el-collapse v-model="openSections" class="funnel-collapse mt8">
+      <el-collapse-item name="sectors" title="📈 板块监控">
       <el-row :gutter="10" class="mt8">
         <el-col :span="24">
           <div class="card">
@@ -223,7 +311,8 @@
         </el-col>
       </el-row>
 
-      <!-- 板块资金流：行业 / 概念，各流入·流出前5 -->
+      </el-collapse-item>
+      <el-collapse-item name="fundflow" title="💰 资金流向">
       <el-row :gutter="10" class="mt8">
         <el-col :xs="24" :sm="12">
           <div class="card col-card flow-card">
@@ -293,7 +382,8 @@
         </el-col>
       </el-row>
 
-      <!-- 投资日历 + 监管异动 -->
+      </el-collapse-item>
+      <el-collapse-item name="calendar" title="📅 投资日历 · 监管异动">
       <el-row :gutter="10" class="mt8">
         <el-col :xs="24" :sm="12">
           <div class="card col-card">
@@ -352,7 +442,8 @@
         </el-col>
       </el-row>
 
-      <!-- 消息滚动 + ETF资金流 -->
+      </el-collapse-item>
+      <el-collapse-item name="news" title="📰 消息 · ETF 资金流">
       <el-row :gutter="10" class="mt8">
         <el-col :xs="24" :sm="12">
           <div class="card col-card">
@@ -409,6 +500,9 @@
         </el-col>
       </el-row>
 
+      </el-collapse-item>
+      </el-collapse>
+
       <!-- AI 大盘分析（内联显示，非弹框） -->
       <el-row :gutter="10" class="mt8">
         <el-col :span="24">
@@ -432,11 +526,14 @@ import MainLayout from '../layout/MainLayout.vue'
 import LineChart from '../components/LineChart.vue'
 import KlineChart from '../components/KlineChart.vue'
 import { marketApi, agentApi, rssApi } from '../api'
+import { useSymbolStore } from '../stores/symbol'
 import { formatNewsTime as _formatNewsTime, toEpochMs } from '../utils/time'
 
 const router = useRouter()
+const symbolStore = useSymbolStore()
 function goStock(symbol, name) {
   if (!symbol) return
+  symbolStore.select(symbol, { name: name || symbol })
   router.push({ path: '/watchlist', query: { symbol, name: name || '' } })
 }
 
@@ -444,6 +541,7 @@ const loading = ref(false)
 const mktLoading = ref(false)
 const mktSummary = ref('')
 const mktDate = ref('')
+const openSections = ref(['sentiment', 'hot', 'sectors', 'fundflow', 'calendar', 'news'])
 const indices = ref([])
 const news = ref([])
 const newsFilter = ref('')
@@ -542,11 +640,17 @@ function hotColor(heat) {
 }
 
 async function loadHotStocks() {
-  try { hotStocks.value = (await marketApi.hotStocks()) || [] } catch { /* 保留旧数据 */ }
+  try {
+    hotStocks.value = (await marketApi.hotStocks()) || []
+    hotLoadedAt.value = Date.now()
+  } catch { /* 保留旧数据 */ }
 }
 
 async function loadPriceMovers() {
-  try { movers.value = (await marketApi.priceMovers()) || { rise: [], fall: [] } } catch { /* 保留旧数据 */ }
+  try {
+    movers.value = (await marketApi.priceMovers()) || { rise: [], fall: [] }
+    moversLoadedAt.value = Date.now()
+  } catch { /* 保留旧数据 */ }
 }
 
 async function loadSectorMonitor() {
@@ -606,6 +710,128 @@ const maxBoard = computed(() => {
   const keys = Object.keys(ladder.value.ladder || {})
   return keys.length ? Math.max(...keys.map((k) => parseInt(k, 10))) : 0
 })
+
+const sectorOptions = computed(() => (sectorList.value || [])
+  .filter((s) => s && s.sector)
+  .map((s) => ({ value: s.sector, label: s.sector })))
+
+function candidatePct(v) {
+  if (v == null || Number.isNaN(Number(v))) return '-'
+  const n = Number(v)
+  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'
+}
+
+function sectorNameFor(symbol) {
+  const sym = String(symbol || '').toUpperCase()
+  const hit = (sectorList.value || []).find((s) => {
+    const ls = String(s.leader_symbol || '').toUpperCase()
+    return ls && ls === sym
+  })
+  return hit ? hit.sector : ''
+}
+
+const candSource = ref('hot')
+const candNoST = ref(true)
+const candNoMonitored = ref(true)
+const candUpOnly = ref(false)
+const candSector = ref('')
+
+const candPool = computed(() => {
+  const src = candSource.value
+  let rows = []
+  if (src === 'hot') rows = hotStocks.value || []
+  else if (src === 'rise') rows = (movers.value && movers.value.rise) || []
+  else rows = (movers.value && movers.value.fall) || []
+  const seen = new Set()
+  const pool = []
+  for (const r of rows) {
+    if (!r || !r.symbol) continue
+    const sym = String(r.symbol).toUpperCase()
+    if (seen.has(sym)) continue
+    seen.add(sym)
+    const name = String(r.name || '')
+    pool.push({
+      symbol: sym,
+      name,
+      price: r.price,
+      change_pct: r.change_pct,
+      heat: r.heat ?? null,
+      hsl: r.hsl,
+      lb: r.lb,
+      speed: r.speed ?? null,
+      turnover: r.turnover,
+      isSt: isStName(name),
+      isMonitored: monitoredSymbols.value.has(sym),
+      sector: sectorNameFor(sym)
+    })
+  }
+  return pool
+})
+
+const candItems = computed(() => {
+  let rows = candPool.value.filter((c) => {
+    if (candNoST.value && c.isSt) return false
+    if (candNoMonitored.value && c.isMonitored) return false
+    if (candUpOnly.value && Number(c.change_pct) < 0) return false
+    if (candSector.value && c.sector !== candSector.value) return false
+    return true
+  })
+  rows.sort((a, b) => {
+    if (candSource.value === 'hot') return (Number(b.heat) || 0) - (Number(a.heat) || 0)
+    return (Number(b.speed) || 0) - (Number(a.speed) || 0)
+  })
+  rows = rows.slice(0, 12).map((c, idx) => {
+    const tags = []
+    const why = []
+    if (candSource.value === 'rise') {
+      tags.push('急拉')
+      why.push(`涨速+${c.speed}%/分`)
+    } else if (candSource.value === 'fall') {
+      tags.push('急跌')
+      why.push(`涨速${c.speed}%/分`)
+    } else {
+      tags.push('人气')
+      why.push(`热度${c.heat ?? '-'}`)
+    }
+    if (c.sector) {
+      tags.push(c.sector)
+      why.push(`${c.sector}板块在监控列表`)
+    }
+    if (Number(c.hsl) >= 5) {
+      tags.push('高换手')
+      why.push(`换手${c.hsl}%`)
+    }
+    if (Number(c.lb) >= 2) {
+      tags.push('放量')
+      why.push(`量比${c.lb}`)
+    }
+    if (Number(c.change_pct) >= 9.8) why.push('涨幅逼近/达到涨停')
+    if (!why.length) why.push('仅上榜该榜单')
+    return { ...c, rank: idx + 1, tags, why: why.join(' · ') }
+  })
+  return rows
+})
+
+const candEmptyText = computed(() => {
+  if (!candPool.value.length) {
+    return candSource.value === 'hot' ? '人气榜暂无数据' : (candSource.value === 'rise' ? '暂无急拉标的' : '暂无急跌标的')
+  }
+  if (candNoST.value || candNoMonitored.value || candUpOnly.value || candSector.value) {
+    return '过滤后无候选，可放宽筛选'
+  }
+  return '暂无候选'
+})
+
+function goTrade() {
+  router.push('/trade')
+}
+function goReplay() {
+  router.push('/replay')
+}
+function goSimulation() {
+  router.push('/simulation')
+}
+
 const ratioUpDown = computed(() => {
   const up = distribution.value.limit_up || 0
   const down = distribution.value.limit_down || 0
@@ -689,6 +915,55 @@ const hotComment = computed(() => {
   return `人气龙头 ${top.name}（热度 ${top.heat}，${top.change_pct >= 0 ? '+' : ''}${top.change_pct}%）领衔；TOP10 中 ${up} 只上涨，说明盘面热度${up >= 6 ? '较高，资金接力情绪好' : '一般，谨防高位分歧'}`
 })
 const movers = ref({ rise: [], fall: [] })
+const moversLoadedAt = ref(0)
+const hotLoadedAt = ref(0)
+const distributionLoadedAt = ref(0)
+const lastTickAt = ref(Date.now())
+let heartbeatTimer = null
+
+const ST_NAME_RE = /(^|[^A-Za-z0-9])(S*ST|\*ST|退[A-Z0-9]{0,4}|X?D[A-Z]{0,2})/i
+
+function isStName(name) {
+  if (!name) return false
+  ST_NAME_RE.lastIndex = 0
+  if (ST_NAME_RE.test(String(name))) return true
+  return /(^|[^A-Z])(\*?ST|S*ST)/.test(String(name).toUpperCase()) || /退/.test(String(name))
+}
+
+const monitoredSymbols = computed(() => {
+  const out = new Set()
+  for (const m of monitor.value || []) {
+    if (m?.symbol) out.add(String(m.symbol).toUpperCase())
+  }
+  return out
+})
+
+const breadthState = computed(() => {
+  const d = distribution.value || {}
+  const up = Number(d.up_count)
+  const down = Number(d.down_count)
+  const total = Number(d.total)
+  const known = Number.isFinite(up) && Number.isFinite(down) && (up > 0 || down > 0 || total > 0)
+  if (!known) {
+    return { level: 'unknown', label: '涨跌分布未知', tagType: 'info', upText: '-', downText: '-' }
+  }
+  const upNum = up || 0
+  const downNum = down || 0
+  if (downNum > upNum * 2) return { level: 'risk', label: '跌多涨少，控制回撤', tagType: 'danger', upText: String(upNum), downText: String(downNum) }
+  if (upNum > downNum * 2) return { level: 'good', label: '涨多跌少，做多氛围浓', tagType: 'danger', upText: String(upNum), downText: String(downNum) }
+  if (upNum >= downNum) return { level: 'ok', label: '涨跌互现偏强', tagType: 'success', upText: String(upNum), downText: String(downNum) }
+  return { level: 'ok', label: '涨跌互现偏弱', tagType: 'warning', upText: String(upNum), downText: String(downNum) }
+})
+
+const dataStaleness = computed(() => {
+  const age = Math.max(0, Date.now() - Math.max(hotLoadedAt.value, moversLoadedAt.value, distributionLoadedAt.value, lastTickAt.value))
+  if (hotLoadedAt.value === 0 && moversLoadedAt.value === 0 && distributionLoadedAt.value === 0) {
+    return { label: '行情未就绪', tagType: 'info' }
+  }
+  if (age < 90 * 1000) return { label: '实时（1分内）', tagType: 'success' }
+  if (age < 5 * 60 * 1000) return { label: '近期（5分内）', tagType: 'warning' }
+  return { label: '已过期，请刷新', tagType: 'danger' }
+})
 const moversComment = computed(() => {
   const rise = movers.value?.rise || []
   const fall = movers.value?.fall || []
@@ -722,9 +997,6 @@ const todayStr = new Date().toLocaleDateString('zh-CN')
 
 function fmtPrice(v) {
   return v == null ? '-' : Number(v).toFixed(2)
-}
-function fmtPct(v) {
-  return v == null ? '0.00' : Number(v).toFixed(2)
 }
 function fmtMoney(v) {
   if (v == null) return '-'
@@ -780,7 +1052,10 @@ async function loadRssNews() {
   } catch { /* RSS 未启用时保持旧数据 */ }
 }
 async function loadDistribution() {
-  try { distribution.value = (await marketApi.distribution()) || {} } catch { /* 保留旧数据 */ }
+  try {
+    distribution.value = (await marketApi.distribution()) || {}
+    distributionLoadedAt.value = Date.now()
+  } catch { /* 保留旧数据 */ }
 }
 async function loadLadder() {
   try { ladder.value = (await marketApi.limitUpLadder()) || {} } catch { /* 保留旧数据 */ }
@@ -832,6 +1107,7 @@ let sectorTimer = null
 
 onMounted(() => {
   load()
+  heartbeatTimer = setInterval(() => { lastTickAt.value = Date.now() }, 15000)
   indexTimer = setInterval(() => { loadIndices(); mainIdxDefs.forEach((m) => loadPanel(m.code)) }, 15000)
   newsTimer = setInterval(() => { loadNews(); loadRssNews() }, 60000)
   flowTimer = setInterval(() => { loadSectorFlowTop(); loadEtf(); loadHotStocks(); loadPriceMovers() }, 60000)
@@ -844,10 +1120,75 @@ onUnmounted(() => {
   if (flowTimer) clearInterval(flowTimer)
   if (distTimer) clearInterval(distTimer)
   if (sectorTimer) clearInterval(sectorTimer)
+  if (heartbeatTimer) clearInterval(heartbeatTimer)
 })
 </script>
 
 <style scoped>
+.page {
+  --c-up: #e6452f;
+  --c-down: #14b143;
+  --c-flat: #909399;
+  --c-accent: #409eff;
+  --c-bg: #f8f9fb;
+  --c-card: #fff;
+  --c-border: #ebeef5;
+}
+.overview-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.ov-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.ov-name {
+  color: #909399;
+  font-size: 12px;
+}
+.ov-sep {
+  width: 1px;
+  height: 16px;
+  background: #e4e7ed;
+  margin: 0 10px;
+  flex-shrink: 0;
+}
+.funnel-collapse {
+  border: none;
+}
+.funnel-collapse :deep(.el-collapse-item__header) {
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  height: 40px;
+  line-height: 40px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.funnel-collapse :deep(.el-collapse-item__header:hover) {
+  background: #f0f2f5;
+}
+.funnel-collapse :deep(.el-collapse-item__wrap) {
+  border: none;
+  margin-bottom: 0;
+}
+.funnel-collapse :deep(.el-collapse-item__content) {
+  padding-bottom: 0;
+}
 .news-item {
   display: flex;
   align-items: center;
@@ -1020,4 +1361,21 @@ onUnmounted(() => {
 .cal-name { flex-shrink: 0; }
 .cal-val { flex-shrink: 0; }
 .cal-sub { flex: 1; min-width: 0; text-align: right; color: #909399; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.funnel-top { display: flex; flex-direction: column; }
+.funnel-card { margin-top: 8px; }
+.cand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  gap: 8px;
+}
+.cand-card { min-height: 84px; }
+.reason-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.cand-why {
+  color: #606266;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 3px;
+}
+.unk { color: #909399; }
 </style>

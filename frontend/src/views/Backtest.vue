@@ -143,6 +143,16 @@
               </el-col>
             </el-row>
             <div ref="chartEl" style="width:100%;height:320px" />
+            <div v-if="result.metrics.dd_start" class="fs12 mt4" style="color:#909399">
+              最大回撤：{{ result.metrics.dd_start }} → {{ result.metrics.dd_end }}（{{ result.metrics.recovery_days }}天修复）
+            </div>
+            <el-divider content-position="left">月度收益</el-divider>
+            <div v-if="result.metrics.monthly_returns && result.metrics.monthly_returns.length" class="monthly-grid">
+              <div v-for="m in result.metrics.monthly_returns" :key="m.month" class="monthly-cell">
+                <div class="fs11" style="color:#909399">{{ m.month }}</div>
+                <div class="fs12 mono" :class="m.return >= 0 ? 'up' : 'down'">{{ m.return >= 0 ? '+' : '' }}{{ (m.return * 100).toFixed(2) }}%</div>
+              </div>
+            </div>
             <el-divider content-position="left">交易明细（{{ result.trades.length }} 笔）</el-divider>
             <el-table v-if="result.trades.length" :data="result.trades" size="small" max-height="320">
               <el-table-column prop="symbol" label="标的" width="110" />
@@ -281,7 +291,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
 import MainLayout from '../layout/MainLayout.vue'
-import { backtestApi, stockApi, watchlistApi } from '../api'
+import { backtestApi, stockApi, watchlistApi, marketApi } from '../api'
 
 const mode = ref('single')
 const form = reactive({
@@ -319,14 +329,25 @@ const metricCards = computed(() => {
     { label: '累计收益', value: ((m.total_return * 100).toFixed(2)) + '%', cls: pctCls(m.total_return) },
     { label: '年化收益', value: ((m.annualized_return * 100).toFixed(2)) + '%', cls: pctCls(m.annualized_return) },
     { label: '最大回撤', value: ((m.max_drawdown * 100).toFixed(2)) + '%', cls: 'down' },
-    { label: '胜率', value: ((m.win_rate * 100).toFixed(1)) + '%', cls: 'flat' },
+    { label: 'Sharpe', value: m.sharpe?.toFixed(2) || '-', cls: m.sharpe > 1 ? 'up' : m.sharpe > 0 ? 'flat' : 'down' },
+    { label: 'Sortino', value: m.sortino?.toFixed(2) || '-', cls: m.sortino > 1 ? 'up' : m.sortino > 0 ? 'flat' : 'down' },
+    { label: 'Calmar', value: m.calmar?.toFixed(2) || '-', cls: m.calmar > 1 ? 'up' : 'flat' },
+    { label: '胜率', value: ((m.win_rate * 100).toFixed(1)) + '%', cls: m.win_rate > 0.5 ? 'up' : 'down' },
+    { label: '盈亏比', value: m.profit_factor?.toFixed(2) || '-', cls: m.profit_factor > 1 ? 'up' : 'down' },
     { label: '交易次数', value: String(m.trade_count), cls: 'flat' },
+    { label: '平均持仓', value: (m.avg_holding_days || 0).toFixed(1) + '天', cls: 'flat' },
+    { label: '最大连赢', value: String(m.max_consec_win || 0), cls: 'up' },
+    { label: '最大连亏', value: String(m.max_consec_loss || 0), cls: 'down' },
+    { label: '平均盈利', value: fmtNum(m.avg_win || 0), cls: 'up' },
+    { label: '平均亏损', value: fmtNum(m.avg_loss || 0), cls: 'down' },
+    { label: '回撤修复', value: (m.recovery_days || 0) + '天', cls: 'flat' },
     { label: '期末资金', value: fmtNum(m.final_equity), cls: 'flat' }
   ]
 })
 
 const chartEl = ref(null)
 let chart = null
+const benchmarkData = ref([])
 
 function fmtNum(v) {
   return Number(v).toLocaleString('zh-CN', { maximumFractionDigits: 2 })
@@ -355,23 +376,74 @@ function onStrategyChange() {
 function renderChart(curve) {
   if (!chartEl.value) return
   if (!chart) chart = echarts.init(chartEl.value)
-  chart.setOption({
-    tooltip: { trigger: 'axis' },
-    grid: { left: 50, right: 20, top: 20, bottom: 30 },
-    xAxis: { type: 'category', data: curve.map(c => c.dt), boundaryGap: false },
-    yAxis: { type: 'value', scale: true, splitLine: { lineStyle: { color: '#eee' } } },
-    series: [{
-      name: '净值',
+  const dates = curve.map(c => c.dt)
+  const equities = curve.map(c => c.equity)
+  // 归一化基准为1
+  const benchDates = benchmarkData.value.map(b => b.dt)
+  const benchVals = benchmarkData.value.map(b => b.close)
+  let benchNorm = []
+  if (benchVals.length > 0) {
+    const base = benchVals[0]
+    benchNorm = benchVals.map(v => equities[0] * v / base)
+  }
+  // 找最大回撤位置
+  let peak = 0, maxDd = 0, ddStart = 0, ddEnd = 0
+  let pIdx = 0
+  for (let i = 0; i < equities.length; i++) {
+    if (equities[i] > peak) { peak = equities[i]; pIdx = i }
+    const dd = (peak - equities[i]) / peak
+    if (dd > maxDd) { maxDd = dd; ddStart = pIdx; ddEnd = i }
+  }
+  // 修复周期：从ddEnd开始找回到peak值的位置
+  let recoveryIdx = equities.length - 1
+  for (let i = ddEnd; i < equities.length; i++) {
+    if (equities[i] >= peak) { recoveryIdx = i; break }
+  }
+  const markPoints = []
+  if (maxDd > 0) {
+    markPoints.push(
+      { name: '最大回撤', coord: [dates[ddStart], equities[ddStart]], symbol: 'triangle', symbolSize: 14, itemStyle: { color: '#f56c6c' },
+        label: { show: true, formatter: `回撤 ${(maxDd*100).toFixed(1)}%`, position: 'top', color: '#f56c6c', fontSize: 11 } },
+      { name: '回撤底', coord: [dates[ddEnd], equities[ddEnd]], symbol: 'pin', symbolSize: 30, itemStyle: { color: '#e6a23c' },
+        label: { show: true, formatter: '底', position: 'bottom', color: '#e6a23c', fontSize: 10 } }
+    )
+    if (recoveryIdx < equities.length - 1 || equities[equities.length-1] >= peak) {
+      markPoints.push(
+        { name: '修复', coord: [dates[recoveryIdx], equities[recoveryIdx]], symbol: 'circle', symbolSize: 10, itemStyle: { color: '#67c23a' },
+          label: { show: true, formatter: `修复 ${recoveryIdx - ddEnd}日`, position: 'right', color: '#67c23a', fontSize: 10 } }
+      )
+    }
+  }
+  const series = [{
+    name: '策略净值',
+    type: 'line',
+    data: equities,
+    smooth: false,
+    showSymbol: false,
+    lineStyle: { width: 2, color: '#409eff' },
+    areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+      { offset: 0, color: 'rgba(64,158,255,.28)' },
+      { offset: 1, color: 'rgba(64,158,255,.02)' }
+    ]) },
+    markPoint: { data: markPoints, animation: false }
+  }]
+  if (benchNorm.length) {
+    series.push({
+      name: '沪深300',
       type: 'line',
-      data: curve.map(c => c.equity),
+      data: benchNorm,
       smooth: false,
       showSymbol: false,
-      lineStyle: { width: 2, color: '#409eff' },
-      areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-        { offset: 0, color: 'rgba(64,158,255,.28)' },
-        { offset: 1, color: 'rgba(64,158,255,.02)' }
-      ]) }
-    }]
+      lineStyle: { width: 1.5, color: '#909399', type: 'dashed' },
+    })
+  }
+  chart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { top: 0, textStyle: { color: '#909399', fontSize: 11 } },
+    grid: { left: 50, right: 20, top: 30, bottom: 30 },
+    xAxis: { type: 'category', data: dates, boundaryGap: false },
+    yAxis: { type: 'value', scale: true, splitLine: { lineStyle: { color: '#eee' } } },
+    series
   })
 }
 
@@ -408,6 +480,12 @@ async function run() {
       end_date: range.value[1],
       initial_capital: form.initial_capital
     })
+    // 获取沪深300基准
+    benchmarkData.value = []
+    try {
+      const benchKline = await marketApi.kline({ symbol: 'SH000300', period: 'day', start: range.value[0], end: range.value[1] })
+      benchmarkData.value = (benchKline?.data || []).map(k => ({ dt: k.dt, close: k.close }))
+    } catch { benchmarkData.value = [] }
     requestAnimationFrame(() => renderChart(result.value.equity_curve || []))
   } catch (e) {
     ElMessage.error(e?.response?.data?.detail || e?.message || '回测失败')
@@ -450,23 +528,26 @@ function selectStrategy(s) {
   testResult.value = null
 }
 function newStrategy() {
-  editing.value = {
-    id: null, key: '', name: '', description: '',
+  const tempId = 'temp_' + Date.now()
+  const tempStrategy = {
+    id: tempId, key: '', name: '新策略（未保存）', description: '',
     params_schema: [
       { key: 'fast', label: '快线周期', type: 'int', default: 5, min: 2, max: 120, step: 1 },
       { key: 'slow', label: '慢线周期', type: 'int', default: 20, min: 5, max: 250, step: 1 }
     ],
-    code: selectedId.value ? strategies.value.find(s => s.id === selectedId.value)?.code : '',
-    is_builtin: false, is_active: true
+    code: '',
+    is_builtin: false, is_active: true, _temp: true
   }
-  selectedId.value = null
+  strategies.value.unshift(tempStrategy)
+  selectedId.value = tempId
+  editing.value = JSON.parse(JSON.stringify(tempStrategy))
   testResult.value = null
 }
 function addSchema() { editing.value.params_schema.push({ key: '', label: '', type: 'int', default: null }) }
 function removeSchema(idx) { editing.value.params_schema.splice(idx, 1) }
 
 async function saveStrategy() {
-  if (!editing.value.name) { ElMessage.warning('请填写策略名称'); return }
+  if (!editing.value.name || editing.value.name === '新策略（未保存）') { ElMessage.warning('请填写策略名称'); return }
   const payload = {
     name: editing.value.name,
     description: editing.value.description,
@@ -474,9 +555,10 @@ async function saveStrategy() {
     code: editing.value.code
   }
   try {
-    const saved = editing.value.id
-      ? await backtestApi.updateStrategy(editing.value.id, payload)
-      : await backtestApi.createStrategy(payload)
+    const isTemp = editing.value._temp || String(editing.value.id).startsWith('temp_')
+    const saved = isTemp
+      ? await backtestApi.createStrategy(payload)
+      : await backtestApi.updateStrategy(editing.value.id, payload)
     ElMessage.success('已保存')
     await loadStrategies()
     selectedId.value = saved.id
@@ -562,4 +644,6 @@ onBeforeUnmount(() => {
   background: #0d1117; color: #e6edf3; resize: vertical;
 }
 .code-editor:focus { outline: none; border-color: #409eff; }
+.monthly-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+.monthly-cell { padding: 4px 8px; border: 1px solid #ebeef5; border-radius: 4px; text-align: center; min-width: 70px; }
 </style>

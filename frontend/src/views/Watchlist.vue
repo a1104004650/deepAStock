@@ -23,7 +23,11 @@
               </div>
               <div v-for="g in groups" :key="g.id" class="group-item" :class="{ active: !showRecent && currentGroupId === g.id }" @click="selectGroup(g.id)">
                 <span>{{ g.icon || '📁' }} {{ g.name }}</span>
-                <span class="fs12" style="color:#909399">{{ g.items.length }}</span>
+                <span class="fs12" style="color:#909399;margin-right:4px">{{ g.items.length }}</span>
+                <el-icon v-if="g.name !== '默认分组'" class="group-del" @click.stop="deleteGroup(g)"
+                  style="color:#909399;cursor:pointer;font-size:12px">
+                  <Close />
+                </el-icon>
               </div>
             </el-scrollbar>
             <el-empty v-if="!groups.length && !recentList.length" description="暂无分组" :image-size="50" />
@@ -460,7 +464,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh, Close } from '@element-plus/icons-vue'
 import MainLayout from '../layout/MainLayout.vue'
 import HQChartKline from '../components/HQChartKline.vue'
 import LineChart from '../components/LineChart.vue'
@@ -682,22 +686,42 @@ async function loadStockDetail() {
   if (chainData.status === 'fulfilled') industryChain.value = chainData.value || null
 }
 
+let _klineLoading = false
 async function loadKline() {
   const sym = symbolStore.selectedSymbol
-  if (!sym) return
+  if (!sym || _klineLoading) return
+  _klineLoading = true
   try {
     if (period.value === 'mf') {
-      intraday.value = []
       const r = await marketApi.intraday({ symbol: sym })
       intraday.value = r || []
       kline.value = []
       return
     }
-    kline.value = []
     const r = await stockApi.kline(sym, { period: period.value })
-    kline.value = r.data || []
+    const newData = r.data || []
+    // 增量更新：如果旧数据存在且长度一致，只更新最后几条；否则整体替换
+    const old = kline.value
+    if (old.length > 0 && newData.length > 0 && Math.abs(old.length - newData.length) <= 3) {
+      // 只更新尾部差异
+      const minLen = Math.min(old.length, newData.length)
+      for (let i = 0; i < minLen; i++) {
+        if (old[i].dt === newData[i].dt) {
+          old[i].open = newData[i].open
+          old[i].high = newData[i].high
+          old[i].low = newData[i].low
+          old[i].close = newData[i].close
+          old[i].volume = newData[i].volume
+        }
+      }
+      if (newData.length > old.length) {
+        for (let i = old.length; i < newData.length; i++) old.push(newData[i])
+      }
+    } else {
+      kline.value = newData
+    }
     intraday.value = []
-  } catch { kline.value = []; intraday.value = [] }
+  } catch { /* 保留旧数据 */ } finally { _klineLoading = false }
 }
 
 async function loadBrain() {
@@ -801,6 +825,17 @@ function openAddGroup() {
   const name = prompt('请输入分组名称:')
   if (!name) return
   watchlistApi.createGroup({ name }).then(() => load())
+}
+
+async function deleteGroup(g) {
+  if (g.name === '默认分组') return
+  try {
+    await ElMessageBox.confirm(`确认删除分组「${g.name}」？分组内的自选股将被移除。`, '删除分组', { type: 'warning' })
+    await watchlistApi.deleteGroup(g.id)
+    ElMessage.success('已删除')
+    if (currentGroupId.value === g.id) { showRecent.value = true }
+    await load()
+  } catch { /* 取消 */ }
 }
 
 function openSearch() {

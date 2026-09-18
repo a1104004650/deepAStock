@@ -265,7 +265,8 @@ class RssService:
     def _src_dict(r: RssSource) -> dict:
         return {
             "id": r.id, "name": r.name, "rss_type": r.rss_type,
-            "url": r.url, "tags": r.tags or [], "remark": r.remark or "",
+            "url": r.url, "base": getattr(r, "base", "") or "",
+            "tags": r.tags or [], "remark": r.remark or "",
             "enabled": r.enabled, "interval_min": r.interval_min,
             "net_status": r.net_status or "untested",
             "last_poll": r.last_poll.isoformat() if r.last_poll else None,

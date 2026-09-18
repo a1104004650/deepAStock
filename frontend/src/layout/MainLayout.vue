@@ -40,6 +40,10 @@
         >{{ d.label }}</router-link>
       </nav>
       <div class="right">
+        <span v-if="symbolStore.selectedSymbol" class="current-stock" @click="router.push({ path: '/watchlist', query: { symbol: symbolStore.selectedSymbol } })">
+          {{ symbolStore.selectedSymbol }}
+          <el-icon class="clear-btn" @click.stop="symbolStore.clear()"><Close /></el-icon>
+        </span>
         <span class="clock">{{ clockText }}</span>
         <span class="health" id="health-tag">后端连接中…</span>
       </div>
@@ -79,7 +83,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   DataBoard, Star, Document, TrendCharts, Histogram, Upload,
   MagicStick, Promotion, Setting, Close, ArrowDown, DataLine, Coin, Cpu, Reading
@@ -87,10 +91,13 @@ import {
 import { systemApi, marketApi, rssApi } from '../api'
 import { useNewsStore } from '../stores/news'
 import { usePollingStore } from '../stores/polling'
+import { useSymbolStore } from '../stores/symbol'
 
 const route = useRoute()
+const router = useRouter()
 const newsStore = useNewsStore()
 const polling = usePollingStore()
+const symbolStore = useSymbolStore()
 const clockText = ref('')
 const openMenu = ref('')
 
@@ -347,6 +354,22 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
 }
+.current-stock {
+  background: #409eff22;
+  color: #409eff;
+  border: 1px solid #409eff55;
+  border-radius: 12px;
+  padding: 2px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+.current-stock:hover { background: #409eff33; }
+.clear-btn { cursor: pointer; font-size: 12px; opacity: 0.6; }
+.clear-btn:hover { opacity: 1; }
 .clock {
   font-family: 'Consolas', 'SF Mono', monospace;
   font-size: 13px;

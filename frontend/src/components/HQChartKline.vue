@@ -229,8 +229,9 @@ function render() {
     { gridIndex: 1, splitNumber: 2, splitLine: { show: false }, axisLabel: { fontSize: 9, formatter: v => v >= 1e8 ? (v / 1e8).toFixed(0) + '亿' : v >= 1e4 ? (v / 1e4).toFixed(0) + '万' : v } },
     { gridIndex: 2, show: false, min: 0, max: 1, splitLine: { show: false } },
   ]
+  const defaultBars = 90
   const dataZoom = [
-    { type: 'inside', xAxisIndex: [0, 1, 2], start: Math.max(0, 100 - Math.min(100, 20000 / d.length * 100)), end: 100 },
+    { type: 'inside', xAxisIndex: [0, 1, 2], start: Math.max(0, 100 - (defaultBars / d.length * 100)), end: 100 },
     { type: 'slider', xAxisIndex: [0, 1, 2], top: '96%', height: 12 },
   ]
 

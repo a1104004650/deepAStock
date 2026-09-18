@@ -16,6 +16,7 @@ class SourceBody(BaseModel):
     name: str = ""
     rss_type: str = "http"        # http / rsshub_local
     url: str | None = None
+    base: str = ""                # RSSHub Docker/镜像前缀地址
     tags: list[str] = []
     remark: str = ""
     interval_min: int | str | None = 5

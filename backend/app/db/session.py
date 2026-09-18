@@ -72,6 +72,10 @@ async def init_db():
             await conn.execute(text("ALTER TABLE agent_configs ADD COLUMN provider VARCHAR(20)"))
         except Exception:
             pass
+        try:
+            await conn.execute(text("ALTER TABLE rss_sources ADD COLUMN base VARCHAR(300) DEFAULT ''"))
+        except Exception:
+            pass
 
     # 空库写入默认订阅源（部署即自带）
     async with SessionLocal() as _db:

@@ -18,6 +18,7 @@ class RssSource(Base):
     remark: Mapped[str] = mapped_column(String(300), nullable=True, default="")  # 备注
     rss_type: Mapped[str] = mapped_column(String(20), default="rsshub_local")    # http / rsshub_local
     url: Mapped[str] = mapped_column(String(600), nullable=True)                 # 订阅地址（完整 URL，不做校验）
+    base: Mapped[str] = mapped_column(String(300), nullable=True, default="")    # RSSHub 前缀地址（rsshub_local 时存储 Docker/镜像地址）
     interval_min: Mapped[int] = mapped_column(Integer, default=5)               # 轮询间隔（分钟）
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     net_status: Mapped[str] = mapped_column(String(300), nullable=True)         # 网络状态 untested/ok/err:xxx

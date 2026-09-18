@@ -87,6 +87,13 @@ class MarketService:
     async def get_sector_monitor(self) -> list[dict]:
         return await self.dsm.get_sector_monitor()
 
+    async def get_sector_constituents(self, sector_symbol: str) -> list[dict]:
+        try:
+            return await self.dsm.get_sector_constituents(sector_symbol)
+        except Exception as e:
+            logger.warning(f"get_sector_constituents failed: {e}")
+            return []
+
     async def get_hot_stocks(self, top: int = 10) -> list[dict]:
         try:
             return await self.dsm.get_hot_stocks(top)

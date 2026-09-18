@@ -21,6 +21,12 @@ async def history(limit: int = 30, db: AsyncSession = Depends(get_db)):
     return await engine.get_history(limit)
 
 
+@router.get("/trend")
+async def trend(days: int = 7, db: AsyncSession = Depends(get_db)):
+    engine = ReplayEngine(db)
+    return await engine.get_trend(days)
+
+
 @router.get("/{replay_date}")
 async def by_date(replay_date: str, db: AsyncSession = Depends(get_db)):
     try:

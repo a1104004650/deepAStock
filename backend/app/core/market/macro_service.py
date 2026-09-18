@@ -28,6 +28,10 @@ CATALOG = [
     {"key": "fed_funds",     "name": "美联储联邦基金目标利率",               "unit": "%",          "group": "美联储", "func": "macro_bank_usa_interest_rate",      "type": "jin10"},
     {"key": "us_cpi",        "name": "美国CPI（消费价格指数）",              "unit": "%（同比）",  "group": "美联储", "func": "macro_usa_cpi_monthly",             "type": "jin10"},
     {"key": "us_nfp",        "name": "美国非农就业（新增）",                 "unit": "万人",       "group": "美联储", "func": "macro_usa_non_farm",                  "type": "jin10"},
+    {"key": "us_treasury_5y", "name": "美国国债5年收益率",                  "unit": "%",          "group": "美债", "func": "macro_usa_treasury_yield",            "type": "treasury_5y"},
+    {"key": "us_treasury_30y", "name": "美国国债30年收益率",                 "unit": "%",          "group": "美债", "func": "macro_usa_treasury_yield",            "type": "treasury_30y"},
+    {"key": "gold_price",    "name": "黄金价格（伦敦金）",                   "unit": "美元/盎司",  "group": "贵金属", "func": "spot_golden_benchmark_sge",           "type": "gold"},
+    {"key": "silver_price",  "name": "白银价格",                            "unit": "美元/盎司",  "group": "贵金属", "func": "macro_cons_silver",                   "type": "silver"},
 ]
 
 # ---------------------------------------------------------------------------
@@ -96,6 +100,106 @@ def _parse_money_save(df: pd.DataFrame) -> list[dict]:
     return [{"date": str(r["date"]), "value": round(float(r["value"]), 2)} for _, r in df.iterrows()]
 
 
+def _parse_treasury_5y(df: pd.DataFrame) -> list[dict]:
+    """美国国债5年收益率"""
+    df = df.copy()
+    if "日期" in df.columns:
+        df["date"] = pd.to_datetime(df["日期"]).dt.strftime("%Y-%m-%d")
+    elif "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+    else:
+        return []
+    # 找5年收益率列
+    val_col = None
+    for c in df.columns:
+        if "5" in str(c) and ("年" in str(c) or "year" in str(c).lower() or "yield" in str(c).lower()):
+            val_col = c
+            break
+    if not val_col:
+        # 尝试第二列（通常是5Y）
+        nums = df.select_dtypes(include=["number"]).columns.tolist()
+        val_col = nums[1] if len(nums) > 1 else (nums[0] if nums else None)
+    if not val_col:
+        return []
+    df["value"] = pd.to_numeric(df[val_col], errors="coerce")
+    df = df.dropna(subset=["value"]).sort_values("date").tail(120)
+    return [{"date": str(r["date"]), "value": round(float(r["value"]), 4)} for _, r in df.iterrows()]
+
+
+def _parse_treasury_30y(df: pd.DataFrame) -> list[dict]:
+    """美国国债30年收益率"""
+    df = df.copy()
+    if "日期" in df.columns:
+        df["date"] = pd.to_datetime(df["日期"]).dt.strftime("%Y-%m-%d")
+    elif "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+    else:
+        return []
+    val_col = None
+    for c in df.columns:
+        if "30" in str(c) and ("年" in str(c) or "year" in str(c).lower() or "yield" in str(c).lower()):
+            val_col = c
+            break
+    if not val_col:
+        nums = df.select_dtypes(include=["number"]).columns.tolist()
+        val_col = nums[-1] if nums else None
+    if not val_col:
+        return []
+    df["value"] = pd.to_numeric(df[val_col], errors="coerce")
+    df = df.dropna(subset=["value"]).sort_values("date").tail(120)
+    return [{"date": str(r["date"]), "value": round(float(r["value"]), 4)} for _, r in df.iterrows()]
+
+
+def _parse_gold(df: pd.DataFrame) -> list[dict]:
+    """黄金价格（上海金交所基准价）"""
+    df = df.copy()
+    if "日期" in df.columns:
+        df["date"] = pd.to_datetime(df["日期"]).dt.strftime("%Y-%m-%d")
+    elif "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+    else:
+        return []
+    val_col = None
+    for c in df.columns:
+        cl = str(c).lower()
+        if "收" in str(c) or "close" in cl or "价" in str(c):
+            val_col = c
+            break
+    if not val_col:
+        nums = df.select_dtypes(include=["number"]).columns.tolist()
+        val_col = nums[0] if nums else None
+    if not val_col:
+        return []
+    df["value"] = pd.to_numeric(df[val_col], errors="coerce")
+    df = df.dropna(subset=["value"]).sort_values("date").tail(120)
+    return [{"date": str(r["date"]), "value": round(float(r["value"]), 2)} for _, r in df.iterrows()]
+
+
+def _parse_silver(df: pd.DataFrame) -> list[dict]:
+    """白银价格"""
+    df = df.copy()
+    if "日期" in df.columns:
+        df["date"] = pd.to_datetime(df["日期"]).dt.strftime("%Y-%m-%d")
+    elif "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+    else:
+        return []
+    val_col = None
+    for c in df.columns:
+        cl = str(c).lower()
+        if "收" in str(c) or "close" in cl or "价" in str(c):
+            val_col = c
+            break
+    if not val_col:
+        nums = df.select_dtypes(include=["number"]).columns.tolist()
+        val_col = nums[0] if nums else None
+    if not val_col:
+        return []
+    df["value"] = pd.to_numeric(df[val_col], errors="coerce")
+    df = df.dropna(subset=["value"]).sort_values("date").tail(120)
+    return [{"date": str(r["date"]), "value": round(float(r["value"]), 2)} for _, r in df.iterrows()]
+
+
 PARSERS = {
     "jin10":     _parse_jin10,
     "retail":    _parse_retail,
@@ -104,6 +208,10 @@ PARSERS = {
     "estate":    _parse_estate,
     "money_m2":  _parse_money_m2,
     "money_save": _parse_money_save,
+    "treasury_5y": _parse_treasury_5y,
+    "treasury_30y": _parse_treasury_30y,
+    "gold":      _parse_gold,
+    "silver":    _parse_silver,
 }
 
 # ---------------------------------------------------------------------------

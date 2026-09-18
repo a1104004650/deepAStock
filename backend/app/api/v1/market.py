@@ -242,6 +242,12 @@ async def get_sector_monitor_intraday(symbol: str, db: AsyncSession = Depends(ge
     return await svc.get_intraday(symbol)
 
 
+@router.get("/sectors/constituents")
+async def get_sector_constituents(symbol: str, db: AsyncSession = Depends(get_db)):
+    svc = MarketService(db)
+    return await svc.get_sector_constituents(symbol)
+
+
 @router.get("/hot-stocks")
 async def get_hot_stocks(top: int = 10, db: AsyncSession = Depends(get_db)):
     svc = MarketService(db)

@@ -101,6 +101,10 @@ class DataSourceManager:
         ans = await self._call("get_limit_up")
         return ans or []
 
+    async def get_sector_constituents(self, sector_symbol: str) -> list[dict]:
+        ans = await self._call("get_sector_constituents", sector_symbol)
+        return ans or []
+
     async def get_dragon_tiger(self) -> list[dict]:
         ans = await self._call("get_dragon_tiger")
         return ans or []
