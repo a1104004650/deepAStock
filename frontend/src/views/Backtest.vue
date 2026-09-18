@@ -281,7 +281,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
 import MainLayout from '../layout/MainLayout.vue'
-import { backtestApi, stockApi, watchlistApi } from '../api'
+import { backtestApi, stockApi, watchlistApi, marketApi } from '../api'
 
 const mode = ref('single')
 const form = reactive({
@@ -327,6 +327,7 @@ const metricCards = computed(() => {
 
 const chartEl = ref(null)
 let chart = null
+const benchmarkData = ref([])
 
 function fmtNum(v) {
   return Number(v).toLocaleString('zh-CN', { maximumFractionDigits: 2 })
@@ -355,23 +356,74 @@ function onStrategyChange() {
 function renderChart(curve) {
   if (!chartEl.value) return
   if (!chart) chart = echarts.init(chartEl.value)
-  chart.setOption({
-    tooltip: { trigger: 'axis' },
-    grid: { left: 50, right: 20, top: 20, bottom: 30 },
-    xAxis: { type: 'category', data: curve.map(c => c.dt), boundaryGap: false },
-    yAxis: { type: 'value', scale: true, splitLine: { lineStyle: { color: '#eee' } } },
-    series: [{
-      name: '净值',
+  const dates = curve.map(c => c.dt)
+  const equities = curve.map(c => c.equity)
+  // 归一化基准为1
+  const benchDates = benchmarkData.value.map(b => b.dt)
+  const benchVals = benchmarkData.value.map(b => b.close)
+  let benchNorm = []
+  if (benchVals.length > 0) {
+    const base = benchVals[0]
+    benchNorm = benchVals.map(v => equities[0] * v / base)
+  }
+  // 找最大回撤位置
+  let peak = 0, maxDd = 0, ddStart = 0, ddEnd = 0
+  let pIdx = 0
+  for (let i = 0; i < equities.length; i++) {
+    if (equities[i] > peak) { peak = equities[i]; pIdx = i }
+    const dd = (peak - equities[i]) / peak
+    if (dd > maxDd) { maxDd = dd; ddStart = pIdx; ddEnd = i }
+  }
+  // 修复周期：从ddEnd开始找回到peak值的位置
+  let recoveryIdx = equities.length - 1
+  for (let i = ddEnd; i < equities.length; i++) {
+    if (equities[i] >= peak) { recoveryIdx = i; break }
+  }
+  const markPoints = []
+  if (maxDd > 0) {
+    markPoints.push(
+      { name: '最大回撤', coord: [dates[ddStart], equities[ddStart]], symbol: 'triangle', symbolSize: 14, itemStyle: { color: '#f56c6c' },
+        label: { show: true, formatter: `回撤 ${(maxDd*100).toFixed(1)}%`, position: 'top', color: '#f56c6c', fontSize: 11 } },
+      { name: '回撤底', coord: [dates[ddEnd], equities[ddEnd]], symbol: 'pin', symbolSize: 30, itemStyle: { color: '#e6a23c' },
+        label: { show: true, formatter: '底', position: 'bottom', color: '#e6a23c', fontSize: 10 } }
+    )
+    if (recoveryIdx < equities.length - 1 || equities[equities.length-1] >= peak) {
+      markPoints.push(
+        { name: '修复', coord: [dates[recoveryIdx], equities[recoveryIdx]], symbol: 'circle', symbolSize: 10, itemStyle: { color: '#67c23a' },
+          label: { show: true, formatter: `修复 ${recoveryIdx - ddEnd}日`, position: 'right', color: '#67c23a', fontSize: 10 } }
+      )
+    }
+  }
+  const series = [{
+    name: '策略净值',
+    type: 'line',
+    data: equities,
+    smooth: false,
+    showSymbol: false,
+    lineStyle: { width: 2, color: '#409eff' },
+    areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+      { offset: 0, color: 'rgba(64,158,255,.28)' },
+      { offset: 1, color: 'rgba(64,158,255,.02)' }
+    ]) },
+    markPoint: { data: markPoints, animation: false }
+  }]
+  if (benchNorm.length) {
+    series.push({
+      name: '沪深300',
       type: 'line',
-      data: curve.map(c => c.equity),
+      data: benchNorm,
       smooth: false,
       showSymbol: false,
-      lineStyle: { width: 2, color: '#409eff' },
-      areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-        { offset: 0, color: 'rgba(64,158,255,.28)' },
-        { offset: 1, color: 'rgba(64,158,255,.02)' }
-      ]) }
-    }]
+      lineStyle: { width: 1.5, color: '#909399', type: 'dashed' },
+    })
+  }
+  chart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { top: 0, textStyle: { color: '#909399', fontSize: 11 } },
+    grid: { left: 50, right: 20, top: 30, bottom: 30 },
+    xAxis: { type: 'category', data: dates, boundaryGap: false },
+    yAxis: { type: 'value', scale: true, splitLine: { lineStyle: { color: '#eee' } } },
+    series
   })
 }
 
@@ -408,6 +460,12 @@ async function run() {
       end_date: range.value[1],
       initial_capital: form.initial_capital
     })
+    // 获取沪深300基准
+    benchmarkData.value = []
+    try {
+      const benchKline = await marketApi.kline({ symbol: 'SH000300', period: 'day', start: range.value[0], end: range.value[1] })
+      benchmarkData.value = (benchKline?.data || []).map(k => ({ dt: k.dt, close: k.close }))
+    } catch { benchmarkData.value = [] }
     requestAnimationFrame(() => renderChart(result.value.equity_curve || []))
   } catch (e) {
     ElMessage.error(e?.response?.data?.detail || e?.message || '回测失败')
@@ -450,23 +508,26 @@ function selectStrategy(s) {
   testResult.value = null
 }
 function newStrategy() {
-  editing.value = {
-    id: null, key: '', name: '', description: '',
+  const tempId = 'temp_' + Date.now()
+  const tempStrategy = {
+    id: tempId, key: '', name: '新策略（未保存）', description: '',
     params_schema: [
       { key: 'fast', label: '快线周期', type: 'int', default: 5, min: 2, max: 120, step: 1 },
       { key: 'slow', label: '慢线周期', type: 'int', default: 20, min: 5, max: 250, step: 1 }
     ],
-    code: selectedId.value ? strategies.value.find(s => s.id === selectedId.value)?.code : '',
-    is_builtin: false, is_active: true
+    code: '',
+    is_builtin: false, is_active: true, _temp: true
   }
-  selectedId.value = null
+  strategies.value.unshift(tempStrategy)
+  selectedId.value = tempId
+  editing.value = JSON.parse(JSON.stringify(tempStrategy))
   testResult.value = null
 }
 function addSchema() { editing.value.params_schema.push({ key: '', label: '', type: 'int', default: null }) }
 function removeSchema(idx) { editing.value.params_schema.splice(idx, 1) }
 
 async function saveStrategy() {
-  if (!editing.value.name) { ElMessage.warning('请填写策略名称'); return }
+  if (!editing.value.name || editing.value.name === '新策略（未保存）') { ElMessage.warning('请填写策略名称'); return }
   const payload = {
     name: editing.value.name,
     description: editing.value.description,
@@ -474,9 +535,10 @@ async function saveStrategy() {
     code: editing.value.code
   }
   try {
-    const saved = editing.value.id
-      ? await backtestApi.updateStrategy(editing.value.id, payload)
-      : await backtestApi.createStrategy(payload)
+    const isTemp = editing.value._temp || String(editing.value.id).startsWith('temp_')
+    const saved = isTemp
+      ? await backtestApi.createStrategy(payload)
+      : await backtestApi.updateStrategy(editing.value.id, payload)
     ElMessage.success('已保存')
     await loadStrategies()
     selectedId.value = saved.id

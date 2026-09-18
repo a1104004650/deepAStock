@@ -1415,6 +1415,24 @@ class SinaSource(DataSourceBase):
         cls._EM_CONST_TS = now
         return rows
 
+    def get_sector_constituents(self, sector_symbol: str) -> list[dict]:
+        """返回板块成分股，含涨跌幅/市值/换手率，按涨跌幅降序"""
+        cons = self._em_constituents(sector_symbol)
+        from app.core.datasource.sina_source import to_standard_symbol
+        result = []
+        for c in cons:
+            sym = to_standard_symbol(str(c.get("f12") or "")) if len(str(c.get("f12") or "")) == 6 else ""
+            result.append({
+                "symbol": sym,
+                "name": (c.get("f14") or "").strip(),
+                "change_pct": _f(c.get("f3")),
+                "turnover": round(_f(c.get("f8")), 2),
+                "mkt_cap": _f(c.get("f20")),
+                "net_inflow": _f(c.get("f62")),
+            })
+        result.sort(key=lambda x: x["change_pct"], reverse=True)
+        return result
+
     @staticmethod
     def _em_datacenter(report_name: str, filter_str: str, page_size: int = 50,
                        sort_columns: str = None, columns: str = "ALL") -> list:

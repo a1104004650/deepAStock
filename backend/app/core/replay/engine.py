@@ -140,6 +140,7 @@ class ReplayEngine:
     def _build_stock_pool(self, limit_up: list[dict], sector_flow: list[dict]) -> list[dict]:
         pool = []
         seen = set()
+        # 涨停梯队：按连板天数降序
         for item in sorted(limit_up, key=lambda x: -int(x.get("consecutive_days", 1))):
             sym = item.get("symbol")
             if sym and sym not in seen and len(pool) < 8:
@@ -151,6 +152,7 @@ class ReplayEngine:
                     "reason": item.get("reason") or "涨停强势",
                     "source": "涨停梯队",
                 })
+        # 板块资金龙头
         for s in sector_flow[:5]:
             if len(pool) >= 12:
                 break
@@ -174,25 +176,81 @@ class ReplayEngine:
             rt = await dsm.get_realtime(symbols)
         except Exception:
             rt = {}
+        # 获取K线用于形态识别
+        kline_cache = {}
+        for sym in symbols:
+            try:
+                kl = await dsm.get_klines(sym, "day")
+                if kl:
+                    kline_cache[sym] = kl[-20:]  # 最近20根K线
+            except Exception:
+                pass
         for p in pool:
             info = rt.get(p["symbol"], {})
             p["price"] = info.get("price", 0)
             p["change_pct"] = info.get("change_pct", 0)
             cd = p.get("consecutive_days", 0)
             source = p.get("source", "")
-            if cd >= 3:
-                p["performance"] = f"强势{cd}连板"
-                p["suggestion"] = "高标关注，注意断板风险"
-            elif cd >= 2:
-                p["performance"] = f"{cd}连板晋级"
-                p["suggestion"] = "关注封单强度"
-            elif source == "涨停梯队":
-                p["performance"] = "首板涨停"
-                p["suggestion"] = "关注次日竞价"
-            else:
-                p["performance"] = "板块龙头"
-                p["suggestion"] = "关注板块持续性"
+            klines = kline_cache.get(p["symbol"], [])
+            pattern = self._detect_pattern(klines, cd, info, p.get("source", ""))
+            p["performance"] = pattern["performance"]
+            p["suggestion"] = pattern["suggestion"]
+            p["pattern_tags"] = pattern.get("tags", [])
         return pool
+
+    @staticmethod
+    def _detect_pattern(klines: list, consecutive_days: int, info: dict, source: str = "") -> dict:
+        """检测K线形态，返回 performance/suggestion/tags"""
+        if consecutive_days >= 4:
+            return {"performance": f"强势{consecutive_days}连板", "suggestion": "高度板，注意断板风险，关注封单", "tags": ["连板"]}
+        if consecutive_days >= 3:
+            return {"performance": f"{consecutive_days}连板晋级", "suggestion": "关注封单强度和量能", "tags": ["连板"]}
+        if consecutive_days == 2:
+            return {"performance": "2连板晋级", "suggestion": "关注次日竞价强度", "tags": ["连板"]}
+        if not klines or len(klines) < 5:
+            return {"performance": "板块龙头" if source else "首板涨停", "suggestion": "关注板块持续性", "tags": []}
+        closes = [float(k.get("close", 0)) for k in klines]
+        opens = [float(k.get("open", 0)) for k in klines]
+        highs = [float(k.get("high", 0)) for k in klines]
+        lows = [float(k.get("low", 0)) for k in klines]
+        last_c = closes[-1]
+        last_o = opens[-1]
+        last_h = highs[-1]
+        last_l = lows[-1]
+        tags = []
+        # 十字星检测（上下影线长，实体小）
+        body = abs(last_c - last_o)
+        upper = last_h - max(last_c, last_o)
+        lower = min(last_c, last_o) - last_l
+        avg_range = sum(h - l for h, l in zip(highs[-5:], lows[-5:])) / 5 if len(highs) >= 5 else 1
+        if body < avg_range * 0.15 and lower > body * 2 and last_c > last_o:
+            tags.append("十字星")
+        # 弱转强：前几日下跌/横盘，今日放量上涨
+        if len(closes) >= 5:
+            prev_change = (closes[-2] - closes[-3]) / closes[-3] * 100 if closes[-3] else 0
+            today_change = (closes[-1] - closes[-2]) / closes[-2] * 100 if closes[-2] else 0
+            if prev_change < 1 and today_change > 3:
+                tags.append("弱转强")
+        # 二次回踩支撑：近期有高点回落，再次触及支撑后反弹
+        if len(closes) >= 10:
+            recent_high = max(closes[-10:-2]) if len(closes) >= 10 else max(closes[:-2])
+            recent_low = min(lows[-5:])
+            if recent_low < recent_high * 0.9 and last_c > last_o and last_c > recent_low * 1.02:
+                tags.append("二次回踩")
+        # 底部反转
+        if len(closes) >= 5:
+            five_day_low = min(lows[-5:])
+            if last_c > last_o and last_l <= five_day_low * 1.01 and (last_c - last_l) > (last_h - last_c):
+                tags.append("底部反转")
+        if "十字星" in tags:
+            return {"performance": "十字星反转信号", "suggestion": "关注次日确认，量能配合为佳", "tags": tags}
+        if "弱转强" in tags:
+            return {"performance": "弱转强信号", "suggestion": "关注量能持续性和板块共振", "tags": tags}
+        if "二次回踩" in tags:
+            return {"performance": "二次回踩支撑", "suggestion": "支撑有效可关注反弹力度", "tags": tags}
+        if "底部反转" in tags:
+            return {"performance": "底部反转信号", "suggestion": "关注突破确认和量能放大", "tags": tags}
+        return {"performance": "首板涨停", "suggestion": "关注次日竞价和量能", "tags": tags}
 
     def _to_markdown(self, d: date, summary, sector_flow, ladder, pool, reviews) -> str:
         lines = [f"# 复盘报告 {d}", ""]
@@ -245,6 +303,38 @@ class ReplayEngine:
     async def get_history(self, limit: int = 30) -> list[dict]:
         rows = (await self.db.execute(select(ReplayReport).order_by(ReplayReport.date.desc()).limit(limit))).scalars().all()
         return [{"date": r.date.isoformat(), "id": r.id} for r in rows]
+
+    async def get_trend(self, days: int = 7) -> list[dict]:
+        rows = (await self.db.execute(
+            select(ReplayReport).order_by(ReplayReport.date.desc()).limit(days)
+        )).scalars().all()
+        result = []
+        prev_limit_up = 0
+        for r in reversed(rows):
+            ms = r.market_summary or {}
+            la = r.limit_analysis or {}
+            ladder = (la.get("ladder") or {}).get("ladder") or {}
+            total_limit = ms.get("limit_up_count", 0)
+            # 跌停数从distribution获取
+            dist = ms.get("distribution") or {}
+            limit_down = dist.get("limit_down", 0) or dist.get("limit_down_count", 0)
+            multi_board = 0
+            for k, v in ladder.items():
+                if int(k) >= 2:
+                    multi_board += len(v)
+            consecutive_rate = round(multi_board / total_limit * 100, 1) if total_limit > 0 else 0
+            broken = max(0, prev_limit_up - multi_board - (total_limit - multi_board)) if prev_limit_up > 0 else 0
+            broken_rate = round(broken / prev_limit_up * 100, 1) if prev_limit_up > 0 else 0
+            result.append({
+                "date": r.date.isoformat(),
+                "limit_up": total_limit,
+                "limit_down": limit_down,
+                "multi_board": multi_board,
+                "consecutive_rate": consecutive_rate,
+                "broken_rate": broken_rate,
+            })
+            prev_limit_up = total_limit
+        return result
 
     @staticmethod
     def _serialize(rep) -> dict:

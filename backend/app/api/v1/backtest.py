@@ -144,6 +144,23 @@ def _ema(values: list, window: int) -> list:
     return out
 
 
+def _check_future_function(src: str) -> None:
+    """检测策略代码中是否使用了未来函数（访问 bars[i+k] 或 closes[i+k]，k>0）。"""
+    patterns = [
+        r'\w+\[i\s*\+\s*[1-9]\w*\]',   # bars[i+1], closes[i+2] etc.
+        r'\w+\[\w+\s*\+\s*[1-9]\w*\]',   # idx + 1 style
+        r'future|lookahead|next_bar',       # explicit future keywords
+    ]
+    for pat in patterns:
+        matches = re.findall(pat, src, re.IGNORECASE)
+        if matches:
+            bad = [m for m in matches if not m.startswith(('prev_', 'pre_'))]
+            if bad:
+                raise ValueError(
+                    f"检测到可能使用了未来函数: {bad[0]}。"
+                    "回测策略不允许使用未来数据（不能访问 i 之后的 bar），请检查代码。")
+
+
 def _compile_strategy(code: str) -> object:
     """编译策略代码并返回 run 函数；出错抛 ValueError（带定位信息）。"""
     import inspect
@@ -151,6 +168,7 @@ def _compile_strategy(code: str) -> object:
     ns["sma"] = _sma
     ns["ema"] = _ema
     src = code or CODE_TEMPLATE
+    _check_future_function(src)
     try:
         exec(compile(src, "<strategy>", "exec"), ns)
     except Exception as e:
@@ -192,7 +210,7 @@ def _make_key(name: str, existing: list[str]) -> str:
 
 
 async def ensure_default_strategies(db: AsyncSession) -> None:
-    """保证内置「均线金叉死叉」存在（幂等）；旧版模板自动升级为单只/组合双模式。"""
+    """保证内置策略存在（幂等）；旧版模板自动升级为单只/组合双模式。"""
     try:
         row = (await db.execute(
             select(StrategyConfig).where(StrategyConfig.key == "ma_cross"))).scalars().first()
@@ -204,10 +222,145 @@ async def ensure_default_strategies(db: AsyncSession) -> None:
             ))
             await db.commit()
         elif (row.code or "").strip() == LEGACY_TEMPLATE.strip():
-            # 仍是未改动过的旧模板 → 升级为双模式模板并补齐 weight 参数
             row.code = CODE_TEMPLATE
             row.params_schema = DEFAULT_SCHEMA
             await db.commit()
+
+        # RSI 超卖反弹策略
+        rsi_key = "rsi_oversold"
+        rsi_row = (await db.execute(select(StrategyConfig).where(StrategyConfig.key == rsi_key))).scalars().first()
+        if rsi_row is None:
+            db.add(StrategyConfig(
+                key=rsi_key, name="RSI超卖反弹",
+                description="RSI低于阈值时超卖买入，高于阈值时卖出；适合震荡市抄底。",
+                params_schema=[
+                    {"key": "period", "label": "RSI周期", "type": "int", "default": 14, "min": 5, "max": 50, "step": 1},
+                    {"key": "oversold", "label": "超卖线", "type": "int", "default": 30, "min": 10, "max": 45, "step": 1},
+                    {"key": "overbought", "label": "超买线", "type": "int", "default": 70, "min": 55, "max": 90, "step": 1},
+                ],
+                code='''# RSI超卖反弹策略
+def run(bars, params):
+    period = int(params.get("period", 14))
+    oversold = int(params.get("oversold", 30))
+    overbought = int(params.get("overbought", 70))
+    closes = [b["close"] for b in bars]
+    # 计算RSI
+    deltas = [closes[i] - closes[i-1] if i > 0 else 0 for i in range(len(closes))]
+    gains = [max(d, 0) for d in deltas]
+    losses = [abs(min(d, 0)) for d in deltas]
+    avg_gain = [None] * len(closes)
+    avg_loss = [None] * len(closes)
+    rsi = [None] * len(closes)
+    for i in range(period, len(closes)):
+        if avg_gain[i-1] is None:
+            avg_gain[i] = sum(gains[i-period:i]) / period
+            avg_loss[i] = sum(losses[i-period:i]) / period
+        else:
+            avg_gain[i] = (avg_gain[i-1] * (period-1) + gains[i]) / period
+            avg_loss[i] = (avg_loss[i-1] * (period-1) + losses[i]) / period
+        if avg_loss[i] == 0:
+            rsi[i] = 100
+        else:
+            rs = avg_gain[i] / avg_loss[i]
+            rsi[i] = 100 - 100 / (1 + rs)
+    signals = []
+    holding = False
+    for i in range(period, len(closes)):
+        if rsi[i] is None: continue
+        if not holding and rsi[i] < oversold:
+            signals.append({"dt": bars[i]["dt"], "action": "buy", "fraction": 1.0})
+            holding = True
+        elif holding and rsi[i] > overbought:
+            signals.append({"dt": bars[i]["dt"], "action": "sell", "fraction": 1.0})
+            holding = False
+    return signals
+''', is_builtin=True, is_active=True,
+            ))
+            await db.commit()
+
+        # MACD策略
+        macd_key = "macd_cross"
+        macd_row = (await db.execute(select(StrategyConfig).where(StrategyConfig.key == macd_key))).scalars().first()
+        if macd_row is None:
+            db.add(StrategyConfig(
+                key=macd_key, name="MACD金叉死叉",
+                description="DIF上穿DEA买入，下穿卖出；MACD柱由负转正确认趋势。",
+                params_schema=[
+                    {"key": "fast", "label": "快线EMA", "type": "int", "default": 12, "min": 5, "max": 50, "step": 1},
+                    {"key": "slow", "label": "慢线EMA", "type": "int", "default": 26, "min": 10, "max": 100, "step": 1},
+                    {"key": "signal", "label": "信号线", "type": "int", "default": 9, "min": 3, "max": 30, "step": 1},
+                ],
+                code='''# MACD金叉死叉策略
+def run(bars, params):
+    fast_n = int(params.get("fast", 12))
+    slow_n = int(params.get("slow", 26))
+    sig_n = int(params.get("signal", 9))
+    closes = [b["close"] for b in bars]
+    fast_ema = ema(closes, fast_n)
+    slow_ema = ema(closes, slow_n)
+    dif = [f - s if f is not None and s is not None else None for f, s in zip(fast_ema, slow_ema)]
+    # DEA = EMA(DIF, signal)
+    dea = [None] * len(closes)
+    k = 2.0 / (sig_n + 1)
+    e = None
+    for i, d in enumerate(dif):
+        if d is None:
+            dea[i] = None
+            continue
+        e = d if e is None else d * k + e * (1 - k)
+        dea[i] = e
+    signals = []
+    holding = False
+    for i in range(1, len(closes)):
+        if dif[i] is None or dea[i] is None or dif[i-1] is None or dea[i-1] is None:
+            continue
+        if not holding and dif[i-1] <= dea[i-1] and dif[i] > dea[i]:
+            signals.append({"dt": bars[i]["dt"], "action": "buy", "fraction": 1.0})
+            holding = True
+        elif holding and dif[i-1] >= dea[i-1] and dif[i] < dea[i]:
+            signals.append({"dt": bars[i]["dt"], "action": "sell", "fraction": 1.0})
+            holding = False
+    return signals
+''', is_builtin=True, is_active=True,
+            ))
+            await db.commit()
+
+        # 布林带突破策略
+        boll_key = "bollinger_break"
+        boll_row = (await db.execute(select(StrategyConfig).where(StrategyConfig.key == boll_key))).scalars().first()
+        if boll_row is None:
+            db.add(StrategyConfig(
+                key=boll_key, name="布林带突破",
+                description="价格突破布林带上轨买入，跌破下轨卖出；中轨作为止损线。",
+                params_schema=[
+                    {"key": "period", "label": "均线周期", "type": "int", "default": 20, "min": 10, "max": 60, "step": 1},
+                    {"key": "std_dev", "label": "标准差倍数", "type": "number", "default": 2.0, "min": 1.0, "max": 4.0, "step": 0.1},
+                ],
+                code='''# 布林带突破策略
+def run(bars, params):
+    period = int(params.get("period", 20))
+    std_mult = float(params.get("std_dev", 2.0))
+    closes = [b["close"] for b in bars]
+    mid = sma(closes, period)
+    signals = []
+    holding = False
+    for i in range(period, len(closes)):
+        if mid[i] is None: continue
+        window = closes[i-period+1:i+1]
+        std = (sum((x - mid[i])**2 for x in window) / period) ** 0.5
+        upper = mid[i] + std_mult * std
+        lower = mid[i] - std_mult * std
+        if not holding and closes[i] > upper:
+            signals.append({"dt": bars[i]["dt"], "action": "buy", "fraction": 1.0})
+            holding = True
+        elif holding and closes[i] < lower:
+            signals.append({"dt": bars[i]["dt"], "action": "sell", "fraction": 1.0})
+            holding = False
+    return signals
+''', is_builtin=True, is_active=True,
+            ))
+            await db.commit()
+
     except Exception as e:
         logger.warning(f"seed default strategy failed: {e}")
         await db.rollback()
@@ -324,11 +477,12 @@ def _simulate(bars: list, signals: list, capital: float) -> dict:
             fill = opens[dt]
             if action == "buy" and shares <= 0 and cash > 0:
                 spend = cash * frac
-                if spend > 0:
-                    shares = spend / fill
-                    cash -= shares * fill
-                    entry_price = fill
-                    entry_date = dt
+                if spend > fill:
+                    shares = int(spend / fill / 100) * 100
+                    if shares >= 100:
+                        cash -= shares * fill
+                        entry_price = fill
+                        entry_date = dt
             elif action == "sell" and shares > 0:
                 n = shares * frac
                 proceeds = n * fill
@@ -408,10 +562,11 @@ def _simulate_portfolio(bars_map: dict, signals: list, capital: float) -> dict:
             if action == "buy":
                 if pos is None and cash > 0:
                     spend = cash * frac
-                    if spend > 0:
-                        shares = spend / fill
-                        cash -= shares * fill
-                        positions[sym] = {"shares": shares, "entry_price": fill, "entry_date": dt}
+                    if spend > fill:
+                        shares = int(spend / fill / 100) * 100
+                        if shares >= 100:
+                            cash -= shares * fill
+                            positions[sym] = {"shares": shares, "entry_price": fill, "entry_date": dt}
             elif action == "sell" and pos:
                 n = pos["shares"] * frac
                 proceeds = n * fill

@@ -376,16 +376,26 @@ function openDialog(row) {
   testResult.value = null
   quickCase.value = ''
   let url = row?.url || ''
-  let base = LOCAL_BASE
-  if (row?.rss_type === 'rsshub_local' && url) {
-    const hit = (row?.base && RSSHUB_BASES.find((x) => x.value === row.base)) || RSSHUB_BASES.find((x) => x.value !== LOCAL_BASE && url.startsWith(x.value))
-    if (hit) { base = hit.value; url = url.replace(hit.value, '') }
+  let base = row?.base || ''
+  if (row?.rss_type === 'rsshub_local' && !base) {
+    // 旧数据兼容：base 为空时尝试从 URL 中拆出已知前缀
+    for (const b of RSSHUB_BASES) {
+      if (b.value !== LOCAL_BASE && url.startsWith(b.value)) {
+        base = b.value
+        url = url.slice(b.value.length)
+        break
+      }
+    }
+    if (!base && url.startsWith(LOCAL_BASE)) {
+      base = LOCAL_BASE
+      url = url.slice(LOCAL_BASE.length)
+    }
   }
   form.value = {
     name: row?.name || '',
     rss_type: row?.rss_type || 'http',
     url,
-    base,
+    base: base || LOCAL_BASE,
     interval_min: row?.interval_min || 5,
     tagsText: (row?.tags || []).join(','),
     remark: row?.remark || '',
@@ -446,6 +456,7 @@ async function saveSourceDialog() {
     name,
     rss_type: form.value.rss_type,
     url: url || null,
+    base: form.value.rss_type === 'rsshub_local' ? (form.value.base || '') : '',
     tags: form.value.tagsText.split(/[,，\s]+/).filter(Boolean),
     remark: form.value.remark || '',
     interval_min: Number(form.value.interval_min) || 5,
