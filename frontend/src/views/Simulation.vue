@@ -259,12 +259,11 @@
       </el-drawer>
 
       <!-- 个股 K线 + 缠论（持仓/交易点击查看） -->
-      <el-dialog v-model="chartDialog" :title="chartTitle" width="820" top="6vh">
+      <el-dialog v-model="chartDialog" :title="chartTitle" width="820" top="6vh"
+        @after-leave="posKline = []; posCzsc = {}">
         <div class="fs12" style="color:#909399;margin-bottom:6px">日K线 + 缠论分型/笔/中枢/买卖点（真实行情 + 官方 czsc 插件）</div>
         <KlineChart v-if="posKline.length" :data="posKline" height="420px"
-          :fx="posCzsc.fx_list || []" :bi="posCzsc.bi_list || []" :zs="posCzsc.zs_list || []"
-          :signals="posCzsc.signals || []"
-          :stage-points="posCzsc.stage_points || []" />
+          :fx="posCzsc.fx_list || []" :bi="posCzsc.bi_list || []" />
         <div v-else class="fs12" style="color:#909399;text-align:center;height:420px;line-height:420px">K线加载中…</div>
       </el-dialog>
 
@@ -314,6 +313,7 @@ const chartDialog = ref(false)
 const chartTitle = ref('个股分析')
 const posKline = ref([])
 const posCzsc = ref({})
+const symChartRef = ref(null)
 const poolTab = ref('positions')
 const trackInput = reactive({})
 const poolSourceNote = '来源于最近一次 18:00 每日复盘报告'
@@ -404,18 +404,18 @@ async function showPosChart(row) {
 async function showSymbolChart(symbol) {
   chartTitle.value = `${symbol} · 日K + 缠论`
   chartDialog.value = true
-  posKline.value = []
-  posCzsc.value = {}
+  let kline = []
+  let czsc = {}
   try {
-    const [k, c] = await Promise.all([
-      stockApi.kline(symbol, { period: 'day' }),
-      stockApi.czsc(symbol)
-    ])
-    posKline.value = k.data || []
-    posCzsc.value = c || {}
-  } catch {
-    posKline.value = []
-  }
+    const k = await stockApi.kline(symbol, { period: 'day' })
+    kline = k.data || []
+  } catch {}
+  try {
+    const c = await stockApi.czsc(symbol)
+    czsc = c || {}
+  } catch {}
+  posKline.value = kline
+  posCzsc.value = czsc
 }
 
 async function showLogs(acc) {

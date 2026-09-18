@@ -8,6 +8,7 @@ export const marketApi = {
   macro: (refresh = 0) => http.get('/market/macro', { params: { refresh } }),
   kline: (p) => http.get('/market/kline', { params: p }),
   intraday: (p) => http.get('/market/intraday', { params: p }),
+  intradayAnalysis: (p) => http.get('/market/intraday-analysis', { params: p }),
   realtime: (p) => http.get('/market/realtime', { params: p }),
   news: (limit = 50) => http.get('/market/news', { params: { limit } }),
   sectorFlow: () => http.get('/market/sectors/money-flow'),
@@ -120,7 +121,8 @@ export const tradeApi = {
   trades: () => http.get('/trade/trades'),
   deleteTrade: (id) => http.delete(`/trade/trades/${id}`),
   deleteAll: () => http.delete('/trade/trades'),
-  pnl: () => http.get('/trade/pnl/summary')
+  pnl: () => http.get('/trade/pnl/summary'),
+  reviewTrade: (id) => http.post(`/trade/trades/${id}/review`)
 }
 
 // 系统

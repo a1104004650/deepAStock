@@ -6,6 +6,16 @@
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import * as echarts from 'echarts'
 
+const SIGNAL_COLORS = {
+  '吸筹': '#e6a23c',
+  '洗盘': '#909399',
+  '诱多': '#f56c6c',
+  '诱空': '#67c23a',
+  '真拉升': '#409eff',
+  'T买': '#14b143',
+  'T卖': '#ef232a',
+}
+
 const props = defineProps({
   data: { type: Array, default: () => [] },
   height: { type: String, default: '260px' },
@@ -13,16 +23,21 @@ const props = defineProps({
   colors: { type: Array, default: () => ['#409eff'] },
   showAvg: { type: Boolean, default: true },
   volume: { type: Boolean, default: false },
-  multi: { type: Array, default: () => [] }
+  multi: { type: Array, default: () => [] },
+  signals: { type: Array, default: () => [] },
+  showVwap: { type: Boolean, default: false },
+  preClose: { type: Number, default: 0 },
+  pctMode: { type: Boolean, default: false },
+  showT: { type: Boolean, default: false },
 })
 
 const el = ref(null)
 let chart = null
+let rendering = false
 
 function minuteAxis() {
   const labels = []
   for (let mt = 9 * 60 + 15; mt <= 15 * 60; mt++) {
-    // 去除午间休市(11:31-12:59)，分时线跨午休直连，不预留白
     if (mt >= 11 * 60 + 31 && mt <= 12 * 60 + 59) continue
     const hh = String(Math.floor(mt / 60)).padStart(2, '0')
     const mm = String(mt % 60).padStart(2, '0')
@@ -32,6 +47,16 @@ function minuteAxis() {
 }
 
 function render() {
+  if (rendering) return
+  rendering = true
+  try {
+    _doRender()
+  } finally {
+    rendering = false
+  }
+}
+
+function _doRender() {
   if (!chart || !Array.isArray(props.data) || !props.data.length) return
   const labels = []
   let series = []
@@ -42,13 +67,13 @@ function render() {
     first.avg !== undefined
 
   if (isMinute) {
-    // 分时图：09:15(竞价)~15:00，跳过午休(11:31-12:59)，未到时刻留白，同步均价线
     const minutes = minuteAxis()
     const timeIdx = {}
     minutes.forEach((t, i) => { timeIdx[t] = i })
     labels.push(...minutes)
     const price = new Array(minutes.length).fill(null)
     const avg = new Array(minutes.length).fill(null)
+    const vwapArr = new Array(minutes.length).fill(null)
     const volDelta = new Array(minutes.length).fill(null)
     let prevPrice = null
     let found = 0
@@ -57,9 +82,9 @@ function render() {
       if (idx === undefined) continue
       const p = row.price ?? null
       price[idx] = p
-      // 均价线：与价格偏差过大(指数分时单位异常)则视为无效丢弃，避免y轴被压平
       if (props.showAvg && row.avg !== undefined && row.avg !== null && p &&
         Math.abs(row.avg - p) / p <= 0.3) avg[idx] = row.avg
+      if (props.showVwap && row.vwap) vwapArr[idx] = row.vwap
       if (props.volume && typeof row.volume === 'number' && row.volume > 0) {
         const prevCum = found === 0 ? 0 : (props.data[found - 1]?.volume ?? 0)
         const d = Math.max(row.volume - prevCum, 0)
@@ -72,16 +97,68 @@ function render() {
       }
       found++
     }
+
+    // --- sigIdx 必须在最外层定义，tooltip formatter 闭包需要引用 ---
+    const sigIdx = {}
+    if (props.signals && props.signals.length) {
+      props.signals.forEach(s => {
+        // 做T信号需要 showT 开启才显示
+        const isT = s.type === 't_buy' || s.type === 't_sell'
+        if (isT && !props.showT) return
+        sigIdx[s.time] = s
+      })
+    }
+
+    // --- 信号标记点 ---
+    const markPoints = []
+    for (let i = 0; i < minutes.length; i++) {
+      const sig = sigIdx[minutes[i]]
+      if (sig && price[i] != null) {
+        markPoints.push({
+          coord: [i, price[i]],
+          value: sig.signal,
+          symbol: sig.signal === '真拉升' ? 'triangle' : sig.signal === '诱多' ? 'diamond' :
+            sig.signal === '诱空' ? 'rect' : sig.signal === '洗盘' ? 'circle' : 'pin',
+          symbolSize: sig.confidence > 70 ? 18 : sig.confidence > 50 ? 14 : 10,
+          itemStyle: { color: SIGNAL_COLORS[sig.signal] || '#409eff' },
+          label: {
+            show: true,
+            formatter: sig.signal + ' ' + sig.confidence + '%',
+            fontSize: sig.confidence > 50 ? 9 : 8,
+            color: '#fff',
+            backgroundColor: SIGNAL_COLORS[sig.signal] || '#409eff',
+            borderRadius: 3,
+            padding: [2, 4],
+            position: 'top',
+          }
+        })
+      }
+    }
+
+    // --- 昨收参考线 ---
+    const markLines = []
+    if (props.preClose > 0) {
+      markLines.push({
+        yAxis: props.preClose,
+        lineStyle: { color: '#aaa', type: 'dashed', width: 1 },
+        label: { show: true, formatter: '昨收 ' + props.preClose.toFixed(2), fontSize: 9, color: '#999' }
+      })
+    }
+
+    const useDualAxis = props.preClose > 0
     series = [
       {
         name: '价格',
         type: 'line',
         data: price,
+        yAxisIndex: useDualAxis ? 1 : 0,
         smooth: true,
         symbol: 'none',
         connectNulls: false,
         lineStyle: { width: 1.5, color: props.colors[0] || '#409eff' },
-        areaStyle: props.area ? { opacity: 0.15, color: props.colors[0] || '#409eff' } : undefined
+        areaStyle: props.area ? { opacity: 0.15, color: props.colors[0] || '#409eff' } : undefined,
+        markPoint: markPoints.length ? { data: markPoints, animation: false } : undefined,
+        markLine: markLines.length ? { data: markLines, animation: false, silent: true } : undefined,
       }
     ]
     if (props.showAvg) {
@@ -89,10 +166,23 @@ function render() {
         name: '均价',
         type: 'line',
         data: avg,
+        yAxisIndex: useDualAxis ? 1 : 0,
         smooth: true,
         symbol: 'none',
         connectNulls: false,
         lineStyle: { width: 1.2, color: props.colors[1] || '#e6a23c', type: 'dashed' }
+      })
+    }
+    if (props.showVwap) {
+      series.push({
+        name: 'VWAP',
+        type: 'line',
+        data: vwapArr,
+        yAxisIndex: useDualAxis ? 1 : 0,
+        smooth: true,
+        symbol: 'none',
+        connectNulls: false,
+        lineStyle: { width: 1.2, color: '#9b59b6', type: 'dotted' }
       })
     }
     if (props.volume) {
@@ -101,7 +191,7 @@ function render() {
         type: 'bar',
         data: volDelta,
         xAxisIndex: 1,
-        yAxisIndex: 1,
+        yAxisIndex: 2,
         barWidth: '70%'
       })
     }
@@ -109,28 +199,106 @@ function render() {
     let minV = Math.min(...valid); let maxV = Math.max(...valid)
     const pad = Math.max((maxV - minV) * 0.08, maxV * 0.0005)
     if (maxV - minV < pad) { minV -= pad; maxV += pad }
+
+    // 信号区域着色（markArea）
+    const markAreas = []
+    if (Object.keys(sigIdx).length) {
+      let zone = null
+      for (let i = 0; i < minutes.length; i++) {
+        const sig = sigIdx[minutes[i]]
+        if (sig && price[i] != null) {
+          if (!zone || zone.signal !== sig.signal) {
+            if (zone && zone.end - zone.start >= 1) {
+              markAreas.push([
+                { xAxis: zone.start, itemStyle: { color: (SIGNAL_COLORS[zone.signal] || '#409eff') + '12' } },
+                { xAxis: zone.end }
+              ])
+            }
+            zone = { signal: sig.signal, start: i, end: i }
+          } else {
+            zone.end = i
+          }
+        }
+      }
+      if (zone && zone.end - zone.start >= 1) {
+        markAreas.push([
+          { xAxis: zone.start, itemStyle: { color: (SIGNAL_COLORS[zone.signal] || '#409eff') + '12' } },
+          { xAxis: zone.end }
+        ])
+      }
+    }
+    if (markAreas.length) {
+      series[0].markArea = { data: markAreas, silent: true, animation: false }
+    }
+
     chart.setOption({
       animation: false,
-      tooltip: { trigger: 'axis' },
+      tooltip: {
+        trigger: 'axis',
+        formatter: (params) => {
+          if (!params || !params.length) return ''
+          const idx = params[0].dataIndex
+          const t = minutes[idx]
+          const p = price[idx]
+          const v = vwapArr[idx]
+          let tip = `<b>${t}</b><br/>`
+          if (p != null) {
+            tip += `价格: ${p.toFixed(2)}`
+            if (props.preClose > 0) {
+              const chg = ((p - props.preClose) / props.preClose * 100).toFixed(2)
+              tip += ` <span style="color:${Number(chg) >= 0 ? '#ef232a' : '#14b143'}">(${chg >= 0 ? '+' : ''}${chg}%)</span>`
+            }
+          }
+          if (v) tip += `<br/>VWAP: ${v.toFixed(2)}`
+          const sig = sigIdx[t]
+          if (sig) tip += `<br/><span style="color:${SIGNAL_COLORS[sig.signal]}">● ${sig.signal} (${sig.confidence}%)</span><br/>${sig.desc}`
+          return tip
+        }
+      },
       legend: series.length > 1 ? { top: 0, right: 10, textStyle: { fontSize: 12 } } : undefined,
-      grid: props.volume
-        ? [
-            { left: 50, right: 20, top: series.length > 1 ? 30 : 16, height: '64%' },
-            { left: 50, right: 20, top: '82%', height: '10%' }
+      grid: (() => {
+        const rPad = useDualAxis ? 55 : 20
+        if (props.volume) {
+          return [
+            { left: 50, right: rPad, top: series.length > 1 ? 30 : 16, height: '64%' },
+            { left: 50, right: rPad, top: '82%', height: '10%' }
           ]
-        : { left: 50, right: 20, top: series.length > 1 ? 30 : 16, bottom: 24 },
+        }
+        return { left: 50, right: rPad, top: series.length > 1 ? 30 : 16, bottom: 24 }
+      })(),
       xAxis: props.volume
         ? [
             { type: 'category', data: labels, boundaryGap: false, axisLabel: { fontSize: 10 } },
             { type: 'category', gridIndex: 1, data: labels, show: false }
           ]
         : { type: 'category', data: labels, boundaryGap: false, axisLabel: { fontSize: 10 } },
-      yAxis: props.volume
-        ? [
-            { scale: true, min: minV, max: maxV, splitLine: { lineStyle: { color: '#f0f0f0' } }, axisLabel: { fontSize: 10 } },
+      yAxis: (() => {
+        const hasPreClose = props.preClose > 0
+        const priceAxis = {
+          scale: true, min: minV, max: maxV, position: 'left',
+          splitLine: { lineStyle: { color: '#f0f0f0' } },
+          axisLabel: { fontSize: 10 }
+        }
+        if (props.volume) {
+          return [
+            hasPreClose ? {
+              scale: true, min: minV, max: maxV, position: 'right',
+              splitLine: { show: false },
+              axisLabel: { fontSize: 10, formatter: (v) => ((v - props.preClose) / props.preClose * 100).toFixed(2) + '%' }
+            } : { scale: true, min: minV, max: maxV, position: 'left', splitLine: { lineStyle: { color: '#f0f0f0' } }, axisLabel: { fontSize: 10 } },
+            priceAxis,
             { gridIndex: 1, scale: true, splitLine: { show: false }, axisLabel: { show: false } }
           ]
-        : { scale: true, min: minV, max: maxV, splitLine: { lineStyle: { color: '#f0f0f0' } } },
+        }
+        return [
+          hasPreClose ? {
+            scale: true, min: minV, max: maxV, position: 'right',
+            splitLine: { show: false },
+            axisLabel: { fontSize: 10, formatter: (v) => ((v - props.preClose) / props.preClose * 100).toFixed(2) + '%' }
+          } : { scale: true, min: minV, max: maxV, position: 'left', splitLine: { lineStyle: { color: '#f0f0f0' } }, axisLabel: { fontSize: 10 } },
+          priceAxis
+        ]
+      })(),
       series
     })
     return
@@ -153,8 +321,6 @@ function render() {
   })
 
   if (props.multi && props.multi.length) {
-    // 多序列对比图（如 主力/超大/大/中/小 净流入），labels 取首个数据点的 date/time
-    const keys = props.multi.map((m) => m.key)
     series = props.multi.map((m, si) => {
       const color = m.color || props.colors[si % props.colors.length]
       return {
@@ -211,4 +377,9 @@ onBeforeUnmount(() => {
   chart && chart.dispose()
 })
 watch(() => props.data, render, { deep: true })
+watch(() => props.signals, render, { deep: true })
+watch(() => props.showVwap, render)
+watch(() => props.pctMode, render)
+watch(() => props.showT, render)
+watch(() => props.preClose, render)
 </script>

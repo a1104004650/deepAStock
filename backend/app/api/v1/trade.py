@@ -61,3 +61,10 @@ async def import_csv(file: UploadFile = File(...), db: AsyncSession = Depends(ge
 async def pnl_summary(db: AsyncSession = Depends(get_db)):
     svc = TradeImportService(db)
     return await svc.get_pnl_summary(0)
+
+
+@router.post("/trades/{trade_id}/review")
+async def review_trade(trade_id: int, db: AsyncSession = Depends(get_db)):
+    """AI 点评单笔交易"""
+    svc = TradeImportService(db)
+    return await svc.review_trade(0, trade_id)

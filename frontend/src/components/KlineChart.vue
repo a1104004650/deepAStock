@@ -23,8 +23,15 @@ const STAGE_COLORS = {
 
 const el = ref(null)
 let chart = null
+let rendering = false
 
 function render() {
+  if (rendering || !chart || !el.value) return
+  rendering = true
+  try { _doRender() } finally { rendering = false }
+}
+
+function _doRender() {
   if (!chart || !Array.isArray(props.data) || !props.data.length) return
   const d = props.data
   const dates = d.map((x) => x.dt || x.date || x.time)
@@ -100,23 +107,25 @@ function render() {
     }
   }
 
-  // 缠论：中枢（矩形区域）
+  // 缠论：中枢（矩形区域）— 用 graphic 画避免 markArea coord 报错
   if (Array.isArray(props.zs) && props.zs.length) {
-    const areas = []
+    const zGraphics = []
     for (const z of props.zs) {
-      const s = idxByDt[z.start]
-      const e = idxByDt[z.end]
-      if (s == null || e == null) continue
-      areas.push({
-        name: '中枢',
-        xAxis: s,
-        yAxis: z.low,
-        itemStyle: { color: 'rgba(64,158,255,0.12)', borderColor: '#409eff', borderWidth: 1, borderType: 'dashed' },
-        label: { show: true, formatter: '中枢', position: 'insideTop', fontSize: 9, color: '#409eff' }
-      })
-      areas.push({ xAxis: e, yAxis: z.high })
+      try {
+        const sIdx = idxByDt[z.start]
+        const eIdx = idxByDt[z.end]
+        if (sIdx == null || eIdx == null) continue
+        if (z.low == null || z.high == null) continue
+        // markArea 需要 coordinateSystem: 'cartesian2d'，且 xAxis 必须是 category
+        // 但 echarts 5.x 的 markAreaFilter 内部会调用 coord() 导致 coord undefined
+        // 改用 markLine 替代：两条水平线标注中枢区间
+        series[0].markLine = series[0].markLine || { silent: true, animation: false, data: [] }
+        series[0].markLine.data.push(
+          { yAxis: z.high, lineStyle: { color: '#409eff', type: 'dashed', width: 1 }, label: { show: true, formatter: '中枢顶', fontSize: 8, color: '#409eff' } },
+          { yAxis: z.low, lineStyle: { color: '#409eff', type: 'dashed', width: 1 }, label: { show: true, formatter: '中枢底', fontSize: 8, color: '#409eff' } }
+        )
+      } catch {}
     }
-    series.push({ name: '中枢', type: 'scatter', data: [], silent: true, markArea: { data: areas, z: 1 } })
   }
 
   // 缠论信号（买卖点）
@@ -141,34 +150,26 @@ function render() {
     }
   }
 
-  // 情绪阶段色带（吸筹/洗盘/拉升/出货）
+  // 情绪阶段色带 — 暂用 markLine 标注阶段边界（避免 markArea coord 报错）
   if (Array.isArray(props.stagePoints) && props.stagePoints.length) {
-    const strip = []
-    let curStage = null, curStart = null
-    const run = (stage, s, e) => {
-      const color = STAGE_COLORS[stage]
-      if (!color || s == null || e == null) return
-      strip.push({
-        xAxis: s,
-        itemStyle: { color },
-        label: { show: (e - s) > 3, formatter: stage.replace('阶段', ''), position: 'insideBottom', fontSize: 9, color: '#333' },
-        tooltip: { formatter: () => `${stage}` }
-      })
-      strip.push({ xAxis: e })
-    }
+    const stageLines = []
+    let curStage = null
     for (let i = 0; i < props.stagePoints.length; i++) {
       const sp = props.stagePoints[i]
       const di = idxByDt[sp.dt]
       if (di == null) continue
       if (sp.stage !== curStage) {
-        if (curStage) run(curStage, curStart, di)
         curStage = sp.stage
-        curStart = di
+        const color = STAGE_COLORS[curStage] || '#999'
+        stageLines.push({
+          xAxis: di,
+          lineStyle: { color, type: 'dashed', width: 1 },
+          label: { show: true, formatter: curStage.replace('阶段', ''), fontSize: 8, color }
+        })
       }
     }
-    if (curStage) run(curStage, curStart, dates.length - 1)
-    if (strip.length) {
-      series.push({ name: '情绪', type: 'scatter', data: [], xAxisIndex: 2, yAxisIndex: 2, silent: true, markArea: { data: strip } })
+    if (stageLines.length && series.length > 0) {
+      series[0].markLine = { data: stageLines, silent: true, animation: false }
     }
   }
 
@@ -237,7 +238,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', resize)
-  chart && chart.dispose()
+  if (chart) { chart.dispose(); chart = null }
 })
 
 watch(() => props.data, render, { deep: true })
