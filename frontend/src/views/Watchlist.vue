@@ -125,15 +125,16 @@
               <div v-else style="position:relative;height:100%">
                 <LineChart v-if="intraday.length" :data="intraday" height="430px" :volume="true"
                   :pre-close="symbolStore.selectedRealtime.prev_close"
-                  :signals="intradaySignals" :show-vwap="!!intradaySignals.length"
+                  :signals="intradayShowSignals ? intradaySignals : []" :show-vwap="!!intradaySignals.length"
                   :show-t="intradayShowT" />
                 <el-empty v-else description="暂无分时数据" :image-size="70" style="position:absolute;inset:0" />
-                <!-- 分时图工具栏：做T开关 -->
+                <!-- 分时图工具栏 -->
                 <div v-if="intraday.length" class="intraday-toolbar">
-                  <el-checkbox v-model="intradayShowT" size="small">做T信号</el-checkbox>
+                  <el-checkbox v-model="intradayShowSignals" size="small">主力信号</el-checkbox>
+                  <el-checkbox v-model="intradayShowT" size="small" :disabled="!intradayShowSignals">做T信号</el-checkbox>
                 </div>
                 <!-- 主力意图标签 -->
-                <div v-if="intradaySummary?.intent" class="intent-bar">
+                <div v-if="intradayShowSignals && intradaySummary?.intent" class="intent-bar">
                   <span class="intent-label" :class="'intent-' + (intradaySummary.intent.primary === '真拉升' ? 'rally' : intradaySummary.intent.primary === '诱多' ? 'trap' : intradaySummary.intent.primary === '诱空' ? 'bear' : intradaySummary.intent.primary === '吸筹' ? 'accumulate' : intradaySummary.intent.primary === '洗盘' ? 'shakeout' : 'wait')">
                     {{ intradaySummary.intent.primary }}
                   </span>
@@ -505,6 +506,7 @@ const intraday = ref([])
 const intradaySignals = ref([])
 const intradaySummary = ref(null)
 const intradayPctMode = ref(false)
+const intradayShowSignals = ref(false)
 const intradayShowT = ref(false)
 const czsc = ref({})
 const stockNews = ref([])
