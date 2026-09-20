@@ -248,7 +248,7 @@ async function removeAgent(a) {
 
 onMounted(load)
 </script>
-<style>
+<style scoped>
 .wide-alert {
   width: 480px;
   white-space: pre-wrap;

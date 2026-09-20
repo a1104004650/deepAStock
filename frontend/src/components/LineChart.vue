@@ -27,7 +27,6 @@ const props = defineProps({
   signals: { type: Array, default: () => [] },
   showVwap: { type: Boolean, default: false },
   preClose: { type: Number, default: 0 },
-  pctMode: { type: Boolean, default: false },
   showT: { type: Boolean, default: false },
 })
 
@@ -379,7 +378,6 @@ onBeforeUnmount(() => {
 watch(() => props.data, render, { deep: true })
 watch(() => props.signals, render, { deep: true })
 watch(() => props.showVwap, render)
-watch(() => props.pctMode, render)
 watch(() => props.showT, render)
 watch(() => props.preClose, render)
 </script>

@@ -105,8 +105,8 @@
             <!-- 行情数据条 -->
             <div class="flex gap fs12 mt4" style="color:#909399;flex-wrap:wrap">
               <span>今开 {{ fmt(symbolStore.selectedRealtime.open) }}</span>
-              <span>最高 <span class="down">{{ fmt(symbolStore.selectedRealtime.high) }}</span></span>
-              <span>最低 <span class="up">{{ fmt(symbolStore.selectedRealtime.low) }}</span></span>
+              <span>最高 {{ fmt(symbolStore.selectedRealtime.high) }}</span>
+              <span>最低 {{ fmt(symbolStore.selectedRealtime.low) }}</span>
               <span>成交量 {{ fmtVol(symbolStore.selectedRealtime.volume) }}</span>
               <span>成交额 {{ fmtBig(symbolStore.selectedRealtime.amount) }}</span>
             </div>
@@ -435,14 +435,6 @@
                     </div>
                   </div>
                 </div>
-                <template v-if="false"><!-- 板块已上移到布林带附近 -->
-                <el-divider content-position="left">板块</el-divider>
-                <div v-if="sectorDetail.industry || (sectorDetail.concepts||[]).length">
-                  <el-tag size="small" type="warning" style="margin:2px">行业: {{ sectorDetail.industry }}</el-tag>
-                  <el-tag v-for="c in (sectorDetail.concepts||[])" :key="c" size="small" type="info" style="margin:2px">{{ c }}</el-tag>
-                </div>
-                </template>
-                <el-empty v-else description="暂无板块信息" :image-size="40" />
               </el-tab-pane>
             </el-tabs>
 
@@ -474,13 +466,22 @@
         </el-table>
         <el-empty v-else-if="searched" description="未找到匹配股票" :image-size="60" />
       </el-dialog>
+
+      <!-- 新建分组 -->
+      <el-dialog v-model="addGroupDialog" title="新建分组" width="360">
+        <el-input v-model="newGroupName" placeholder="请输入分组名称" @keyup.enter="confirmAddGroup" />
+        <template #footer>
+          <el-button @click="addGroupDialog = false">取消</el-button>
+          <el-button type="primary" @click="confirmAddGroup" :disabled="!newGroupName.trim()">确定</el-button>
+        </template>
+      </el-dialog>
     </div>
   </MainLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Close } from '@element-plus/icons-vue'
 import MainLayout from '../layout/MainLayout.vue'
@@ -490,7 +491,6 @@ import { watchlistApi, stockApi, marketApi, agentApi } from '../api'
 import { useSymbolStore } from '../stores/symbol'
 
 const route = useRoute()
-const router = useRouter()
 const groups = ref([])
 const currentGroupId = ref(null)
 const loading = ref(false)
@@ -498,6 +498,8 @@ const searchKw = ref('')
 const searchResults = ref([])
 const searched = ref(false)
 const searchDialog = ref(false)
+const addGroupDialog = ref(false)
+const newGroupName = ref('')
 const symbolStore = useSymbolStore()
 const VALID_PERIODS = ['mf', 'm5', 'm15', 'm30', 'm60', 'day']
 const period = ref('day')
@@ -505,7 +507,6 @@ const kline = ref([])
 const intraday = ref([])
 const intradaySignals = ref([])
 const intradaySummary = ref(null)
-const intradayPctMode = ref(false)
 const intradayShowSignals = ref(false)
 const intradayShowT = ref(false)
 const intradayFilteredSignals = computed(() => {
@@ -518,7 +519,6 @@ const intradayFilteredSignals = computed(() => {
 })
 const czsc = ref({})
 const stockNews = ref([])
-const sentiment = ref({})
 const forms = ref([])
 const financial = ref([])
 const finOverview = ref(null)
@@ -695,10 +695,10 @@ function selectItem(row) {
 async function loadStockDetail() {
   const sym = symbolStore.selectedSymbol
   if (!sym) return
-  const [basic, czscData, formData, finData, finOv, flowData, fsData, seData, nzData, secData, rankData, chainData] = await Promise.allSettled([
+  const [basic, czscData, formData, finData, finOv, flowData, fsData, nzData, secData, rankData, chainData] = await Promise.allSettled([
     stockApi.basic(sym), stockApi.czsc(sym), stockApi.forms(sym),
     stockApi.financial(sym), stockApi.financialOverview(sym), stockApi.moneyFlow(sym), stockApi.moneyFlowSummary(sym),
-    stockApi.sentiment(sym), stockApi.news(sym), stockApi.sector(sym),
+    stockApi.news(sym), stockApi.sector(sym),
     stockApi.industryRanking(sym), stockApi.industryChain(sym),
   ])
   if (basic.status === 'fulfilled' && basic.value) {
@@ -710,7 +710,6 @@ async function loadStockDetail() {
   if (finOv.status === 'fulfilled') finOverview.value = finOv.value || null
   if (flowData.status === 'fulfilled') moneyFlow.value = flowData.value || []
   if (fsData.status === 'fulfilled') flowSummary.value = fsData.value || null
-  if (seData.status === 'fulfilled') sentiment.value = seData.value || {}
   if (nzData.status === 'fulfilled') stockNews.value = nzData.value || []
   if (secData.status === 'fulfilled') sectorDetail.value = secData.value || {}
   if (rankData.status === 'fulfilled') industryRanking.value = rankData.value || null
@@ -879,9 +878,18 @@ async function loadWithSymbol(sym) {
 }
 
 function openAddGroup() {
-  const name = prompt('请输入分组名称:')
+  newGroupName.value = ''
+  addGroupDialog.value = true
+}
+
+async function confirmAddGroup() {
+  const name = newGroupName.value.trim()
   if (!name) return
-  watchlistApi.createGroup({ name }).then(() => load())
+  try {
+    await watchlistApi.createGroup({ name })
+    addGroupDialog.value = false
+    load()
+  } catch {}
 }
 
 async function deleteGroup(g) {

@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # 应用
     APP_NAME: str = "deepAStock 深度A股交易"
-    APP_VERSION: str = "1.2.0"
+    APP_VERSION: str = "1.5.2"
     DEBUG: bool = False
 
     # 数据库 (默认 SQLite, 可切换 PostgreSQL)

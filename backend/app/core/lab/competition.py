@@ -4,7 +4,7 @@ import time
 from datetime import datetime, date
 from typing import Optional, Dict, Any, List
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.laboratory import (
@@ -102,7 +102,7 @@ class CompetitionEngine:
             base_pool = competition.stock_pool
         else:
             # 从涨停板+板块龙头获取
-            pool_data = await self.dsm.get_sector_flow()
+            pool_data = await self.dsm.get_sector_flow_top()
             base_pool = [s.get("symbol", "") for s in (pool_data or [])[:30]]
 
         # 按participant_id偏移, 避免所有AI买一样的

@@ -63,6 +63,32 @@ const indicators = ref([])
 const lastFetched = ref('')
 const hasError = ref(false)
 
+const CACHE_KEY = 'macro_data_cache'
+
+function loadCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return false
+    const cached = JSON.parse(raw)
+    if (cached.indicators?.length) {
+      indicators.value = cached.indicators
+      lastFetched.value = cached.fetched_at || ''
+      hasError.value = cached.indicators.some(i => i.error)
+      return true
+    }
+  } catch {}
+  return false
+}
+
+function saveCache(data) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      indicators: data.indicators || [],
+      fetched_at: data.fetched_at || data.fetched_date || '',
+    }))
+  } catch {}
+}
+
 const GROUP_ORDER = ['价格', '景气', '增长', '消费', '贸易', '就业', '房价', '货币', '存款', '美联储']
 const groups = GROUP_ORDER
 const byGroup = computed(() => {
@@ -109,16 +135,22 @@ async function loadAll(force = false) {
     indicators.value = r.indicators || []
     lastFetched.value = r.fetched_at || r.fetched_date || ''
     hasError.value = indicators.value.some(i => i.error)
+    saveCache(r)
   } catch (e) {
-    indicators.value = []
-    lastFetched.value = ''
-    hasError.value = true
+    if (!indicators.value.length) {
+      indicators.value = []
+      lastFetched.value = ''
+      hasError.value = true
+    }
   } finally {
     loading.value = false
   }
 }
 
-onMounted(() => loadAll(false))
+onMounted(() => {
+  loadCache()
+  loadAll(false)
+})
 </script>
 
 <style scoped>
