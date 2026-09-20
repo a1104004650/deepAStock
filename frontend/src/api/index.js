@@ -1,5 +1,41 @@
 import http from './http'
 
+// 实验室
+export const labApi = {
+  competitions: () => http.get('/lab/competitions'),
+  getCompetition: (id) => http.get(`/lab/competitions/${id}`),
+  createCompetition: (data) => http.post('/lab/competitions', data),
+  updateCompetition: (id, data) => http.put(`/lab/competitions/${id}`, data),
+  deleteCompetition: (id) => http.delete(`/lab/competitions/${id}`),
+  startCompetition: (id) => http.put(`/lab/competitions/${id}/start`),
+  pauseCompetition: (id) => http.put(`/lab/competitions/${id}/pause`),
+  resumeCompetition: (id) => http.put(`/lab/competitions/${id}/resume`),
+  finishCompetition: (id) => http.put(`/lab/competitions/${id}/finish`),
+  competitionStats: (id) => http.get(`/lab/competitions/${id}/stats`),
+  tradeAll: (compId) => http.post(`/lab/competitions/${compId}/trade-all`),
+  addParticipant: (compId, data) => http.post(`/lab/competitions/${compId}/participants`, data),
+  removeParticipant: (id) => http.delete(`/lab/participants/${id}`),
+  triggerParticipantTrade: (compId, pId) => http.post(`/lab/competitions/${compId}/participants/${pId}/trade`),
+  triggerTrade: (id) => http.post(`/lab/participants/${id}/trade`),
+  participantTrades: (id) => http.get(`/lab/participants/${id}/trades`),
+  participantPositions: (id) => http.get(`/lab/participants/${id}/positions`),
+  chat: (compId) => http.get(`/lab/competitions/${compId}/chat`),
+  sendChat: (compId, content) => http.post(`/lab/competitions/${compId}/chat`, null, { params: { content } }),
+  leaderboard: (compId) => http.get(`/lab/competitions/${compId}/leaderboard`),
+  equityCurve: (compId) => http.get(`/lab/competitions/${compId}/equity-curve`),
+  parseCurl: (curl) => http.post('/agents/parse-curl', { curl }),
+  // 投研
+  analysts: () => http.get('/lab/analysts'),
+  createAnalyst: (data) => http.post('/lab/analysts', data),
+  updateAnalyst: (id, data) => http.put(`/lab/analysts/${id}`, data),
+  deleteAnalyst: (id) => http.delete(`/lab/analysts/${id}`),
+  researchList: () => http.get('/lab/research'),
+  createResearch: (data) => http.post('/lab/research', data),
+  researchDetail: (id) => http.get(`/lab/research/${id}`),
+  runResearch: (id) => http.post(`/lab/research/${id}/run`),
+  deleteResearch: (id) => http.delete(`/lab/research/${id}`),
+}
+
 // 行情
 export const marketApi = {
   overview: () => http.get('/market/overview'),

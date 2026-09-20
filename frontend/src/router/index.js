@@ -13,7 +13,9 @@ const routes = [
   { path: '/settings', name: 'settings', component: () => import('../views/Settings.vue'), meta: { title: '系统设置' } },
   { path: '/macro', name: 'macro', component: () => import('../views/Macro.vue'), meta: { title: '宏观数据' } },
   { path: '/fund', name: 'fund', component: () => import('../views/ComingSoon.vue'), props: { title: '基金', code: 'fund' }, meta: { title: '基金' } },
-  { path: '/lab', name: 'lab', component: () => import('../views/ComingSoon.vue'), props: { title: '实验室', code: 'lab' }, meta: { title: '实验室' } },
+  { path: '/lab', name: 'lab', component: () => import('../views/lab/LabHome.vue'), meta: { title: '实验室' } },
+  { path: '/lab/competitions', name: 'lab-competitions', component: () => import('../views/lab/CompetitionPage.vue'), meta: { title: 'AI炒股比赛' } },
+  { path: '/lab/research', name: 'lab-research', component: () => import('../views/lab/ResearchPage.vue'), meta: { title: 'AI投研团队' } },
   { path: '/knowledge', name: 'knowledge', component: () => import('../views/ComingSoon.vue'), props: { title: 'Wiki', code: 'knowledge' }, meta: { title: 'Wiki' } }
 ]
 

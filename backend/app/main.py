@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db.session import init_db
-from app.api.v1 import market, watchlist, stock, replay, agent, simulation, trade, system, settings as settings_api, rss, backtest
+from app.api.v1 import market, watchlist, stock, replay, agent, simulation, trade, system, settings as settings_api, rss, backtest, lab
 from app.tasks.scheduler import start_scheduler
 from app.utils.logger import logger
 
@@ -67,6 +67,7 @@ app.include_router(system.router)
 app.include_router(settings_api.router)
 app.include_router(rss.router)
 app.include_router(backtest.router)
+app.include_router(lab.router)
 
 
 @app.get("/")
