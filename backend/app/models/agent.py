@@ -46,6 +46,8 @@ class AgentRun(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     agent_config_id: Mapped[int] = mapped_column(Integer, index=True, nullable=True)
+    source: Mapped[str] = mapped_column(String(30), default="agent")  # agent/lab_competition/lab_research
+    source_id: Mapped[int] = mapped_column(Integer, nullable=True)  # 参赛者ID或任务ID
     task_type: Mapped[str] = mapped_column(String(50), nullable=True)
     input_data = mapped_column(JSON, default=dict)
     output_data = mapped_column(JSON, default=dict)
@@ -54,6 +56,7 @@ class AgentRun(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     error_message: Mapped[str] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=True)
+    week_key: Mapped[str] = mapped_column(String(10), nullable=True, index=True)  # 2026-W38
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 

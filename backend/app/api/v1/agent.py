@@ -465,6 +465,13 @@ async def get_runs_stats(days: int = 30, db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.get("/runs/weekly")
+async def get_weekly_stats(week: str = None, db: AsyncSession = Depends(get_db)):
+    """按周统计AI调用记录，包含实验室调用。week格式: 2026-W38"""
+    from app.core.lab.call_logger import get_weekly_stats
+    return await get_weekly_stats(db, week)
+
+
 @router.get("/runs/{run_id}")
 async def get_run(run_id: int, db: AsyncSession = Depends(get_db)):
     r = (await db.execute(select(AgentRun).where(AgentRun.id == run_id))).scalars().first()

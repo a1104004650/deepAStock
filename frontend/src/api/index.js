@@ -116,6 +116,7 @@ export const agentApi = {
   remove: (id) => http.delete(`/agents/${id}`),
   runs: () => http.get('/agents/runs'),
   runsStats: () => http.get('/agents/runs/stats'),
+  weeklyStats: (week) => http.get('/agents/runs/weekly', { params: { week } }),
   analyzeStock: (data) => http.post('/agents/analyze/stock', data),
   analyzeMarket: (data) => http.post('/agents/analyze/market', data),
   brainstorm: (data) => http.post('/agents/brainstorm', data),

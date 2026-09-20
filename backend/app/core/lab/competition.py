@@ -1,5 +1,6 @@
 """AI炒股比赛引擎"""
 import json
+import time
 from datetime import datetime, date
 from typing import Optional, Dict, Any, List
 
@@ -12,6 +13,7 @@ from app.models.laboratory import (
 )
 from app.core.agent.llm_client import LLMClient
 from app.core.datasource.manager import DataSourceManager
+from app.core.lab.call_logger import record_lab_call
 from app.utils.logger import logger
 
 
@@ -195,6 +197,7 @@ class CompetitionEngine:
 - 卖出只能卖持仓中已有的
 - 不买ST股票"""
 
+        start = time.time()
         try:
             llm = LLMClient(
                 provider=participant.provider,
@@ -203,9 +206,24 @@ class CompetitionEngine:
                 model=participant.model_name,
             )
             result = await llm.complete_json(prompt, system_prompt)
+            duration_ms = int((time.time() - start) * 1000)
+
+            # 记录调用
+            await record_lab_call(
+                self.db, "lab_competition", participant.id, "trading_decision",
+                participant.provider, participant.model_name or "",
+                prompt=prompt, result=result or {}, duration_ms=duration_ms,
+            )
+
             if result and "actions" in result:
                 return result
         except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            await record_lab_call(
+                self.db, "lab_competition", participant.id, "trading_decision",
+                participant.provider, participant.model_name or "",
+                prompt=prompt, status="failed", error=str(e), duration_ms=duration_ms,
+            )
             logger.warning(f"AI decision failed for participant {participant.id}: {e}")
 
         # Fallback: 本地简单策略
