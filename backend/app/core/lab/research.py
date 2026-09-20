@@ -1,5 +1,6 @@
 """AI投研团队引擎"""
 import json
+import time
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
@@ -11,6 +12,7 @@ from app.models.laboratory import (
 )
 from app.core.agent.llm_client import LLMClient
 from app.core.datasource.manager import DataSourceManager
+from app.core.lab.call_logger import record_lab_call
 from app.utils.logger import logger
 
 
@@ -265,23 +267,40 @@ class ResearchTeamEngine:
 }}"""
 
                 system_prompt = analyst.system_prompt or self.ANALYST_PROMPTS.get(analyst.role, "")
-                llm = LLMClient(
-                    provider=analyst.provider,
-                    api_base=analyst.api_base,
-                    api_key=analyst.api_key,
-                    model=analyst.model_name,
-                )
-
-                result = await llm.complete_json(discussion_context, system_prompt)
-                if result:
-                    report = LabAnalystReport(
-                        task_id=task.id,
-                        analyst_id=analyst.id,
-                        stage="discuss",
-                        content=result,
+                start = time.time()
+                try:
+                    llm = LLMClient(
+                        provider=analyst.provider,
+                        api_base=analyst.api_base,
+                        api_key=analyst.api_key,
+                        model=analyst.model_name,
                     )
-                    self.db.add(report)
-                    await self.db.commit()
+                    result = await llm.complete_json(discussion_context, system_prompt)
+                    duration_ms = int((time.time() - start) * 1000)
+
+                    await record_lab_call(
+                        self.db, "lab_research", analyst.id, "cross_discuss",
+                        analyst.provider, analyst.model_name or "",
+                        prompt=discussion_context, result=result or {}, duration_ms=duration_ms,
+                    )
+
+                    if result:
+                        report = LabAnalystReport(
+                            task_id=task.id,
+                            analyst_id=analyst.id,
+                            stage="discuss",
+                            content=result,
+                        )
+                        self.db.add(report)
+                        await self.db.commit()
+                except Exception as e:
+                    duration_ms = int((time.time() - start) * 1000)
+                    await record_lab_call(
+                        self.db, "lab_research", analyst.id, "cross_discuss",
+                        analyst.provider, analyst.model_name or "",
+                        prompt=discussion_context, status="failed", error=str(e), duration_ms=duration_ms,
+                    )
+                    logger.warning(f"Analyst {analyst.name} discuss failed: {e}")
 
             except Exception as e:
                 logger.warning(f"Analyst {analyst.name} discuss failed: {e}")
@@ -349,9 +368,17 @@ class ResearchTeamEngine:
                 model=overall_analyst.model_name,
             )
 
+            start = time.time()
             result = await llm.complete_json(
                 prompt,
                 overall_analyst.system_prompt or self.ANALYST_PROMPTS.get("overall", "")
+            )
+            duration_ms = int((time.time() - start) * 1000)
+
+            await record_lab_call(
+                self.db, "lab_research", overall_analyst.id, "final_report",
+                overall_analyst.provider, overall_analyst.model_name or "",
+                prompt=prompt, result=result or {}, duration_ms=duration_ms,
             )
 
             if result:
@@ -396,15 +423,32 @@ class ResearchTeamEngine:
   "suggestion": "买入/持有/观望/卖出"
 }}"""
 
-        llm = LLMClient(
-            provider=analyst.provider,
-            api_base=analyst.api_base,
-            api_key=analyst.api_key,
-            model=analyst.model_name,
-        )
+        start = time.time()
+        try:
+            llm = LLMClient(
+                provider=analyst.provider,
+                api_base=analyst.api_base,
+                api_key=analyst.api_key,
+                model=analyst.model_name,
+            )
+            result = await llm.complete_json(prompt, system_prompt)
+            duration_ms = int((time.time() - start) * 1000)
 
-        result = await llm.complete_json(prompt, system_prompt)
-        return result or {"view": "分析失败", "score": 5, "reasoning": "", "concerns": []}
+            await record_lab_call(
+                self.db, "lab_research", analyst.id, "analyst_research",
+                analyst.provider, analyst.model_name or "",
+                prompt=prompt, result=result or {}, duration_ms=duration_ms,
+            )
+
+            return result or {"view": "分析失败", "score": 5, "reasoning": "", "concerns": []}
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            await record_lab_call(
+                self.db, "lab_research", analyst.id, "analyst_research",
+                analyst.provider, analyst.model_name or "",
+                prompt=prompt, status="failed", error=str(e), duration_ms=duration_ms,
+            )
+            return {"view": "分析失败", "score": 5, "reasoning": "", "concerns": []}
 
     def _format_stock_context(self, task: LabResearchTask, stock_data: Dict) -> str:
         """格式化股票数据为文本"""

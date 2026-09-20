@@ -125,13 +125,13 @@
               <div v-else style="position:relative;height:100%">
                 <LineChart v-if="intraday.length" :data="intraday" height="430px" :volume="true"
                   :pre-close="symbolStore.selectedRealtime.prev_close"
-                  :signals="intradayShowSignals ? intradaySignals : []" :show-vwap="!!intradaySignals.length"
+                  :signals="intradayFilteredSignals" :show-vwap="!!intradaySignals.length"
                   :show-t="intradayShowT" />
                 <el-empty v-else description="暂无分时数据" :image-size="70" style="position:absolute;inset:0" />
                 <!-- 分时图工具栏 -->
                 <div v-if="intraday.length" class="intraday-toolbar">
                   <el-checkbox v-model="intradayShowSignals" size="small">主力信号</el-checkbox>
-                  <el-checkbox v-model="intradayShowT" size="small" :disabled="!intradayShowSignals">做T信号</el-checkbox>
+                  <el-checkbox v-model="intradayShowT" size="small">做T信号</el-checkbox>
                 </div>
                 <!-- 主力意图标签 -->
                 <div v-if="intradayShowSignals && intradaySummary?.intent" class="intent-bar">
@@ -508,6 +508,14 @@ const intradaySummary = ref(null)
 const intradayPctMode = ref(false)
 const intradayShowSignals = ref(false)
 const intradayShowT = ref(false)
+const intradayFilteredSignals = computed(() => {
+  if (!intradaySignals.value.length) return []
+  return intradaySignals.value.filter(s => {
+    const isT = s.type === 't_buy' || s.type === 't_sell'
+    if (isT) return intradayShowT.value
+    return intradayShowSignals.value
+  })
+})
 const czsc = ref({})
 const stockNews = ref([])
 const sentiment = ref({})
@@ -736,7 +744,7 @@ async function loadKline() {
       const r = await marketApi.intradayAnalysis({ symbol: sym, pre_close: preClose })
       if (seq !== _klineSeq) return
       intraday.value = r.bars || []
-      intradaySignals.value = r.signals || []
+      intradaySignals.value = [...(r.signals || []), ...(r.t_signals || [])]
       intradaySummary.value = r.summary || null
       return
     }
