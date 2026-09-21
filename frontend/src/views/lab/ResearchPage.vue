@@ -290,7 +290,16 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="模型名称">
-              <el-input v-model="analystForm.model_name" placeholder="deepseek-chat" />
+              <el-input v-model="analystForm.model_name" placeholder="deepseek-chat">
+                <template #append>
+                  <el-button :loading="modelsLoading" @click="fetchModels" title="获取模型列表">
+                    <el-icon><Refresh /></el-icon>
+                  </el-button>
+                </template>
+              </el-input>
+              <div v-if="modelList.length" class="model-list">
+                <el-tag v-for="m in modelList" :key="m" size="small" :type="m === analystForm.model_name ? 'primary' : 'info'" class="model-tag" @click="analystForm.model_name = m">{{ m }}</el-tag>
+              </div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -359,6 +368,8 @@ const curlInput = ref('')
 const curlParsing = ref(false)
 const curlResult = ref('')
 const curlOk = ref(false)
+const modelsLoading = ref(false)
+const modelList = ref([])
 
 const workflowStages = [
   { key: 'init', label: '初始化' },
@@ -468,6 +479,25 @@ async function toggleActive(a) {
   }
 }
 
+async function fetchModels() {
+  if (!analystForm.value.api_base) { ElMessage.warning('请先填写 API 地址'); return }
+  modelsLoading.value = true
+  modelList.value = []
+  try {
+    const r = await labApi.fetchModels({ api_base: analystForm.value.api_base, api_key: analystForm.value.api_key })
+    if (r.models?.length) {
+      modelList.value = r.models
+      ElMessage.success(`获取到 ${r.models.length} 个模型`)
+    } else {
+      ElMessage.warning(r.error || '未获取到模型列表')
+    }
+  } catch (e) {
+    ElMessage.error('获取模型列表失败')
+  } finally {
+    modelsLoading.value = false
+  }
+}
+
 async function deleteAnalyst(a) {
   try { await ElMessageBox.confirm(`确定删除「${a.name}」？`, '确认', { type: 'warning' }) } catch { return }
   await labApi.deleteAnalyst(a.id)
@@ -530,8 +560,9 @@ async function parseCurl() {
     if (data.api_key) {
       if (data.api_base) analystForm.value.api_base = data.api_base
       if (data.api_key) analystForm.value.api_key = data.api_key
-      if (data.model) analystForm.value.model_name = data.model
+      if (data.model_name || data.model) analystForm.value.model_name = data.model_name || data.model
       if (data.base_url) analystForm.value.api_base = data.base_url
+      if (data.provider) analystForm.value.provider = data.provider
       curlResult.value = '解析成功！已自动填充配置'
       curlOk.value = true
     } else {
@@ -1153,5 +1184,20 @@ onMounted(async () => {
 .avatar-emoji.active {
   background: var(--el-color-primary-light-9);
   outline: 2px solid var(--el-color-primary);
+}
+.model-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.model-tag {
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.model-tag:hover {
+  opacity: 0.8;
 }
 </style>

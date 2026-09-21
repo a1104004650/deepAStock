@@ -153,6 +153,33 @@ async def parse_curl(req: dict):
     return _parse_curl(curl_text)
 
 
+@router.post("/fetch-models")
+async def fetch_models(req: dict):
+    """根据 api_base + api_key 拉取可用模型列表（OpenAI 兼容 /v1/models）"""
+    import httpx
+    api_base = (req.get("api_base") or "").rstrip("/")
+    api_key = req.get("api_key") or ""
+    if not api_base:
+        return {"models": [], "error": "请先填写 API Base"}
+    # 拼接 /v1/models
+    url = api_base
+    if not url.endswith("/v1/models"):
+        url = url.rstrip("/") + "/v1/models"
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+        models = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
+        models.sort()
+        return {"models": models}
+    except Exception as e:
+        return {"models": [], "error": str(e)}
+
+
 def _today() -> str:
     return datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d")
 
@@ -194,7 +221,6 @@ async def update_agent(agent_id: int, body: AgentConfigUpdate, db: AsyncSession 
         raise HTTPException(404, "agent not found")
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(cfg, k, v)
-    cfg.updated_at = None
     await db.commit()
     return {"ok": True}
 

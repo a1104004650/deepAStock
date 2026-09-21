@@ -118,6 +118,8 @@ async def get_competition(comp_id: int, db: AsyncSession = Depends(get_db)):
         "participants": [{
             "id": p.id, "name": p.name, "avatar": p.avatar,
             "provider": p.provider, "model_name": p.model_name,
+            "api_base": p.api_base, "api_key": p.api_key,
+            "system_prompt": p.system_prompt,
             "current_capital": p.current_capital, "total_return": p.total_return,
             "total_trades": p.total_trades, "status": p.status,
         } for p in participants],
@@ -301,6 +303,18 @@ async def remove_participant(participant_id: int, db: AsyncSession = Depends(get
     await db.execute(delete(LabChatMessage).where(LabChatMessage.participant_id == participant_id))
     await db.execute(delete(LabParticipant).where(LabParticipant.id == participant_id))
     await db.commit()
+
+
+@router.put("/participants/{participant_id}")
+async def update_participant(participant_id: int, data: ParticipantCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(LabParticipant).where(LabParticipant.id == participant_id))
+    p = result.scalars().first()
+    if not p:
+        raise HTTPException(status_code=404, detail="参赛者不存在")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(p, k, v)
+    await db.commit()
+    return {"message": "更新成功"}
 
     return {"message": "已移除"}
 

@@ -85,6 +85,24 @@ class DataSourceManager:
         ans = await self._call("get_realtime", list(dict.fromkeys(symbols)))
         return ans if isinstance(ans, dict) else dict(ans)
 
+    async def get_quote_panel(self, symbol: str) -> dict:
+        ans = await self._call("get_quote_panel", symbol)
+        if not isinstance(ans, dict):
+            return {}
+        return ans
+
+    async def get_order_book(self, symbol: str) -> dict:
+        ans = await self._call("get_order_book", symbol)
+        if not isinstance(ans, dict):
+            return {}
+        return ans
+
+    async def get_ticks(self, symbol: str) -> dict:
+        ans = await self._call("get_ticks", symbol)
+        if not isinstance(ans, dict):
+            return {}
+        return ans
+
     async def get_indices(self) -> list[dict]:
         ans = await self._call("get_indices")
         return ans or []

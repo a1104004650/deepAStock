@@ -78,7 +78,7 @@ function render() {
       data: [{ yAxis: preClose, lineStyle: { color: '#999', type: 'dashed', width: 1 }, label: { show: true, formatter: `昨收 ${preClose}`, position: 'insideEndTop', fontSize: 9 } }]
     }
   }
-  chart.setOption(option, true)
+  chart.setOption(option)
 }
 
 function resize() { chart && chart.resize() }

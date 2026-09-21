@@ -121,7 +121,18 @@
           </el-form-item>
           <el-form-item label="API 地址 (Base URL)"><el-input v-model="form.api_base" placeholder="如 https://api.deepseek.com/v1" /></el-form-item>
           <el-form-item label="API Key"><el-input v-model="form.api_key" type="password" show-password placeholder="sk-...（Ollama 可留空）" /></el-form-item>
-          <el-form-item label="模型"><el-input v-model="form.model_name" placeholder="deepseek-chat" /></el-form-item>
+          <el-form-item label="模型">
+            <el-input v-model="form.model_name" placeholder="deepseek-chat">
+              <template #append>
+                <el-button :loading="modelsLoading" @click="fetchModels" title="获取模型列表">
+                  <el-icon><Refresh /></el-icon>
+                </el-button>
+              </template>
+            </el-input>
+            <div v-if="modelList.length" class="model-list">
+              <el-tag v-for="m in modelList" :key="m" size="small" :type="m === form.model_name ? 'primary' : 'info'" class="model-tag" @click="form.model_name = m">{{ m }}</el-tag>
+            </div>
+          </el-form-item>
           <el-form-item label="温度"><el-input-number v-model="form.temperature" :min="0" :max="2" :step="0.1" /></el-form-item>
           <el-form-item label="系统提示词">
             <el-input v-model="form.system_prompt" type="textarea" :rows="5" placeholder="可留空使用默认提示词" />
@@ -153,6 +164,8 @@ const editingId = ref(null)
 const form = ref(defaultForm())
 const curlText = ref('')
 const curlLoading = ref(false)
+const modelsLoading = ref(false)
+const modelList = ref([])
 
 const PROVIDER_PRESETS = {
   deepseek: { api_base: 'https://api.deepseek.com/v1', model_name: 'deepseek-chat' },
@@ -198,6 +211,25 @@ async function doParseCurl() {
     ElMessage.error('解析失败，请检查 curl 格式')
   } finally {
     curlLoading.value = false
+  }
+}
+
+async function fetchModels() {
+  if (!form.value.api_base) { ElMessage.warning('请先填写 API 地址'); return }
+  modelsLoading.value = true
+  modelList.value = []
+  try {
+    const r = await agentApi.fetchModels({ api_base: form.value.api_base, api_key: form.value.api_key })
+    if (r.models?.length) {
+      modelList.value = r.models
+      ElMessage.success(`获取到 ${r.models.length} 个模型`)
+    } else {
+      ElMessage.warning(r.error || '未获取到模型列表')
+    }
+  } catch (e) {
+    ElMessage.error('获取模型列表失败：' + (e.response?.data?.detail || e.message))
+  } finally {
+    modelsLoading.value = false
   }
 }
 
@@ -258,5 +290,20 @@ onMounted(load)
   border: 1px solid #ebeef5;
   border-radius: 8px;
   padding: 12px;
+}
+.model-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.model-tag {
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.model-tag:hover {
+  opacity: 0.8;
 }
 </style>

@@ -179,6 +179,84 @@ class SinaSource(DataSourceBase):
                 continue
         return out
 
+    # ---------- 个股盘口：五档挂单（快，单次 Sina 请求） ----------
+    def get_order_book(self, symbol: str) -> dict:
+        symbol = to_standard_symbol(symbol)
+        codes = _sina_codes([symbol])
+        if not codes:
+            return {"symbol": symbol, "realtime": {}, "order_book": {"bid": [], "ask": []}}
+        code = codes[0]
+        realtime = self.get_realtime([symbol]).get(symbol) or {}
+        bid: list[dict] = []
+        ask: list[dict] = []
+        try:
+            body = _open("https://hq.sinajs.cn/list=" + code, _SINA_HEADERS)
+            text = body.decode("gbk", "ignore")
+            m = _STOCK_RE.search(text)
+            fields = m.group(2).split(",") if m else []
+            if len(fields) >= 30:
+                asks = []
+                for i in range(5):
+                    bid.append({"price": round(_f(fields[11 + i * 2]), 4),
+                                "volume": int(_f(fields[10 + i * 2]))})
+                    asks.append({"price": round(_f(fields[21 + i * 2]), 4),
+                                 "volume": int(_f(fields[20 + i * 2]))})
+                ask[:] = reversed(asks)
+        except Exception as e:
+            logger.warning(f"sina 五档 failed {symbol}: {e}")
+        return {
+            "symbol": symbol,
+            "realtime": realtime,
+            "order_book": {"bid": bid, "ask": ask},
+        }
+
+    # ---------- 个股逐笔成交（慢，腾讯分页二分） ----------
+    def get_ticks(self, symbol: str) -> dict:
+        symbol = to_standard_symbol(symbol)
+        codes = _sina_codes([symbol])
+        if not codes:
+            return {"symbol": symbol, "ticks": []}
+        code = codes[0]
+        ticks: list[dict] = []
+        detail_url = ("https://stock.gtimg.cn/data/index.php?appn=detail"
+                      "&action=data&c=" + code + "&p={}")
+
+        def _page(p: int) -> str:
+            try:
+                return _open(detail_url.format(p), _UA, timeout=5).decode("gbk", "ignore")
+            except Exception:
+                return ""
+
+        def _has(p: int) -> bool:
+            t = _page(p)
+            return len(t) > 40 and '"' in t and "/" in t
+
+        if _has(1):
+            lo, hi = 1, 1
+            while hi <= 1024 and _has(hi):
+                lo, hi = hi, min(hi * 2, 1024)
+            while lo < hi:
+                mid = (lo + hi + 1) // 2
+                if _has(mid):
+                    lo = mid
+                else:
+                    hi = mid - 1
+            m = re.search(r'\[(\d+),"([^"]*)"', _page(lo), re.S)
+            for chunk in (m.group(2) if m else "").split("|"):
+                parts = chunk.split("/")
+                if len(parts) < 7:
+                    continue
+                try:
+                    ticks.append({"time": parts[1],
+                                  "price": round(float(parts[2]), 4),
+                                  "change": float(parts[3]),
+                                  "volume": int(float(parts[4])),
+                                  "amount": float(parts[5]),
+                                  "side": (parts[6] or "M")[0]})
+                except (ValueError, IndexError):
+                    continue
+        return {"symbol": symbol, "ticks": ticks[-80:]}
+
     def get_indices(self) -> list[dict]:
         result: list[dict] = []
         # 新浪指数必须用 s_ 前缀（如 s_sh000001），否则返回个股协议行→字段全部错位

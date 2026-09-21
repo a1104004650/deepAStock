@@ -230,6 +230,28 @@ async def get_intraday(symbol: str, date: str = None, db: AsyncSession = Depends
     return await svc.get_intraday(symbol, date)
 
 
+@router.get("/quote-panel")
+async def get_quote_panel(symbol: str, db: AsyncSession = Depends(get_db)):
+    """个股盘口面板：五档挂单 + 逐笔成交明细（兼容旧接口）"""
+    svc = MarketService(db)
+    panel = await svc.dsm.get_quote_panel(symbol)
+    return panel if isinstance(panel, dict) else {}
+
+
+@router.get("/order-book")
+async def get_order_book(symbol: str, db: AsyncSession = Depends(get_db)):
+    """个股五档挂单（快，单次 Sina 请求）"""
+    svc = MarketService(db)
+    return await svc.dsm.get_order_book(symbol)
+
+
+@router.get("/ticks")
+async def get_ticks(symbol: str, db: AsyncSession = Depends(get_db)):
+    """个股逐笔成交明细（慢，腾讯分页二分）"""
+    svc = MarketService(db)
+    return await svc.dsm.get_ticks(symbol)
+
+
 @router.get("/intraday-analysis")
 async def get_intraday_analysis(symbol: str, pre_close: float = 0, db: AsyncSession = Depends(get_db)):
     """分时主力行为分析（VWAP/量比/吸筹洗盘诱多诱空真拉升信号）"""
