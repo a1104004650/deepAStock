@@ -41,7 +41,6 @@ async def record_lab_call(
         week_key=get_week_key(),
     )
     db.add(run)
-    await db.commit()
     return run
 
 

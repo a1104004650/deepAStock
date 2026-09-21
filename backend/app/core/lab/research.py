@@ -176,7 +176,7 @@ class ResearchTeamEngine:
 
         # K线数据
         try:
-            klines = await self.dsm.get_klines(symbol, "day", 60)
+            klines = await self.dsm.get_klines(symbol, "day")
             data["klines"] = klines[-20:] if klines else []
         except Exception:
             data["klines"] = []
@@ -190,7 +190,7 @@ class ResearchTeamEngine:
 
         # 板块信息
         try:
-            sector = await self.dsm.get_stock_detail(symbol)
+            sector = await self.dsm.get_stock_sector(symbol)
             data["sector"] = sector
         except Exception:
             data["sector"] = {}

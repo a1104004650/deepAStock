@@ -849,20 +849,22 @@ function hidePosTooltip() {
   posTooltip.value.show = false
 }
 
+function onResize() { equityChart?.resize() }
+
 onMounted(() => {
   loadCompetitions()
-  window.addEventListener('resize', () => { equityChart?.resize() })
+  window.addEventListener('resize', onResize)
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
   if (equityChart) { equityChart.dispose(); equityChart = null }
 })
 </script>
 
 <style scoped>
-.page { height: 100%; }
-
-:root {
+.page {
+  height: 100%;
   --panel-bg: var(--el-bg-color);
   --panel-border: var(--el-border-color-lighter);
   --panel-radius: 12px;
@@ -1039,6 +1041,10 @@ onBeforeUnmount(() => {
 .stat-value.best {
   font-size: 18px;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 .stat-label {
   font-size: 13px;

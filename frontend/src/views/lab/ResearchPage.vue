@@ -11,9 +11,14 @@
         <div class="col-left">
           <div class="col-header">
             <span class="col-title"><span class="col-title-dot" :style="{ background: 'var(--el-color-primary)' }"></span>分析师管理</span>
-            <el-tag size="small" type="info" round>{{ analysts.length }}</el-tag>
+            <div class="flex gap4">
+              <el-tag size="small" type="info" round>{{ analysts.length }}</el-tag>
+              <el-button type="primary" size="small" @click="openAddAnalyst">
+                <el-icon><Plus /></el-icon>添加
+              </el-button>
+            </div>
           </div>
-          <div class="analyst-list">
+          <div class="analyst-list" v-loading="analystsLoading">
             <div v-for="a in analysts" :key="a.id" class="analyst-card" :class="{ inactive: !a.is_active }">
               <div class="analyst-card-body">
                 <div class="analyst-avatar" :style="{ background: roleBg(a.role) }">
@@ -60,7 +65,7 @@
             </el-button>
           </div>
 
-          <el-table :data="tasks" size="small" stripe class="task-table" highlight-current-row @current-change="onRowClick">
+          <el-table :data="tasks" size="small" stripe class="task-table" highlight-current-row @current-change="onRowClick" v-loading="tasksLoading">
             <el-table-column label="股票" min-width="120">
               <template #default="{ row }">
                 <span class="bold">{{ row.symbol }}</span>
@@ -406,12 +411,19 @@ function onRowClick(row) {
   if (row) viewReport(row)
 }
 
+const analystsLoading = ref(false)
+const tasksLoading = ref(false)
+
 async function loadAnalysts() {
-  analysts.value = await labApi.analysts()
+  analystsLoading.value = true
+  try { analysts.value = await labApi.analysts() } catch { analysts.value = [] }
+  finally { analystsLoading.value = false }
 }
 
 async function loadTasks() {
-  tasks.value = await labApi.researchList()
+  tasksLoading.value = true
+  try { tasks.value = await labApi.researchList() } catch { tasks.value = [] }
+  finally { tasksLoading.value = false }
 }
 
 function openAddAnalyst() {

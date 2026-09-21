@@ -2,6 +2,36 @@
 
 > 版本日志按时间倒序。`v1.0.0` 为首次发布版本。
 
+## v1.5.2 (2026-09-20) — 代码审查修复 + 宏观数据缓存
+
+### 修复
+- **后端关键修复**：
+  - `get_sector_flow()` → `get_sector_flow_top()`（比赛股票池获取报错）
+  - `get_stock_detail()` → `get_stock_sector()`（投研板块信息报错）
+  - `get_klines()` 第三参数类型错误（投研K线获取报错）
+  - `avg_vol` 变量跨循环泄漏（主力信号评分使用错误均量）
+  - 删除重复的交易触发路由（权限绕过风险）
+  - 删除选手时同步清理聊天消息（孤儿数据）
+  - `get_chat()` 增加 `p_map` 安全检查（KeyError）
+  - Pydantic `.dict()` → `.model_dump()`（弃用警告）
+  - `call_logger` 移除中间 `commit()`（事务冲突）
+- **前端关键修复**：
+  - `labApi.research()` → `researchList()`（首页统计报错）
+  - `:root` CSS变量移到 `.page`（比赛页面板样式失效）
+  - resize监听改为具名函数+卸载清理（内存泄漏）
+  - 删除 `v-if="false"` 死代码块（永远显示"暂无板块信息"）
+  - 最高/最低价移除错误颜色类
+  - 投研页面添加"添加分析师"按钮
+  - 选手名字溢出添加省略号
+  - `Agents.vue` `<style>` 添加 `scoped`（样式泄漏）
+  - 首页/投研添加加载状态（v-loading）
+  - 移除未使用的变量（router, sentiment, pctMode, intradayPctMode）
+  - `prompt()` → `el-dialog`（新建分组对话框统一）
+
+### 优化
+- **宏观数据缓存**：数据缓存到 localStorage，页面加载先显示缓存再后台刷新
+- **版本号同步**：前后端版本号统一为 1.5.2
+
 ## v1.5.1 (2026-09-20) — 做T信号重写 + 实验室AI调用日志
 
 ### 优化

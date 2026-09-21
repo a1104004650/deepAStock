@@ -1,7 +1,7 @@
 """实验室 API"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete, desc
+from sqlalchemy import select, delete, desc
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
@@ -232,7 +232,7 @@ async def update_competition(comp_id: int, data: CompetitionUpdate, db: AsyncSes
     if not comp:
         raise HTTPException(status_code=404, detail="比赛不存在")
 
-    for k, v in data.dict(exclude_unset=True).items():
+    for k, v in data.model_dump(exclude_unset=True).items():
         if v is not None:
             setattr(comp, k, v)
     await db.commit()
@@ -298,6 +298,7 @@ async def remove_participant(participant_id: int, db: AsyncSession = Depends(get
 
     await db.execute(delete(LabCompPosition).where(LabCompPosition.participant_id == participant_id))
     await db.execute(delete(LabCompTrade).where(LabCompTrade.participant_id == participant_id))
+    await db.execute(delete(LabChatMessage).where(LabChatMessage.participant_id == participant_id))
     await db.execute(delete(LabParticipant).where(LabParticipant.id == participant_id))
     await db.commit()
 
@@ -399,14 +400,6 @@ async def get_competition_stats(comp_id: int, db: AsyncSession = Depends(get_db)
     }
 
 
-@router.post("/participants/{participant_id}/trade")
-async def trigger_trade(participant_id: int, db: AsyncSession = Depends(get_db)):
-    """手动触发一个参赛者交易"""
-    engine = CompetitionEngine(db)
-    result = await engine.run_participant_trading(participant_id)
-    return result
-
-
 @router.get("/participants/{participant_id}/trades")
 async def get_trades(participant_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -461,8 +454,8 @@ async def get_chat(comp_id: int, limit: int = 50, db: AsyncSession = Depends(get
     return [{
         "id": m.id,
         "participant_id": m.participant_id,
-        "participant_name": p_map[m.participant_id].name if m.participant_id else "系统",
-        "participant_avatar": p_map[m.participant_id].avatar if m.participant_id else "📢",
+        "participant_name": p_map[m.participant_id].name if m.participant_id and m.participant_id in p_map else "系统",
+        "participant_avatar": p_map[m.participant_id].avatar if m.participant_id and m.participant_id in p_map else "📢",
         "content": m.content,
         "message_type": m.message_type,
         "created_at": m.created_at.isoformat() if m.created_at else None,
@@ -611,7 +604,7 @@ async def update_analyst(analyst_id: int, data: AnalystCreate, db: AsyncSession 
     if not a:
         raise HTTPException(status_code=404, detail="分析师不存在")
 
-    for k, v in data.dict(exclude_unset=True).items():
+    for k, v in data.model_dump(exclude_unset=True).items():
         setattr(a, k, v)
     await db.commit()
     return {"message": "更新成功"}

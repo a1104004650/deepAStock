@@ -175,7 +175,7 @@ def _detect_signals(bars: list[dict], pre_close: float = 0) -> list[dict]:
     VOL_SPIKE_RATIO = 2.0
     WINDOW = 5
 
-    spike_indices = []
+    spike_indices = []  # list of (index, avg_vol)
 
     for i in range(20, n):
         d_vol = bars[i].get("d_vol", 0)
@@ -187,11 +187,11 @@ def _detect_signals(bars: list[dict], pre_close: float = 0) -> list[dict]:
         avg_vol = sum(hist_vols) / len(hist_vols) if hist_vols else 0
 
         if avg_vol > 0 and d_vol >= avg_vol * VOL_SPIKE_RATIO:
-            if not spike_indices or (i - spike_indices[-1]) >= 3:
-                spike_indices.append(i)
+            if not spike_indices or (i - spike_indices[-1][0]) >= 3:
+                spike_indices.append((i, avg_vol))
 
     # --- Step 2: 分析每个放量窗口 ---
-    for spike_i in spike_indices:
+    for spike_i, avg_vol in spike_indices:
         window_start = max(10, spike_i - WINDOW)
         window_end = min(n - 1, spike_i + WINDOW)
 

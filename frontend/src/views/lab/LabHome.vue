@@ -16,7 +16,7 @@
       </div>
 
       <!-- Stats Row -->
-      <div class="stats-row">
+      <div class="stats-row" v-loading="statsLoading">
         <div class="stat-item">
           <div class="stat-number">{{ stats.competitions }}</div>
           <div class="stat-label">比赛场次</div>
@@ -134,13 +134,14 @@ import MainLayout from '../../layout/MainLayout.vue'
 import { labApi } from '../../api'
 
 const stats = ref({ competitions: 0, participants: 0, analysts: 0, reports: 0 })
+const statsLoading = ref(true)
 
 onMounted(async () => {
   try {
     const [comps, analysts, tasks] = await Promise.all([
       labApi.competitions().catch(() => []),
       labApi.analysts().catch(() => []),
-      labApi.research().catch(() => []),
+      labApi.researchList().catch(() => []),
     ])
     const compList = Array.isArray(comps) ? comps : (comps?.data || [])
     const analystList = Array.isArray(analysts) ? analysts : (analysts?.data || [])
@@ -149,7 +150,7 @@ onMounted(async () => {
     stats.value.participants = compList.reduce((s, c) => s + (c.participant_count || 0), 0)
     stats.value.analysts = analystList.length
     stats.value.reports = taskList.filter(t => t.status === 'completed').length
-  } catch {}
+  } catch {} finally { statsLoading.value = false }
 })
 </script>
 
