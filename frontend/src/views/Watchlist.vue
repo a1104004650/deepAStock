@@ -110,6 +110,12 @@
               <span>最低 {{ fmt(symbolStore.selectedRealtime.low) }}</span>
               <span>成交量 {{ fmtVol(symbolStore.selectedRealtime.volume) }}</span>
               <span>成交额 {{ fmtBig(symbolStore.selectedRealtime.amount) }}</span>
+              <template v-if="finOverview?.available">
+                <span>总市值 {{ fmtBig(finOverview.total_mv * 1e8) }}</span>
+                <span>流通市值 {{ fmtBig(finOverview.float_mv * 1e8) }}</span>
+                <span>换手率 {{ finOverview.turnover }}%</span>
+                <span>市盈率(PE) {{ finOverview.pe }}</span>
+              </template>
             </div>
 
             <!-- K线 + 右侧常驻盘口面板 -->
@@ -471,6 +477,7 @@
                       <span class="mono" :class="priceCls(Number(t.price))">{{ fmt(t.price) }}</span>
                       <span class="mono" :class="pctClsObj(t.change)">{{ t.change == null ? '-' : ((t.change >= 0 ? '+' : '') + t.change) }}</span>
                       <span class="mono" style="text-align:right">{{ t.volume }}</span>
+                      <span class="mono" style="text-align:right">{{ fmtBig(t.amount || 0) }}</span>
                       <el-tag size="small" :type="sideTag(t.side)">{{ sideText(t.side) }}</el-tag>
                     </div>
                   </div>
@@ -1187,12 +1194,12 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .main-left { flex: 1 1 auto; min-width: 0; }
 .side-panel { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; max-height: 640px; overflow: hidden auto; }
 .order-grid { display: flex; flex-direction: column; gap: 2px; }
-.order-row { display: grid; grid-template-columns: 24px 1fr 30px 10px 30px 1fr 24px; align-items: center; gap: 2px; padding: 3px 4px; border-radius: 4px; transition: background-color .3s; }
-.order-row span { line-height: 1.2; white-space: nowrap; }
+                .order-row { display: grid; grid-template-columns: 26px minmax(0,1fr) minmax(44px,auto) 12px minmax(44px,auto) minmax(0,1fr) 26px; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; transition: background-color .3s; }
+                .order-row span { line-height: 1.35; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ticks-list { max-height: 220px; overflow-y: auto; border: 1px solid #eef0f3; border-radius: 4px; }
-.ticks-row { display: grid; grid-template-columns: 46px 48px 40px 26px 40px; align-items: center; gap: 2px; padding: 3px 4px; border-radius: 4px; font-size: 11px; transition: background-color .3s; }
-.ticks-row .mono { font-size: 11px; }
-.ticks-row .el-tag { width: 100%; justify-content: center; padding: 0; font-size: 11px; }
+                .ticks-row { display: grid; grid-template-columns: 42px 48px 38px 40px 40px 34px 40px; align-items: center; gap: 2px; padding: 3px 4px; border-radius: 4px; font-size: 9px; transition: background-color .3s; }
+                .ticks-row .mono { font-size: 9px; }
+                .ticks-row .el-tag { width: 100%; justify-content: center; padding: 0; font-size: 9px; }
 .ticks-row.row-hl, .order-row.row-hl { background: #fff7e6; }
 .ticks-row:hover { background: #f7f8fa; }
 @media (max-width: 991px) {
