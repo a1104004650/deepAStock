@@ -335,9 +335,9 @@
                           <span :class="(row.netamount||0) >= 0 ? 'up' : 'down'">{{ fmtBig(row.netamount) }}</span>
                         </template>
                       </el-table-column>
-                      <el-table-column label="5日/20日累计(亿)" align="right" width="150">
+                      <el-table-column label="5日/20日净流入" align="right" width="170">
                         <template #default="{ row }">
-                          <span class="fs11"><b :class="(row.net_5d||0) >= 0 ? 'up' : 'down'">{{ row.net_5d }}</b> / <b :class="(row.net_20d||0) >= 0 ? 'up' : 'down'">{{ row.net_20d }}</b></span>
+                          <span class="fs11"><b :class="(row.net_5d||0) >= 0 ? 'up' : 'down'">{{ fmtBig((row.net_5d||0) * 1e8) }}</b> / <b :class="(row.net_20d||0) >= 0 ? 'up' : 'down'">{{ fmtBig((row.net_20d||0) * 1e8) }}</b></span>
                         </template>
                       </el-table-column>
                     </el-table>
