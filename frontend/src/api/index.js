@@ -96,7 +96,8 @@ export const stockApi = {
   forms: (s) => http.get(`/stocks/${s}/forms`),
   sector: (s) => http.get(`/stocks/${s}/sector`),
   industryRanking: (s) => http.get(`/stocks/${s}/industry-ranking`),
-  industryChain: (s) => http.get(`/stocks/${s}/industry-chain`)
+  industryChain: (s) => http.get(`/stocks/${s}/industry-chain`),
+  quotePanel: (s) => http.get('/market/quote-panel', { params: { symbol: s } })
 }
 
 // 复盘

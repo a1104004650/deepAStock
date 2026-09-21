@@ -179,6 +179,107 @@ class SinaSource(DataSourceBase):
                 continue
         return out
 
+    # ---------- 个股盘口面板：五档挂单 + 集合竞价撮合 + 逐笔成交明细 ----------
+    # 免责说明：新浪/腾讯免费源在非交易时段（本项目实测）不返回 09:15-09:25 的
+    # 逐笔竞价K线（属 Level-2 数据）。因此竞价段诚实呈现为独立竞价区（09:25 撮合价
+    # 横线 + 竞价量 + 分隔线 + 高亮），与 09:30 后真实K线明确分开，不虚构竞价K线。
+    def get_quote_panel(self, symbol: str) -> dict:
+        symbol = to_standard_symbol(symbol)
+        codes = _sina_codes([symbol])
+        if not codes:
+            return {"symbol": symbol, "realtime": {}, "order_book": {"bid": [], "ask": []},
+                    "auction": {}, "ticks": [], "note": "盘口五档/竞价/逐笔仅支持沪深京A股"}
+        code = codes[0]
+        realtime = self.get_realtime([symbol]).get(symbol) or {}
+        bid: list[dict] = []
+        ask: list[dict] = []
+        auction: dict = {}
+        fields: list = []
+        try:
+            body = _open("https://hq.sinajs.cn/list=" + code, _SINA_HEADERS)
+            text = body.decode("gbk", "ignore")
+            m = _STOCK_RE.search(text)
+            fields = m.group(2).split(",") if m else []
+            # 新浪五档 f10..f29（实测为"量/价"成对）：
+            #   f10/f11..f18/f19 = 买一量/买一价 .. 买五量/买五价
+            #   f20/f21..f28/f29 = 卖一量/卖一价 .. 卖五量/卖五价
+            if len(fields) >= 30:
+                asks = []
+                for i in range(5):
+                    bid.append({"price": round(_f(fields[11 + i * 2]), 4),
+                                "volume": int(_f(fields[10 + i * 2]))})
+                    asks.append({"price": round(_f(fields[21 + i * 2]), 4),
+                                 "volume": int(_f(fields[20 + i * 2]))})
+                ask[:] = reversed(asks)  # 前端以 level:5-i 标签渲染，ask[0] 须为卖五
+        except Exception as e:
+            logger.warning(f"sina 五档 failed {symbol}: {e}")
+
+        # 集合竞价：09:25 撮合价 = 当日开盘价（新浪 f1）；竞价量取分时源开盘首分钟累计成交量(手)
+        open_p = _f(fields[1]) if len(fields) > 1 else 0.0
+        if open_p:
+            vol = None
+            try:
+                intra = self.get_intraday(symbol)
+                if intra:
+                    vol = intra[0].get("volume")
+            except Exception:
+                vol = None
+            auction = {
+                "price": round(open_p, 4), "volume": vol, "matched_at": "09:25",
+                "note": ("09:25 撮合价 = 当日开盘价；竞价量 = 分时源开盘首分钟累计成交量(手)。"
+                         "免费源不提供 09:15-09:25 逐笔竞价K线(Level-2)；竞价段仅以撮合价横线+竞价量+"
+                         "分隔线+高亮区独立呈现，与 09:30 后真实K线明确区分，不虚构竞价K线。"),
+            }
+
+        # 腾讯逐笔成交明细（appn=detail，约 3 秒/笔；页码随当日盘面推进递增，二分定位最新一页）
+        ticks: list[dict] = []
+        detail_url = ("https://stock.gtimg.cn/data/index.php?appn=detail"
+                      "&action=data&c=" + code + "&p={}")
+
+        def _page(p: int) -> str:
+            try:
+                return _open(detail_url.format(p), _UA, timeout=5).decode("gbk", "ignore")
+            except Exception:
+                return ""
+
+        def _has(p: int) -> bool:
+            t = _page(p)
+            return len(t) > 40 and '"' in t and "/" in t
+
+        if _has(1):
+            lo, hi = 1, 1
+            while hi <= 1024 and _has(hi):
+                lo, hi = hi, min(hi * 2, 1024)
+            while lo < hi:
+                mid = (lo + hi + 1) // 2
+                if _has(mid):
+                    lo = mid
+                else:
+                    hi = mid - 1
+            m = re.search(r'\[(\d+),"([^"]*)"', _page(lo), re.S)
+            for chunk in (m.group(2) if m else "").split("|"):
+                parts = chunk.split("/")
+                if len(parts) < 7:
+                    continue
+                try:
+                    ticks.append({"time": parts[1],
+                                  "price": round(float(parts[2]), 4),
+                                  "change": float(parts[3]),
+                                  "volume": int(float(parts[4])),
+                                  "amount": float(parts[5]),
+                                  "side": (parts[6] or "M")[0]})
+                except (ValueError, IndexError):
+                    continue
+        return {
+            "symbol": symbol,
+            "realtime": realtime,
+            "order_book": {"bid": bid, "ask": ask},
+            "auction": auction,
+            "ticks": ticks[-60:],
+            "note": "竞价段呈独立竞价区（非逐笔竞价K线）：本项目实测免费源不返回09:15-09:25分笔，"
+                    "竞价区以09:25撮合价(开盘价)横线+竞价量+分隔线+高亮呈现，不虚构竞价K线。",
+        }
+
     def get_indices(self) -> list[dict]:
         result: list[dict] = []
         # 新浪指数必须用 s_ 前缀（如 s_sh000001），否则返回个股协议行→字段全部错位

@@ -230,6 +230,14 @@ async def get_intraday(symbol: str, date: str = None, db: AsyncSession = Depends
     return await svc.get_intraday(symbol, date)
 
 
+@router.get("/quote-panel")
+async def get_quote_panel(symbol: str, db: AsyncSession = Depends(get_db)):
+    """个股盘口面板：五档挂单 + 独立集合竞价区 + 逐笔成交明细"""
+    svc = MarketService(db)
+    panel = await svc.dsm.get_quote_panel(symbol)
+    return panel if isinstance(panel, dict) else {}
+
+
 @router.get("/intraday-analysis")
 async def get_intraday_analysis(symbol: str, pre_close: float = 0, db: AsyncSession = Depends(get_db)):
     """分时主力行为分析（VWAP/量比/吸筹洗盘诱多诱空真拉升信号）"""

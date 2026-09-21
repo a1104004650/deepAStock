@@ -8,8 +8,8 @@
 
       <el-row :gutter="10">
         <!-- 左侧：分组 + 自选股列表 -->
-        <el-col :xs="24" :sm="8" :md="6">
-          <div class="card">
+        <el-col :xs="24" :sm="8" :md="5">
+          <div class="card sidebar-card">
             <div class="flex between" style="align-items:center;margin-bottom:8px">
               <span class="fs14 bold">自选分组</span>
               <el-button size="small" type="primary" link @click="openAddGroup">
@@ -77,8 +77,9 @@
         </el-col>
 
         <!-- 右侧：K线 + 详情 tabs -->
-        <el-col :xs="24" :sm="16" :md="18">
+        <el-col :xs="24" :sm="16" :md="19">
           <div class="card" v-if="symbolStore.selectedSymbol">
+            <div class="detail-wrap">
             <div class="flex gap" style="align-items:center;flex-wrap:wrap">
               <span class="fs16 bold">{{ symbolStore.selectedRealtime.name || symbolStore.selectedSymbol }}</span>
               <span class="fs12" style="color:#909399">{{ symbolStore.selectedSymbol }}</span>
@@ -111,8 +112,11 @@
               <span>成交额 {{ fmtBig(symbolStore.selectedRealtime.amount) }}</span>
             </div>
 
+            <!-- K线 + 右侧常驻盘口面板 -->
+            <div class="main-split">
+              <div class="main-left">
             <!-- K线图 -->
-            <div class="mt8" style="height:460px">
+            <div style="height:460px">
               <div v-if="period !== 'mf'" style="position:relative;height:100%">
                 <HQChartKline :data="kline" height="460px"
                   :fx="period === 'day' ? czsc.fx_list || [] : []"
@@ -437,6 +441,43 @@
                 </div>
               </el-tab-pane>
             </el-tabs>
+              </div>
+
+              <!-- 右侧常驻盘口面板 -->
+              <div class="side-panel">
+                <div class="quote-block">
+                  <div class="quote-title">五档挂单 <span class="fs11" style="color:#909399">单位:手</span></div>
+                  <div class="order-grid">
+                    <div v-for="i in 5" :key="i" class="order-row" :class="{ 'row-hl': (askBook[i-1] && askBook[i-1].__hl) || (bidBook[i-1] && bidBook[i-1].__hl) }">
+                      <span class="fs11" style="color:#909399">卖{{ i }}</span>
+                      <span v-if="askBook[i-1]" class="mono down fs11">{{ fmt(askBook[i-1].price) }}</span>
+                      <span v-else class="mono fs11" style="color:#c0c4cc">-</span>
+                      <span class="mono fs11" style="text-align:right">{{ askBook[i-1] ? askBook[i-1].volume : '-' }}</span>
+                      <span class="fs11" style="color:#dcdfe6;text-align:center">│</span>
+                      <span class="mono fs11" style="text-align:right">{{ bidBook[i-1] ? bidBook[i-1].volume : '-' }}</span>
+                      <span v-if="bidBook[i-1]" class="mono up fs11">{{ fmt(bidBook[i-1].price) }}</span>
+                      <span v-else class="mono fs11" style="color:#c0c4cc">-</span>
+                      <span class="fs11" style="color:#909399;text-align:right">买{{ i }}</span>
+                    </div>
+                  </div>
+                  <div v-if="!bidBook.some(b => b) && !askBook.some(a => a)" class="fs12 mt8" style="color:#909399">暂无五档挂单（非交易时段或免费源不可用）</div>
+                </div>
+
+                <div class="quote-block">
+                  <div class="quote-title">逐笔成交 <span class="fs11" style="color:#909399">滚动递增</span></div>
+                  <div ref="ticksScroller" class="ticks-list">
+                    <div v-for="t in ticksIncremental" :key="tickKey(t)" class="ticks-row" :class="{ 'row-hl': t.__hl }">
+                      <span class="mono">{{ t.time }}</span>
+                      <span class="mono" :class="priceCls(Number(t.price))">{{ fmt(t.price) }}</span>
+                      <span class="mono" :class="pctClsObj(t.change)">{{ t.change == null ? '-' : ((t.change >= 0 ? '+' : '') + t.change) }}</span>
+                      <span class="mono" style="text-align:right">{{ t.volume }}</span>
+                      <el-tag size="small" :type="sideTag(t.side)">{{ sideText(t.side) }}</el-tag>
+                    </div>
+                  </div>
+                  <el-empty v-if="!ticksIncremental.length" description="暂无成交明细（非交易时段）" :image-size="40" />
+                </div>
+              </div>
+            </div>
 
             <div v-if="symbolStore.selectedSymbol" class="mt8 flex gap">
               <el-popconfirm title="确认移除？" @confirm="removeSelected">
@@ -445,6 +486,7 @@
                 </template>
               </el-popconfirm>
             </div>
+              </div>
           </div>
           <div v-else class="card" style="text-align:center;padding:60px 0;color:#909399">
             选择左侧股票查看详情
@@ -533,6 +575,10 @@ const streamText = ref('')
 const isStreaming = ref(false)
 const agentList = ref([])
 const detailTab = ref('detail')
+const bidBook = ref([])
+const askBook = ref([])
+const ticksIncremental = ref([])
+const ticksScroller = ref(null)
 const showRecent = ref(false)
 const recentList = ref([])
 const recentPriceMap = ref({})
@@ -637,6 +683,84 @@ function fmtVol(v) { if (v == null) return '-'; const n = Number(v); return n >=
 function fmtBig(v) { if (v == null) return '-'; const n = Number(v); return n >= 1e8 ? (n / 1e8).toFixed(2) + '亿' : n >= 1e4 ? (n / 1e4).toFixed(2) + '万' : n.toFixed(0) }
 function pctCls(row) { return (row.change_pct || 0) >= 0 ? 'up' : 'down' }
 function pctClsObj(v) { return Number(v || 0) >= 0 ? 'up' : 'down' }
+function priceCls(p) {
+  const prev = symbolStore.selectedRealtime?.prev_close
+  if (prev == null) return 'flat'
+  return Number(p) > prev ? 'up' : Number(p) < prev ? 'down' : 'flat'
+}
+function sideText(s) { return s === 'B' ? '买' : s === 'S' ? '卖' : '中性' }
+function sideTag(s) { return s === 'B' ? 'danger' : s === 'S' ? 'success' : 'info' }
+function tickKey(t) {
+  return t.time + '|' + t.price + '|' + t.side
+}
+
+function applyOrderBookIncremental(p) {
+  const bid = p?.order_book?.bid || []
+  const ask = p?.order_book?.ask || []
+  const applyBook = (book, rows) => {
+    const changed = []
+    for (let i = 0; i < 5; i++) {
+      const raw = rows[i]
+      if (raw) {
+        const prev = book[i]
+        if (!prev || Number(prev.price) !== Number(raw.price)) {
+          book[i] = { level: i + 1, price: raw.price, volume: raw.volume, __hl: true }
+          changed.push(book[i])
+        } else if (Number(prev.volume) !== Number(raw.volume)) {
+          prev.volume = raw.volume
+        }
+      } else {
+        book[i] = null
+      }
+    }
+    return changed
+  }
+  const changed = [...applyBook(bidBook.value, bid), ...applyBook(askBook.value, ask)]
+  if (changed.length) setTimeout(() => changed.forEach(x => { x.__hl = false }), 1000)
+}
+
+function applyTicksIncremental(p) {
+  const fresh = p?.ticks || []
+  if (!fresh.length) return
+  const rows = ticksIncremental.value
+  const had = rows.length > 0
+  const scroller = ticksScroller.value
+  const prevH = had && scroller ? scroller.scrollHeight : null
+  const seen = new Set(rows.map(tickKey))
+  const added = []
+  for (const t of fresh) {
+    const k = tickKey(t)
+    if (!seen.has(k)) {
+      seen.add(k)
+      const obj = Object.assign({}, t, had ? { __hl: true } : {})
+      rows.push(obj)
+      added.push(obj)
+    }
+  }
+  if (!added.length) return
+  if (had && prevH != null) scrollTicksToSeam(prevH)
+  if (had) setTimeout(() => added.forEach(x => { x.__hl = false }), 1000)
+}
+
+function scrollTicksToSeam(prevH) {
+  requestAnimationFrame(() => {
+    const el = ticksScroller.value
+    if (!el || prevH == null) return
+    const clientH = el.clientHeight
+    const atBottom = el.scrollTop + clientH >= prevH - 1
+    el.scrollTop = Math.max(0, atBottom ? el.scrollHeight - clientH : prevH - clientH)
+  })
+}
+
+async function loadQuotePanel() {
+  const sym = symbolStore.selectedSymbol
+  if (!sym) return
+  try {
+    const p = await stockApi.quotePanel(sym)
+    applyOrderBookIncremental(p)
+    applyTicksIncremental(p)
+  } catch { /* 保留已有增量数据 */ }
+}
 function goStockByCode(code) {
   if (!code) return
   const sym = String(code).toUpperCase().replace(/^\D+/, '')
@@ -981,6 +1105,8 @@ function removeSelected() {
 
 watch(period, (v) => { if (VALID_PERIODS.includes(v)) loadKline() })
 
+watch(() => symbolStore.selectedSymbol, (sym) => { if (sym) loadQuotePanel() })
+
 function restoreTabState() {
   try {
     const raw = localStorage.getItem(GROUP_STATE_KEY)
@@ -1010,6 +1136,7 @@ onMounted(() => {
   loaded = true
   timer = setInterval(() => {
     if (symbolStore.selectedSymbol) loadKline()
+    if (symbolStore.selectedSymbol) loadQuotePanel()
     if (showRecent.value && recentList.value.length) loadRecentPrices()
   }, 30000)
 })
@@ -1027,7 +1154,8 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 <style scoped>
 .group-item { display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; }
 .group-item:hover { background: #f3f4f6; }
-.group-item.active { background: #ecf5ff; color: #409eff; }
+.group-item.active { background: #409eff; color: #fff; box-shadow: 0 2px 6px rgba(64,158,255,.4); }
+.group-item.active .fs12, .group-item.active .group-del, .group-item.active .el-icon { color: #fff !important; }
 .wl-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; }
 .wl-item:hover { background: #f3f4f6; }
 .wl-item.active { background: #ecf5ff; border-color: #b3d8ff; }
@@ -1051,4 +1179,24 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 .intent-shakeout { background: #909399; }
 .intent-wait { background: #c0c4cc; }
 .intraday-toolbar { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+.quote-block { padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fafbfc; height: 100%; }
+.quote-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; }
+.sidebar-card { background: #fafbfc; }
+.detail-wrap { max-width: 1080px; margin: 0 auto; }
+.main-split { display: flex; gap: 12px; margin-top: 8px; align-items: flex-start; }
+.main-left { flex: 1 1 auto; min-width: 0; }
+.side-panel { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; max-height: 640px; overflow: hidden auto; }
+.order-grid { display: flex; flex-direction: column; gap: 2px; }
+.order-row { display: grid; grid-template-columns: 24px 1fr 30px 10px 30px 1fr 24px; align-items: center; gap: 2px; padding: 3px 4px; border-radius: 4px; transition: background-color .3s; }
+.order-row span { line-height: 1.2; white-space: nowrap; }
+.ticks-list { max-height: 220px; overflow-y: auto; border: 1px solid #eef0f3; border-radius: 4px; }
+.ticks-row { display: grid; grid-template-columns: 46px 48px 40px 26px 40px; align-items: center; gap: 2px; padding: 3px 4px; border-radius: 4px; font-size: 11px; transition: background-color .3s; }
+.ticks-row .mono { font-size: 11px; }
+.ticks-row .el-tag { width: 100%; justify-content: center; padding: 0; font-size: 11px; }
+.ticks-row.row-hl, .order-row.row-hl { background: #fff7e6; }
+.ticks-row:hover { background: #f7f8fa; }
+@media (max-width: 991px) {
+  .main-split { flex-direction: column; }
+  .side-panel { width: 100%; max-height: none; }
+}
 </style>
