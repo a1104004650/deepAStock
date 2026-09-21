@@ -586,6 +586,8 @@ const bidBook = ref([])
 const askBook = ref([])
 const ticksIncremental = ref([])
 const ticksScroller = ref(null)
+let obSeq = 0   // order-book 请求序号，防竞态
+let tickSeq = 0  // ticks 请求序号，防竞态
 const showRecent = ref(false)
 const recentList = ref([])
 const recentPriceMap = ref({})
@@ -702,8 +704,9 @@ function tickKey(t) {
 }
 
 function applyOrderBookIncremental(p) {
-  const bid = p?.order_book?.bid || []
-  const ask = p?.order_book?.ask || []
+  const bid = p?.order_book?.bid
+  const ask = p?.order_book?.ask
+  if (!bid && !ask) return  // 空响应不覆盖旧数据
   const applyBook = (book, rows) => {
     const changed = []
     for (let i = 0; i < 5; i++) {
@@ -716,19 +719,17 @@ function applyOrderBookIncremental(p) {
         } else if (Number(prev.volume) !== Number(raw.volume)) {
           prev.volume = raw.volume
         }
-      } else {
-        book[i] = null
       }
     }
     return changed
   }
-  const changed = [...applyBook(bidBook.value, bid), ...applyBook(askBook.value, ask)]
+  const changed = [...applyBook(bidBook.value, bid || []), ...applyBook(askBook.value, ask || [])]
   if (changed.length) setTimeout(() => changed.forEach(x => { x.__hl = false }), 1000)
 }
 
 function applyTicksIncremental(p) {
-  const fresh = p?.ticks || []
-  if (!fresh.length) return
+  const fresh = p?.ticks
+  if (!fresh || !fresh.length) return  // 空响应不覆盖旧数据
   const rows = ticksIncremental.value
   const had = rows.length > 0
   const scroller = ticksScroller.value
@@ -759,12 +760,24 @@ function scrollTicksToSeam(prevH) {
   })
 }
 
-async function loadQuotePanel() {
+async function loadOrderBook() {
   const sym = symbolStore.selectedSymbol
   if (!sym) return
+  const seq = ++obSeq
   try {
-    const p = await stockApi.quotePanel(sym)
+    const p = await stockApi.orderBook(sym)
+    if (seq !== obSeq) return  // 有更新的请求在途，丢弃旧响应
     applyOrderBookIncremental(p)
+  } catch { /* 保留已有增量数据 */ }
+}
+
+async function loadTicks() {
+  const sym = symbolStore.selectedSymbol
+  if (!sym) return
+  const seq = ++tickSeq
+  try {
+    const p = await stockApi.ticks(sym)
+    if (seq !== tickSeq) return  // 有更新的请求在途，丢弃旧响应
     applyTicksIncremental(p)
   } catch { /* 保留已有增量数据 */ }
 }
@@ -849,16 +862,24 @@ async function loadStockDetail() {
 
 let _klineLoading = false
 let _klineSeq = 0
+let _lastPeriod = ''
+let _lastSymbol = ''
 async function loadKline() {
   const sym = symbolStore.selectedSymbol
   if (!sym || _klineLoading) return
   _klineLoading = true
   const seq = ++_klineSeq
-  // 先清空旧数据，避免切换个股时旧图表残留
-  intraday.value = []
-  intradaySignals.value = []
-  intradaySummary.value = null
-  kline.value = []
+  // 切周期或切个股时清空，定时刷新不清空（避免闪烁）
+  const symbolChanged = _lastSymbol && _lastSymbol !== sym
+  const periodChanged = _lastPeriod && _lastPeriod !== period.value
+  if (symbolChanged || periodChanged) {
+    intraday.value = []
+    intradaySignals.value = []
+    intradaySummary.value = null
+    kline.value = []
+  }
+  _lastPeriod = period.value
+  _lastSymbol = sym
   try {
     if (period.value === 'mf') {
       let preClose = symbolStore.selectedRealtime?.prev_close || 0
@@ -1112,7 +1133,7 @@ function removeSelected() {
 
 watch(period, (v) => { if (VALID_PERIODS.includes(v)) loadKline() })
 
-watch(() => symbolStore.selectedSymbol, (sym) => { if (sym) loadQuotePanel() })
+watch(() => symbolStore.selectedSymbol, (sym) => { if (sym) { loadOrderBook(); loadTicks() } })
 
 function restoreTabState() {
   try {
@@ -1134,18 +1155,22 @@ function persistTabState() {
 }
 watch([currentGroupId, showRecent], persistTabState)
 
-let timer = null
+let orderBookTimer = null
+let ticksTimer = null
 let loaded = false
 onMounted(() => {
   restoreTabState()
   const qSym = route.query.symbol
   if (qSym) { loadWithSymbol(qSym) } else { load() }
   loaded = true
-  timer = setInterval(() => {
+  orderBookTimer = setInterval(() => {
     if (symbolStore.selectedSymbol) loadKline()
-    if (symbolStore.selectedSymbol) loadQuotePanel()
+    if (symbolStore.selectedSymbol) loadOrderBook()
     if (showRecent.value && recentList.value.length) loadRecentPrices()
-  }, 30000)
+  }, 5000)
+  ticksTimer = setInterval(() => {
+    if (symbolStore.selectedSymbol) loadTicks()
+  }, 8000)
 })
 // 路由变化时重新加载（解决导航回自选股不刷新的问题）
 watch(() => route.path, (p) => {
@@ -1155,7 +1180,7 @@ watch(() => route.path, (p) => {
     else if (!symbolStore.selectedSymbol) { load() }
   }
 })
-onUnmounted(() => { if (timer) clearInterval(timer) })
+onUnmounted(() => { if (orderBookTimer) clearInterval(orderBookTimer); if (ticksTimer) clearInterval(ticksTimer) })
 </script>
 
 <style scoped>

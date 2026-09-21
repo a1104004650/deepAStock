@@ -14,6 +14,7 @@ export const labApi = {
   competitionStats: (id) => http.get(`/lab/competitions/${id}/stats`),
   tradeAll: (compId) => http.post(`/lab/competitions/${compId}/trade-all`),
   addParticipant: (compId, data) => http.post(`/lab/competitions/${compId}/participants`, data),
+  updateParticipant: (id, data) => http.put(`/lab/participants/${id}`, data),
   removeParticipant: (id) => http.delete(`/lab/participants/${id}`),
   triggerParticipantTrade: (compId, pId) => http.post(`/lab/competitions/${compId}/participants/${pId}/trade`),
   triggerTrade: (id) => http.post(`/lab/participants/${id}/trade`),
@@ -24,6 +25,7 @@ export const labApi = {
   leaderboard: (compId) => http.get(`/lab/competitions/${compId}/leaderboard`),
   equityCurve: (compId) => http.get(`/lab/competitions/${compId}/equity-curve`),
   parseCurl: (curl) => http.post('/agents/parse-curl', { curl }),
+  fetchModels: (data) => http.post('/agents/fetch-models', data),
   // 投研
   analysts: () => http.get('/lab/analysts'),
   createAnalyst: (data) => http.post('/lab/analysts', data),
@@ -97,7 +99,9 @@ export const stockApi = {
   sector: (s) => http.get(`/stocks/${s}/sector`),
   industryRanking: (s) => http.get(`/stocks/${s}/industry-ranking`),
   industryChain: (s) => http.get(`/stocks/${s}/industry-chain`),
-  quotePanel: (s) => http.get('/market/quote-panel', { params: { symbol: s } })
+  quotePanel: (s) => http.get('/market/quote-panel', { params: { symbol: s } }),
+  orderBook: (s) => http.get('/market/order-book', { params: { symbol: s } }),
+  ticks: (s) => http.get('/market/ticks', { params: { symbol: s } })
 }
 
 // 复盘
@@ -128,7 +132,8 @@ export const agentApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     }),
-  parseCurl: (curl) => http.post('/agents/parse-curl', { curl })
+  parseCurl: (curl) => http.post('/agents/parse-curl', { curl }),
+  fetchModels: (data) => http.post('/agents/fetch-models', data),
 }
 
 // 模拟交易

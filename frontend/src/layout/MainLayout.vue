@@ -27,6 +27,7 @@
               <el-icon :size="15"><component :is="it.icon" /></el-icon>
               <span>{{ it.label }}</span>
               <el-tag v-if="it.soon" size="small" effect="plain" type="warning">敬请开放</el-tag>
+              <el-tag v-if="it.isNew" size="small" effect="plain" type="danger">New</el-tag>
             </router-link>
           </div>
         </div>
@@ -124,7 +125,7 @@ const desktopGroups = [
     items: [
       { path: '/simulation', label: '模拟交易', icon: TrendCharts },
       { path: '/agents', label: '智能体', icon: MagicStick },
-      { path: '/lab', label: '实验室', icon: Cpu, soon: true },
+      { path: '/lab', label: '实验室', icon: Cpu, isNew: true },
       { path: '/knowledge', label: 'Wiki', icon: Reading, soon: true }
     ]
   }
@@ -261,8 +262,8 @@ onBeforeUnmount(() => {
   height: 100%;
 }
 .header {
-  background: #1f2937;
-  color: #f9fafb;
+  background: #161b2e;
+  color: var(--c-text-1);
   display: flex;
   align-items: center;
   padding: 0 16px;
@@ -272,8 +273,8 @@ onBeforeUnmount(() => {
 .logo {
   font-size: 17px;
   font-weight: 700;
-  color: #60a5fa;
-  margin-right: 24px;
+  color: var(--c-primary);
+  margin-right: 10px;
   white-space: nowrap;
   text-decoration: none;
 }
@@ -283,7 +284,7 @@ onBeforeUnmount(() => {
   flex: 1;
 }
 .nav-item {
-  color: #cbd5e1;
+  color: var(--c-text-2);
   font-size: 14px;
   padding: 8px 14px;
   border-radius: 6px;
@@ -300,8 +301,8 @@ onBeforeUnmount(() => {
   background: rgba(255,255,255,.08);
 }
 .nav-item.active {
-  color: #409eff;
-  background: rgba(64,158,255,.12);
+  color: var(--c-primary);
+  background: rgba(46,107,198,.12);
   font-weight: 600;
 }
 .nav-group {
@@ -318,10 +319,10 @@ onBeforeUnmount(() => {
   top: calc(100% + 4px);
   left: 0;
   min-width: 190px;
-  background: #fff;
+  background: var(--c-bg-card);
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0,0,0,.16);
-  border: 1px solid #eef0f3;
+  border: 1px solid var(--c-border);
   padding: 6px;
   z-index: 900;
 }
@@ -332,22 +333,22 @@ onBeforeUnmount(() => {
   padding: 9px 12px;
   border-radius: 7px;
   font-size: 13px;
-  color: #303133;
+  color: var(--c-text-1);
   text-decoration: none;
   transition: all .12s;
 }
 .nav-link:hover {
-  background: #f3f6fb;
-  color: #409eff;
+  background: var(--c-bg);
+  color: var(--c-primary);
 }
 .nav-link .el-tag { margin-left: auto; }
 .nav-link.router-link-active {
-  color: #409eff;
+  color: var(--c-primary);
   font-weight: 600;
-  background: #ecf5ff;
+  background: rgba(46,107,198,.08);
 }
 .right {
-  color: #cbd5e1;
+  color: var(--c-text-2);
   font-size: 12px;
   white-space: nowrap;
   display: flex;
@@ -355,9 +356,9 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 .current-stock {
-  background: #409eff22;
-  color: #409eff;
-  border: 1px solid #409eff55;
+  background: rgba(46,107,198,.13);
+  color: var(--c-primary);
+  border: 1px solid rgba(46,107,198,.33);
   border-radius: 12px;
   padding: 2px 10px;
   cursor: pointer;
@@ -367,22 +368,22 @@ onBeforeUnmount(() => {
   gap: 4px;
   transition: all 0.2s;
 }
-.current-stock:hover { background: #409eff33; }
+.current-stock:hover { background: rgba(46,107,198,.2); }
 .clear-btn { cursor: pointer; font-size: 12px; opacity: 0.6; }
 .clear-btn:hover { opacity: 1; }
 .clock {
-  font-family: 'Consolas', 'SF Mono', monospace;
+  font-family: var(--font-mono, 'Consolas', 'SF Mono', monospace);
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--c-text-3);
 }
 .health {
-  border: 1px solid #334155;
+  border: 1px solid var(--c-border-strong);
   border-radius: 12px;
   padding: 2px 10px;
 }
 .main {
   padding: 0;
-  background: #f5f7fa;
+  background: var(--c-bg);
 }
 
 /* 底部导航：默认隐藏，移动端显示 */
@@ -397,8 +398,8 @@ onBeforeUnmount(() => {
     position: fixed;
     left: 0; right: 0; bottom: 0;
     height: 56px;
-    background: #fff;
-    border-top: 1px solid #e5e7eb;
+    background: var(--c-bg-card);
+    border-top: 1px solid var(--c-border);
     box-shadow: 0 -1px 6px rgba(0,0,0,.06);
     z-index: 100;
     padding-bottom: env(safe-area-inset-bottom);
@@ -419,7 +420,7 @@ onBeforeUnmount(() => {
     padding: 0;
   }
   .bn-item.active {
-    color: #409eff;
+    color: var(--c-primary);
     font-weight: 600;
   }
 }

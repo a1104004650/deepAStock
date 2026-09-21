@@ -137,6 +137,9 @@
             >
               <div class="player-card-top">
                 <div class="player-rank" v-if="players.length > 1">#{{ idx + 1 }}</div>
+                <el-button class="player-edit-btn" size="small" circle @click.stop="openEditPlayer(p)">
+                  <el-icon><Edit /></el-icon>
+                </el-button>
                 <el-button class="player-remove-btn" size="small" circle @click.stop="removePlayer(p)" :loading="removingPlayerId === p.id">
                   <el-icon><Close /></el-icon>
                 </el-button>
@@ -366,8 +369,8 @@
       </template>
     </el-dialog>
 
-    <!-- Add Player Dialog -->
-    <el-dialog v-model="showAddPlayer" title="添加AI选手" width="560px" destroy-on-close>
+    <!-- Add/Edit Player Dialog -->
+    <el-dialog v-model="showAddPlayer" :title="editingPlayerId ? '编辑AI选手' : '添加AI选手'" width="560px" destroy-on-close @close="resetPlayerForm">
       <div class="curl-section">
         <div class="curl-header">
           <span class="curl-icon">⚡</span>
@@ -410,7 +413,16 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="模型名称">
-              <el-input v-model="playerForm.model_name" placeholder="例如：deepseek-chat" />
+              <el-input v-model="playerForm.model_name" placeholder="例如：deepseek-chat">
+                <template #append>
+                  <el-button :loading="modelsLoading" @click="fetchModels" title="获取模型列表">
+                    <el-icon><Refresh /></el-icon>
+                  </el-button>
+                </template>
+              </el-input>
+              <div v-if="modelList.length" class="model-list">
+                <el-tag v-for="m in modelList" :key="m" size="small" :type="m === playerForm.model_name ? 'primary' : 'info'" class="model-tag" @click="playerForm.model_name = m">{{ m }}</el-tag>
+              </div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -426,7 +438,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showAddPlayer = false">取消</el-button>
-        <el-button type="primary" :loading="actionLoading" @click="addPlayer" :disabled="!playerForm.name || !playerForm.provider" round>添加</el-button>
+        <el-button type="primary" :loading="actionLoading" @click="savePlayer" :disabled="!playerForm.name || !playerForm.provider" round>{{ editingPlayerId ? '保存' : '添加' }}</el-button>
       </template>
     </el-dialog>
   </MainLayout>
@@ -469,6 +481,7 @@ const editForm = ref({ name: '', description: '', initial_capital: 100000, max_p
 const editPoolInput = ref('')
 
 const showAddPlayer = ref(false)
+const editingPlayerId = ref(null)
 const playerForm = ref({
   name: '', avatar: '🤖', provider: 'deepseek',
   api_base: '', api_key: '', model_name: '', system_prompt: '',
@@ -480,6 +493,8 @@ const curlInput = ref('')
 const curlParsing = ref(false)
 const curlResult = ref('')
 const curlOk = ref(false)
+const modelsLoading = ref(false)
+const modelList = ref([])
 
 const chartRef = ref(null)
 let equityChart = null
@@ -798,12 +813,58 @@ async function triggerPlayerTrade(p) {
 }
 
 function resetPlayerForm() {
+  editingPlayerId.value = null
   playerForm.value = {
     name: '', avatar: '🤖', provider: 'deepseek',
     api_base: '', api_key: '', model_name: '', system_prompt: '',
   }
   curlInput.value = ''
   curlResult.value = ''
+}
+
+function openEditPlayer(p) {
+  editingPlayerId.value = p.id
+  playerForm.value = {
+    name: p.name, avatar: p.avatar || '🤖', provider: p.provider || 'deepseek',
+    api_base: p.api_base || '', api_key: p.api_key || '', model_name: p.model_name || '',
+    system_prompt: p.system_prompt || '',
+  }
+  showAddPlayer.value = true
+}
+
+async function savePlayer() {
+  actionLoading.value = true
+  try {
+    if (editingPlayerId.value) {
+      await labApi.updateParticipant(editingPlayerId.value, playerForm.value)
+      ElMessage.success('保存成功')
+    } else {
+      await labApi.addParticipant(selected.value.id, playerForm.value)
+      ElMessage.success('添加成功')
+    }
+    showAddPlayer.value = false
+    resetPlayerForm()
+    await enterCompetition(selected.value)
+  } finally { actionLoading.value = false }
+}
+
+async function fetchModels() {
+  if (!playerForm.value.api_base) { ElMessage.warning('请先填写 API 地址'); return }
+  modelsLoading.value = true
+  modelList.value = []
+  try {
+    const r = await labApi.fetchModels({ api_base: playerForm.value.api_base, api_key: playerForm.value.api_key })
+    if (r.models?.length) {
+      modelList.value = r.models
+      ElMessage.success(`获取到 ${r.models.length} 个模型`)
+    } else {
+      ElMessage.warning(r.error || '未获取到模型列表')
+    }
+  } catch (e) {
+    ElMessage.error('获取模型列表失败')
+  } finally {
+    modelsLoading.value = false
+  }
 }
 
 async function sendChat() {
@@ -822,7 +883,8 @@ async function parseCurl() {
     if (data.api_key) {
       if (data.api_base || data.base_url) playerForm.value.api_base = data.base_url || data.api_base
       if (data.api_key) playerForm.value.api_key = data.api_key
-      if (data.model) playerForm.value.model_name = data.model
+      if (data.model_name || data.model) playerForm.value.model_name = data.model_name || data.model
+      if (data.provider) playerForm.value.provider = data.provider
       curlResult.value = '解析成功！已自动填充配置'
       curlOk.value = true
     } else {
@@ -1104,7 +1166,12 @@ onBeforeUnmount(() => {
   opacity: 0;
   transition: opacity 0.2s;
 }
-.player-card:hover .player-remove-btn {
+.player-edit-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.player-card:hover .player-remove-btn,
+.player-card:hover .player-edit-btn {
   opacity: 1;
 }
 .player-main {
@@ -1426,5 +1493,20 @@ onBeforeUnmount(() => {
   .stats-row { grid-template-columns: repeat(2, 1fr); }
   .arena-hero { flex-direction: column; gap: 12px; align-items: flex-start; }
   .arena-hero-right { flex-wrap: wrap; }
+}
+.model-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.model-tag {
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.model-tag:hover {
+  opacity: 0.8;
 }
 </style>

@@ -91,6 +91,18 @@ class DataSourceManager:
             return {}
         return ans
 
+    async def get_order_book(self, symbol: str) -> dict:
+        ans = await self._call("get_order_book", symbol)
+        if not isinstance(ans, dict):
+            return {}
+        return ans
+
+    async def get_ticks(self, symbol: str) -> dict:
+        ans = await self._call("get_ticks", symbol)
+        if not isinstance(ans, dict):
+            return {}
+        return ans
+
     async def get_indices(self) -> list[dict]:
         ans = await self._call("get_indices")
         return ans or []

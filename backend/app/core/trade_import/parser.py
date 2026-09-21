@@ -288,12 +288,29 @@ class TradeImportService:
     async def get_positions(self, user_id: int) -> list[dict]:
         rows = (await self.db.execute(
             select(UserPosition).where(UserPosition.user_id == user_id))).scalars().all()
-        if rows:
+        if not rows:
+            await self._recalc_positions(user_id)
+            rows = (await self.db.execute(
+                select(UserPosition).where(UserPosition.user_id == user_id))).scalars().all()
             return [self._pos_dict(p) for p in rows]
-        await self._recalc_positions(user_id)
-        rows = (await self.db.execute(
-            select(UserPosition).where(UserPosition.user_id == user_id))).scalars().all()
-        return [self._pos_dict(p) for p in rows]
+        # 有持仓记录时，刷新每只股票的实时价格
+        symbols = list({p.symbol for p in rows})
+        rt_map = {}
+        try:
+            rt = await self.dsm.get_realtime(symbols)
+            rt_map = rt if isinstance(rt, dict) else {}
+        except Exception:
+            pass
+        result = []
+        for p in rows:
+            cur_price = float(rt_map.get(p.symbol, {}).get("price", 0) or 0)
+            if cur_price > 0:
+                mv = cur_price * p.remaining_qty
+                r = mv - float(p.total_cost)
+                p.total_return = r
+                p.return_rate = r / float(p.total_cost) if float(p.total_cost) else 0
+            result.append(self._pos_dict(p))
+        return result
 
     async def get_trades(self, user_id: int, limit: int = 200) -> list[dict]:
         rows = (await self.db.execute(

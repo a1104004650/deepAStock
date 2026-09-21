@@ -270,7 +270,7 @@ function render() {
     legend: { top: 4, right: 12, data: legendData, textStyle: { fontSize: 10 } },
     grid: grids, xAxis: xAxes, yAxis: yAxes, dataZoom, series,
   }
-  chart.setOption(option, true)
+  chart.setOption(option)
 }
 
 function resize() { chart && chart.resize() }
