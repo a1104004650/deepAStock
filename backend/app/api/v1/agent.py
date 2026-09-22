@@ -17,6 +17,7 @@ from app.core.market.stock_service import StockService
 from app.models.agent import AgentConfig, AgentRun, StockAiAnalysis
 from app.schemas.common import AgentConfigCreate, AgentConfigUpdate, AgentAnalyzeRequest
 from app.utils.logger import logger
+from app.utils import shanghai_now
 
 router = APIRouter(prefix="/api/v1/agents", tags=["AI智能体"])
 
@@ -469,7 +470,7 @@ async def get_runs_stats(days: int = 30, db: AsyncSession = Depends(get_db)):
     """智能体调用次数统计（周维度 / 小时维度），供 Agents.vue 图表."""
     from datetime import timedelta
     rows = (await db.execute(
-        select(AgentRun).where(AgentRun.created_at >= datetime.utcnow() - timedelta(days=days))
+        select(AgentRun).where(AgentRun.created_at >= shanghai_now() - timedelta(days=days))
     )).scalars().all()
     sh = ZoneInfo("Asia/Shanghai")
     by_weekday = {i: 0 for i in range(7)}   # 0=周一..6=周日

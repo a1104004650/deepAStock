@@ -10,6 +10,7 @@ from datetime import datetime, timezone, timedelta
 from xml.etree import ElementTree as ET
 
 from app.utils.logger import logger
+from app.utils import shanghai_now
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")

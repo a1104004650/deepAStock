@@ -7,6 +7,7 @@ from datetime import datetime, date
 from pathlib import Path
 
 import pandas as pd
+from app.utils import shanghai_now
 
 # ---------------------------------------------------------------------------
 # CATALOG

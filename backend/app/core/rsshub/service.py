@@ -10,6 +10,7 @@ from app.models.rss import RssSource, RssItem
 from app.core.settings import get_setting_int
 from app.core.rsshub.parser import fetch_feed, clean_html, clean_text, clean_text
 from app.utils.logger import logger
+from app.utils import shanghai_now
 
 _CN_TZ = timezone(timedelta(hours=8))
 _MAX_ITEMS_PER_SOURCE = 500

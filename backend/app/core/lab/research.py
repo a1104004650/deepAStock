@@ -14,6 +14,7 @@ from app.core.agent.llm_client import LLMClient
 from app.core.datasource.manager import DataSourceManager
 from app.core.lab.call_logger import record_lab_call
 from app.utils.logger import logger
+from app.utils import shanghai_now
 
 
 class ResearchTeamEngine:
@@ -150,7 +151,7 @@ class ResearchTeamEngine:
             task.status = "completed"
             task.stage = "done"
             task.progress = 100
-            task.completed_at = datetime.utcnow()
+            task.completed_at = shanghai_now()
             await self.db.commit()
 
             return {"success": True, "report_id": final_report.id if final_report else None}

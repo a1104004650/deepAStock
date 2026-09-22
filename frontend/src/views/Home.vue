@@ -55,7 +55,7 @@
           </div>
           <div class="flex gap mt8" style="align-items:center;flex-wrap:wrap">
             <el-radio-group v-model="candSource" size="small">
-              <el-radio-button value="hot">人气TOP10</el-radio-button>
+              <el-radio-button value="hot">人气TOP15</el-radio-button>
               <el-radio-button value="rise">急拉</el-radio-button>
               <el-radio-button value="fall">急跌</el-radio-button>
             </el-radio-group>
@@ -177,34 +177,6 @@
       </el-row>
       </el-collapse-item>
       <el-collapse-item name="hot" title="🔥 人气排行 · 实时异动">
-      <el-row :gutter="10" class="mt8">
-        <el-col :span="24">
-          <div class="card">
-            <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
-              <span class="fs14 bold">人气股票 TOP10 <span class="fs12" style="color:#909399">（按当日 换手×量比×涨幅 综合热度估算）</span></span>
-              <span class="fs12" style="color:#909399">点击进入个股详情 · {{ todayStr }}</span>
-            </div>
-            <div class="hot-grid mt8">
-              <div v-for="(r, i) in hotStocks" :key="r.symbol" class="hot-card" @click="goStock(r.symbol, r.name)">
-                <div class="flex between" style="align-items:center;gap:4px">
-                  <span class="fs13 bold">{{ i + 1 }}. {{ r.name }}</span>
-                  <el-tag size="small" :type="Number(r.change_pct) >= 0 ? 'danger' : 'success'">
-                    {{ Number(r.change_pct) >= 0 ? '+' : '' }}{{ r.change_pct }}%
-                  </el-tag>
-                </div>
-                <div class="mono fs15" style="color:#303133">{{ r.price }}</div>
-                <div class="fs11" style="color:#909399">
-                  热度 <b :style="{ color: hotColor(r.heat) }">{{ r.heat }}</b>
-                  · 换手 {{ r.hsl }}% · 量比 {{ r.lb }} · 成交 {{ fmtMoney(r.turnover * 1e4) }}
-                </div>
-                <div class="heat-bar"><div class="heat-fill" :style="{ width: Math.min(100, r.heat) + '%' }" /></div>
-              </div>
-              <el-empty v-if="!hotStocks.length" description="暂无人气排行" :image-size="40" />
-            </div>
-            <div class="ai-comment" v-if="hotComment">💡 人气点评：{{ hotComment }}</div>
-          </div>
-        </el-col>
-      </el-row>
 
       <!-- 实时股价异动：快速拉升 / 快速下挫（与人气股票TOP10同风格） -->
       <el-row :gutter="10" class="mt8">
@@ -220,7 +192,7 @@
                 <div v-for="(r, i) in movers.rise" :key="r.symbol" class="hot-card" @click="goStock(r.symbol, r.name)">
                   <div class="flex between" style="align-items:center;gap:4px">
                     <span class="fs13 bold">{{ i + 1 }}. {{ r.name }}</span>
-                    <el-tag size="small" type="danger">+{{ r.speed }}%/分</el-tag>
+                    <el-tag size="small" type="danger">涨速 +{{ r.speed }}%/分</el-tag>
                   </div>
                   <div class="mono fs15" style="color:#303133">
                     {{ r.price }}
@@ -235,7 +207,7 @@
                 <div v-for="(r, i) in movers.fall" :key="r.symbol" class="hot-card" @click="goStock(r.symbol, r.name)">
                   <div class="flex between" style="align-items:center;gap:4px">
                     <span class="fs13 bold">{{ i + 1 }}. {{ r.name }}</span>
-                    <el-tag size="small" type="success">{{ r.speed }}%/分</el-tag>
+                    <el-tag size="small" type="success">跌速 {{ r.speed }}%/分</el-tag>
                   </div>
                   <div class="mono fs15" style="color:#303133">
                     {{ r.price }}

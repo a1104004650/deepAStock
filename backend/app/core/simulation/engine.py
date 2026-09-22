@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.agent.base import AgentContext
+from app.utils import shanghai_now
 from app.core.agent.executor import AgentExecutor
 from app.core.agent.registry import get_agent_configs
 from app.core.datasource.manager import DataSourceManager
@@ -587,7 +588,7 @@ class SimulationEngine:
                 if quantity == 0:
                     return None
 # A股 T+1：当日买入的份额不可在当日卖出（卖出上限=持仓量 - 当日买入量）
-            td = trade_datetime if trade_datetime is not None else datetime.utcnow()
+            td = trade_datetime if trade_datetime is not None else shanghai_now()
             try:
                 day_buys = (await self.db.execute(
                     select(func.coalesce(func.sum(SimulationTrade.quantity), 0)).where(
@@ -649,7 +650,7 @@ class SimulationEngine:
         total = float(account.current_capital) + market_value
         init = float(account.initial_capital)
         account.total_return = round((total - init) / init, 4) if init else 0
-        account.updated_at = datetime.utcnow()
+        account.updated_at = shanghai_now()
         await self.db.commit()
 
     async def _review(self, account, new_trades, target_date):
@@ -826,7 +827,7 @@ class SimulationEngine:
         a.max_drawdown = Decimal("0")
         a.total_trades = 0
         a.win_rate = Decimal("0")
-        a.updated_at = datetime.utcnow()
+        a.updated_at = shanghai_now()
         await self.db.commit()
         return True
 

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.trade import UserTrade, UserPosition
 from app.core.datasource.manager import DataSourceManager
 from app.utils.logger import logger
+from app.utils import shanghai_now
 
 
 # ---------- 券商交割单 / 通用 CSV 解析 ----------

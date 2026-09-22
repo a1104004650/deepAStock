@@ -13,6 +13,7 @@ from datetime import datetime
 import pandas as pd
 
 from app.utils.logger import logger
+from app.utils import shanghai_now
 
 try:  # czsc 为可选依赖：未安装时仅记录，不阻断
     import czsc as _czsc

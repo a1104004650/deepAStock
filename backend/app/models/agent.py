@@ -3,6 +3,7 @@ from decimal import Decimal
 from sqlalchemy import String, Integer, DateTime, Text, Numeric, Boolean, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
+from app.utils import shanghai_now
 
 
 class AgentConfig(Base):
@@ -24,8 +25,8 @@ class AgentConfig(Base):
     extra_params = mapped_column(JSON, default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now(), onupdate=lambda: shanghai_now())
 
 
 class AgentPromptLog(Base):
@@ -38,7 +39,7 @@ class AgentPromptLog(Base):
     system_prompt: Mapped[str] = mapped_column(Text, nullable=True)
     reason: Mapped[str] = mapped_column(String(500), nullable=True)
     performance_score = mapped_column(Numeric(4, 2), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
 
 
 class AgentRun(Base):
@@ -57,7 +58,7 @@ class AgentRun(Base):
     error_message: Mapped[str] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=True)
     week_key: Mapped[str] = mapped_column(String(10), nullable=True, index=True)  # 2026-W38
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
 
 
 class StockAiAnalysis(Base):
@@ -68,4 +69,4 @@ class StockAiAnalysis(Base):
     symbol: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     trade_date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)  # YYYY-MM-DD
     payload = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())

@@ -3,6 +3,7 @@ from decimal import Decimal
 from sqlalchemy import String, Integer, DateTime, Date, Time, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
+from app.utils import shanghai_now
 
 
 class UserTrade(Base):
@@ -20,7 +21,7 @@ class UserTrade(Base):
     trade_time: Mapped[time] = mapped_column(Time, nullable=True)
     note: Mapped[str] = mapped_column(Text, nullable=True)
     imported_from: Mapped[str] = mapped_column(String(50), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
 
 
 class UserPosition(Base):
@@ -37,4 +38,4 @@ class UserPosition(Base):
     total_cost: Mapped[Decimal] = mapped_column(Numeric(20, 2), default=0)
     total_return: Mapped[Decimal] = mapped_column(Numeric(20, 2), default=0)
     return_rate: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=0)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now(), onupdate=lambda: shanghai_now())

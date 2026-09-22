@@ -77,6 +77,15 @@ async def init_db():
             await conn.execute(text("ALTER TABLE rss_sources ADD COLUMN base VARCHAR(300) DEFAULT ''"))
         except Exception:
             pass
+        # 实验室新字段迁移
+        try:
+            await conn.execute(text("ALTER TABLE lab_competitions ADD COLUMN risk_rules TEXT"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE lab_participants ADD COLUMN personality VARCHAR(100)"))
+        except Exception:
+            pass
 
     # 空库写入默认订阅源（部署即自带）
     async with SessionLocal() as _db:

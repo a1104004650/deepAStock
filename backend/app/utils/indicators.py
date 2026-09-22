@@ -2,6 +2,7 @@
 from typing import Optional
 from datetime import datetime
 import numpy as np
+from app.utils import shanghai_now
 
 
 def sma(values: list[float], period: int) -> list[Optional[float]]:

@@ -69,7 +69,7 @@ class DataSourceBase(ABC):
         """东财日内严重异常波动"""
         return {"date": "", "items": [], "count": []}
 
-    def get_price_movers(self) -> dict:
+    def get_price_movers(self, top: int = 8) -> dict:
         """实时股价异动（快速拉升 / 快速下挫）"""
         return {"rise": [], "fall": []}
 
