@@ -8,6 +8,7 @@ from app.core.market.kline_service import KlineService
 from app.utils.indicators import detect_chan_signals, compute_indicators
 from app.core.czsc_plugin import plugin as czsc_plugin
 from app.utils.logger import logger
+from app.utils import shanghai_now
 
 try:
     import czsc  # noqa: F401

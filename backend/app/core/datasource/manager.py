@@ -10,6 +10,7 @@ from app.models.market import Kline, SectorMoneyFlow, DragonTiger, LimitUp
 from app.models.cache import CacheMetadata
 from app.core.settings import source_order, get_setting
 from app.utils.logger import logger
+from app.utils import shanghai_now
 
 PERIOD_STEP = {"day": 1, "week": 7, "month": 30, "1m": 1, "5m": 5, "15m": 15, "30m": 30, "60m": 60}
 
@@ -203,12 +204,12 @@ class DataSourceManager:
         ans = await self._call("get_sector_monitor")
         return ans or []
 
-    async def get_hot_stocks(self, top: int = 5) -> list[dict]:
+    async def get_hot_stocks(self, top: int = 15) -> list[dict]:
         ans = await self._call("get_hot_stocks", top)
         return [r for r in ans if isinstance(r, dict)] if isinstance(ans, list) else []
 
-    async def get_price_movers(self) -> dict:
-        ans = await self._call("get_price_movers")
+    async def get_price_movers(self, top: int = 8) -> dict:
+        ans = await self._call("get_price_movers", top)
         return ans if isinstance(ans, dict) else {"rise": [], "fall": []}
 
     async def get_industry_chain(self, symbol: str) -> dict:
@@ -230,7 +231,7 @@ class DataSourceManager:
                 select(func.max(StockName.updated_at)))
             newest = newest.scalar()
             if newest and not force:
-                stale = (datetime.utcnow() - newest).days >= 30
+                stale = (shanghai_now() - newest).days >= 30
             if not stale:
                 return 0
             rows = await self._call("_all_stock_names", force)
@@ -243,9 +244,9 @@ class DataSourceManager:
                 if not sym or not name:
                     continue
                 await self.db.execute(update(StockName).where(StockName.symbol == sym)
-                                      .values(name=name, updated_at=datetime.utcnow()))
+                                      .values(name=name, updated_at=shanghai_now()))
                 if not (await self.db.execute(select(StockName.symbol).where(StockName.symbol == sym))).first():
-                    self.db.add(StockName(symbol=sym, name=name, updated_at=datetime.utcnow()))
+                    self.db.add(StockName(symbol=sym, name=name, updated_at=shanghai_now()))
                 count += 1
             await self.db.commit()
             logger.info(f"A股名称库同步 {count} 条")

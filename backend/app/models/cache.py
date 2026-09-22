@@ -2,6 +2,7 @@ from datetime import datetime, date
 from sqlalchemy import String, Integer, DateTime, Date
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
+from app.utils import shanghai_now
 
 
 class CacheMetadata(Base):
@@ -12,5 +13,5 @@ class CacheMetadata(Base):
     symbol: Mapped[str] = mapped_column(String(20), primary_key=True)
     period: Mapped[str] = mapped_column(String(10), primary_key=True, default="")
     last_date: Mapped[date] = mapped_column(Date, nullable=True)
-    last_update: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    last_update: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
     status: Mapped[str] = mapped_column(String(20), default="ok")

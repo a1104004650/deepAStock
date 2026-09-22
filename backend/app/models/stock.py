@@ -4,6 +4,7 @@ from sqlalchemy import String, Integer, BigInteger, DateTime, Date, Text, Numeri
 from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
+from app.utils import shanghai_now
 
 
 class Stock(Base):
@@ -17,7 +18,7 @@ class Stock(Base):
     industry: Mapped[str] = mapped_column(String(50), nullable=True)
     concept_tags = mapped_column(JSON, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now(), onupdate=lambda: shanghai_now())
 
 
 class FinancialQuarterly(Base):
@@ -37,7 +38,7 @@ class FinancialQuarterly(Base):
     eps: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=True)
     bps: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=True)
     ocf: Mapped[Decimal] = mapped_column(Numeric(20, 2), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
 
 
 class Shareholder(Base):
@@ -51,7 +52,7 @@ class Shareholder(Base):
     hold_ratio: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=True)
     change_count: Mapped[int] = mapped_column(BigInteger, nullable=True)
     is_major: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
 
 
 class SentimentDaily(Base):
@@ -74,4 +75,4 @@ class Sector(Base):
     type: Mapped[str] = mapped_column(String(20), nullable=True)
     parent_code: Mapped[str] = mapped_column(String(20), nullable=True)
     stocks = mapped_column(JSON, default=list)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now(), onupdate=lambda: shanghai_now())

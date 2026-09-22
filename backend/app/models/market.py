@@ -4,6 +4,7 @@ from sqlalchemy import String, Integer, BigInteger, DateTime, Date, Time, Numeri
 from sqlalchemy import Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
+from app.utils import shanghai_now
 
 
 class Kline(Base):
@@ -20,7 +21,7 @@ class Kline(Base):
     volume: Mapped[int] = mapped_column(BigInteger, nullable=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(20, 2), nullable=True)
     turnover: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
 
     __table_args__ = (UniqueConstraint("symbol", "period", "timestamp", name="uq_kline_sp_t"),)
 
@@ -67,7 +68,7 @@ class DragonTiger(Base):
     net_amount: Mapped[Decimal] = mapped_column(Numeric(20, 2), nullable=True)
     buyer_list = mapped_column(JSON, default=list)
     seller_list = mapped_column(JSON, default=list)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
 
 
 class LimitUp(Base):
@@ -94,7 +95,7 @@ class StockName(Base):
 
     symbol: Mapped[str] = mapped_column(String(20), primary_key=True)
     name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
 
 
 class ReplayReport(Base):
@@ -109,4 +110,4 @@ class ReplayReport(Base):
     agent_reviews = mapped_column(JSON, default=dict)
     report_md: Mapped[str] = mapped_column(Text, nullable=True)
     report_html: Mapped[str] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())

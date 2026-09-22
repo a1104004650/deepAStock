@@ -278,16 +278,16 @@ async def get_sector_constituents(symbol: str, db: AsyncSession = Depends(get_db
 
 
 @router.get("/hot-stocks")
-async def get_hot_stocks(top: int = 10, db: AsyncSession = Depends(get_db)):
+async def get_hot_stocks(top: int = 15, db: AsyncSession = Depends(get_db)):
     svc = MarketService(db)
     return await svc.get_hot_stocks(top)
 
 
 @router.get("/price-movers")
-async def get_price_movers(db: AsyncSession = Depends(get_db)):
+async def get_price_movers(top: int = 8, db: AsyncSession = Depends(get_db)):
     """实时股价异动：快速拉升 / 快速下挫（腾讯涨速榜）"""
     svc = MarketService(db)
-    return await svc.get_price_movers()
+    return await svc.get_price_movers(top)
 
 
 @router.get("/market-flow")

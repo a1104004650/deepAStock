@@ -94,15 +94,15 @@ class MarketService:
             logger.warning(f"get_sector_constituents failed: {e}")
             return []
 
-    async def get_hot_stocks(self, top: int = 10) -> list[dict]:
+    async def get_hot_stocks(self, top: int = 15) -> list[dict]:
         try:
             return await self.dsm.get_hot_stocks(top)
         except Exception as e:
             logger.warning(f"get_hot_stocks failed: {e}")
             return []
 
-    async def get_price_movers(self) -> dict:
-        return await self.dsm.get_price_movers()
+    async def get_price_movers(self, top: int = 8) -> dict:
+        return await self.dsm.get_price_movers(top)
 
     async def get_market_money_flow(self, days: int = 20) -> dict:
         return await self.dsm.get_market_money_flow(days)

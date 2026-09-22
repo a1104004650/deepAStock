@@ -4,6 +4,7 @@ from sqlalchemy import (String, Integer, Text, DateTime, Boolean, JSON,
                         UniqueConstraint, Index)
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
+from app.utils import shanghai_now
 
 
 class RssSource(Base):
@@ -26,7 +27,7 @@ class RssSource(Base):
     last_status: Mapped[str] = mapped_column(String(300), nullable=True)
     last_item_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow)
+        DateTime(timezone=True), default=lambda: shanghai_now())
 
 
 class RssItem(Base):
@@ -51,4 +52,4 @@ class RssItem(Base):
     is_st: Mapped[bool] = mapped_column(Boolean, default=False)
     importance: Mapped[int] = mapped_column(Integer, default=3)  # 1高 2中 3一般
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow)
+        DateTime(timezone=True), default=lambda: shanghai_now())

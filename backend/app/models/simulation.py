@@ -3,6 +3,7 @@ from decimal import Decimal
 from sqlalchemy import String, Integer, DateTime, Date, Numeric, Boolean, JSON, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
+from app.utils import shanghai_now
 
 
 class SimulationAccount(Base):
@@ -21,8 +22,8 @@ class SimulationAccount(Base):
     prompt_template: Mapped[str] = mapped_column(Text, nullable=True)
     rules = mapped_column(JSON, default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now(), onupdate=lambda: shanghai_now())
 
 
 class SimulationPosition(Base):
@@ -36,7 +37,7 @@ class SimulationPosition(Base):
     avg_cost: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
     current_price: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=True)
     unrealized_pnl: Mapped[Decimal] = mapped_column(Numeric(20, 2), default=0)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now(), onupdate=lambda: shanghai_now())
 
 
 class SimulationTrade(Base):
@@ -53,7 +54,7 @@ class SimulationTrade(Base):
     fee: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0)
     reason: Mapped[str] = mapped_column(Text, nullable=True)
     confidence: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=True)
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
 
 
 class SimulationReview(Base):
@@ -67,7 +68,7 @@ class SimulationReview(Base):
     improvements = mapped_column(JSON, default=list)
     param_adjustments = mapped_column(JSON, default=dict)
     performance_snapshot = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())
 
 
 class SimulationLog(Base):
@@ -80,4 +81,4 @@ class SimulationLog(Base):
     log_type: Mapped[str] = mapped_column(String(20), nullable=False)  # run_start/pool/decision/trade/error
     title: Mapped[str] = mapped_column(String(200), nullable=True)
     content = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())

@@ -5,11 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.agent import AgentRun
+from app.utils import shanghai_now
 
 
 def get_week_key(dt: datetime = None) -> str:
     """获取ISO周标识，如 2026-W38"""
-    dt = dt or datetime.utcnow()
+    dt = dt or shanghai_now()
     return f"{dt.isocalendar()[0]}-W{dt.isocalendar()[1]:02d}"
 
 

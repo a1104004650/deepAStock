@@ -82,8 +82,12 @@
               <el-button type="danger" :loading="actionLoading" @click="finishCompetition" round>
                 <el-icon><CircleCloseFilled /></el-icon>结束
               </el-button>
-              <el-button type="primary" :loading="tradeAllLoading" @click="tradeAll" round>
-                <el-icon><Refresh /></el-icon>全部交易一轮
+              <el-divider direction="vertical" />
+              <el-button v-if="!aiRunning" type="success" :loading="aiStarting" @click="startAI" round>
+                <el-icon><VideoPlay /></el-icon>启动AI自主运行
+              </el-button>
+              <el-button v-else type="danger" :loading="aiStopping" @click="stopAI" round>
+                <el-icon><VideoPause /></el-icon>停止AI
               </el-button>
             </template>
             <template v-if="selected.status === 'paused'">
@@ -100,17 +104,20 @@
             <el-button v-if="selected.status === 'setup' || selected.status === 'finished'" type="danger" :loading="actionLoading" @click="deleteCompetition" round>
               <el-icon><Delete /></el-icon>删除
             </el-button>
+            <el-button v-if="selected.status !== 'setup'" type="warning" :loading="actionLoading" @click="resetCompetition" round>
+              🔄 重置
+            </el-button>
           </div>
         </div>
 
         <!-- Stats Cards -->
         <div v-if="statsLoaded" class="stats-row">
           <div class="stat-card">
-            <div class="stat-value">{{ statsData.participant_count || players.length }}</div>
+            <div class="stat-value">{{ statsData.participants?.total ?? players.length }}</div>
             <div class="stat-label">参赛人数</div>
           </div>
           <div class="stat-card">
-            <div class="stat-value">{{ statsData.total_trades || 0 }}</div>
+            <div class="stat-value">{{ statsData.trades?.total || 0 }}</div>
             <div class="stat-label">总交易次数</div>
           </div>
           <div class="stat-card">
@@ -120,6 +127,23 @@
           <div class="stat-card">
             <div class="stat-value best">{{ bestPlayerName }}</div>
             <div class="stat-label">最佳选手</div>
+          </div>
+        </div>
+
+        <!-- AI Auto-Run Status -->
+        <div v-if="aiRunning && aiStatus" class="ai-status-bar">
+          <div class="ai-status-left">
+            <span class="ai-pulse"></span>
+            <span class="ai-status-label">AI自主运行中</span>
+            <el-tag size="small" effect="plain" round>第 {{ aiStatus.round || 0 }} 轮</el-tag>
+          </div>
+          <div class="ai-status-right">
+            <div v-for="(p, i) in (aiStatus.participants || [])" :key="i" class="ai-player-status">
+              <span>{{ p.avatar }}</span>
+              <span class="ai-player-name">{{ p.name }}</span>
+              <span :class="['ai-player-phase', p.phase]">{{ phaseLabel(p.phase) }}</span>
+              <span v-if="p.trades_this_round" class="ai-player-trades">{{ p.trades_this_round }}笔</span>
+            </div>
           </div>
         </div>
 
@@ -133,7 +157,7 @@
               class="player-card"
               :class="{ 'is-top': idx === 0 && players.length > 1 && (p.total_return || 0) > 0 }"
               @mouseenter="showPosTooltip(p, $event)"
-              @mouseleave="hidePosTooltip"
+              @mouseleave="startHideTimer"
             >
               <div class="player-card-top">
                 <div class="player-rank" v-if="players.length > 1">#{{ idx + 1 }}</div>
@@ -156,7 +180,10 @@
               <div :class="['player-return', (p.total_return || 0) >= 0 ? 'profit' : 'loss']">
                 <span class="return-sign">{{ (p.total_return || 0) >= 0 ? '+' : '' }}</span>{{ ((p.total_return || 0) * 100).toFixed(2) }}%
               </div>
-              <div class="player-trades">交易 {{ p.trade_count || 0 }} 次</div>
+              <div class="player-trades">
+                <span>总市值 ¥{{ formatMoney(p.total_assets ?? p.current_capital) }}</span>
+                <span class="player-cash">余额 ¥{{ formatMoney(p.current_capital) }}</span>
+              </div>
               <el-button v-if="selected.status === 'active'" size="small" type="primary" class="player-trade-btn" @click.stop="triggerPlayerTrade(p)" :loading="tradingPlayerId === p.id" round>
                 交易一轮
               </el-button>
@@ -168,23 +195,122 @@
           </div>
         </div>
 
-        <!-- Position Tooltip -->
-        <Teleport to="body">
-          <div v-if="posTooltip.show" class="pos-tooltip" :style="{ left: posTooltip.x + 'px', top: posTooltip.y + 'px' }">
-            <div class="pos-tooltip-header">
-              <span class="pos-tooltip-title">{{ posTooltip.player }}</span>
-              <span class="pos-tooltip-sub">当前持仓</span>
-            </div>
-            <div v-if="posTooltip.positions && posTooltip.positions.length" class="pos-tooltip-list">
-              <div v-for="(pos, i) in posTooltip.positions" :key="i" class="pos-tooltip-row">
-                <span class="pos-symbol">{{ pos.symbol }}</span>
-                <span class="pos-qty">{{ pos.quantity }}股</span>
-                <span :class="['pos-pnl', (pos.unrealized_pnl || 0) >= 0 ? 'profit' : 'loss']">
-                  {{ (pos.unrealized_pnl || 0) >= 0 ? '+' : '' }}{{ (pos.unrealized_pnl || 0).toFixed(0) }}
+        <!-- Leaderboard -->
+        <div v-if="leaderboard.length > 0" class="leaderboard-panel">
+          <div class="panel-header">
+            <span class="panel-title">排行榜</span>
+            <span class="panel-badge">{{ leaderboard.length }} 选手</span>
+          </div>
+          <el-table :data="leaderboard" size="small" stripe class="leaderboard-table" :show-header="true">
+            <el-table-column label="排名" width="60" align="center">
+              <template #default="{ row }">
+                <span :class="['rank-badge', row.rank <= 3 ? 'top' : '']">{{ row.rank }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="选手" width="180">
+              <template #default="{ row }">
+                <div class="lb-player">
+                  <span class="lb-avatar">{{ row.avatar }}</span>
+                  <div>
+                    <div class="lb-name">{{ row.name }}</div>
+                    <div class="lb-model">{{ row.provider }} / {{ row.model_name }}</div>
+                  </div>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="收益率" width="100" align="right">
+              <template #default="{ row }">
+                <span :class="(row.total_return || 0) >= 0 ? 'profit' : 'loss'">
+                  {{ (row.total_return || 0) >= 0 ? '+' : '' }}{{ ((row.total_return || 0) * 100).toFixed(2) }}%
                 </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="胜率" width="80" align="right">
+              <template #default="{ row }">
+                {{ row.win_rate ? (row.win_rate * 100).toFixed(0) + '%' : '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="最大回撤" width="90" align="right">
+              <template #default="{ row }">
+                <span class="loss">{{ row.max_drawdown ? '-' + (row.max_drawdown * 100).toFixed(1) + '%' : '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="总市值" width="110" align="right">
+              <template #default="{ row }">
+                <span>¥{{ formatMoney(row.total_assets ?? row.current_capital) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="交易次数" width="80" align="right" prop="total_trades" />
+          </el-table>
+        </div>
+
+        <!-- Position Tooltip - Rich AI Panel -->
+        <Teleport to="body">
+          <div v-if="posTooltip.show" class="ai-panel" :style="{ left: posTooltip.x + 'px', top: posTooltip.y + 'px' }" @mouseenter="cancelHideTimer" @mouseleave="hidePosTooltip">
+            <div class="ai-panel-header">
+              <div class="ai-panel-player">
+                <span class="ai-panel-avatar">{{ posTooltip.avatar }}</span>
+                <div>
+                  <div class="ai-panel-name">{{ posTooltip.player }}</div>
+                  <div class="ai-panel-model">{{ posTooltip.provider }} / {{ posTooltip.model }}</div>
+                </div>
+              </div>
+              <div :class="['ai-panel-return', posTooltip.totalReturn >= 0 ? 'profit' : 'loss']">
+                {{ posTooltip.totalReturn >= 0 ? '+' : '' }}{{ (posTooltip.totalReturn * 100).toFixed(2) }}%
               </div>
             </div>
-            <div v-else class="pos-tooltip-empty">空仓中</div>
+
+            <div class="ai-panel-tabs">
+              <span :class="['ai-tab', posTooltip.tab === 'pos' && 'active']" @click="posTooltip.tab = 'pos'">持仓</span>
+              <span :class="['ai-tab', posTooltip.tab === 'trades' && 'active']" @click="posTooltip.tab = 'trades'; loadPlayerTrades()">交割单</span>
+              <span :class="['ai-tab', posTooltip.tab === 'curve' && 'active']" @click="posTooltip.tab = 'curve'; loadPlayerEquity()">收益</span>
+            </div>
+
+            <!-- 持仓 -->
+            <div v-if="posTooltip.tab === 'pos'" class="ai-panel-body">
+              <div v-if="posTooltip.positions && posTooltip.positions.length" class="ai-pos-list">
+                <div v-for="(pos, i) in posTooltip.positions" :key="i" class="ai-pos-row">
+                  <div class="ai-pos-left">
+                    <span class="ai-pos-symbol">{{ pos.symbol }}</span>
+                    <span class="ai-pos-name">{{ pos.name }}</span>
+                  </div>
+                  <div class="ai-pos-mid">
+                    <span>{{ pos.quantity }}股</span>
+                    <span class="ai-pos-cost">成本 {{ pos.avg_cost?.toFixed(2) }}</span>
+                  </div>
+                  <div :class="['ai-pos-pnl', (pos.unrealized_pnl || 0) >= 0 ? 'profit' : 'loss']">
+                    {{ (pos.unrealized_pnl || 0) >= 0 ? '+' : '' }}{{ (pos.unrealized_pnl || 0).toFixed(0) }}
+                  </div>
+                </div>
+              </div>
+              <div v-else class="ai-panel-empty">空仓</div>
+              <div class="ai-panel-footer">
+                <span>总市值 ¥{{ formatMoney(posTooltip.totalAssets) }}</span>
+                <span>余额 ¥{{ formatMoney(posTooltip.capital) }}</span>
+                <span>交易 {{ posTooltip.trades }} 次</span>
+              </div>
+            </div>
+
+            <!-- 交割单 -->
+            <div v-if="posTooltip.tab === 'trades'" class="ai-panel-body">
+              <div v-if="posTooltip.tradeList && posTooltip.tradeList.length" class="ai-trade-list">
+                <div v-for="(t, i) in posTooltip.tradeList.slice(0, 15)" :key="i" class="ai-trade-row">
+                  <el-tag :type="t.action === 'buy' ? 'danger' : 'success'" size="small" effect="dark" round class="ai-trade-tag">
+                    {{ t.action === 'buy' ? '买' : '卖' }}
+                  </el-tag>
+                  <span class="ai-trade-sym">{{ t.symbol }}</span>
+                  <span class="ai-trade-qty">{{ t.quantity }}股</span>
+                  <span class="ai-trade-price">{{ t.price?.toFixed(2) }}</span>
+                  <span class="ai-trade-time">{{ formatTimeShort(t.created_at) }}</span>
+                </div>
+              </div>
+              <div v-else class="ai-panel-empty">暂无交易</div>
+            </div>
+
+            <!-- 收益曲线 -->
+            <div v-if="posTooltip.tab === 'curve'" class="ai-panel-body">
+              <div ref="playerChartRef" class="ai-curve-chart"></div>
+            </div>
           </div>
         </Teleport>
 
@@ -207,9 +333,9 @@
                 <div
                   v-for="msg in messages"
                   :key="msg.id"
-                  :class="['chat-msg', msg.participant_id ? 'ai-msg' : 'sys-msg']"
+                  :class="['chat-msg', msg.participant_id ? (msg.message_type === 'debate' ? 'debate-msg' : msg.message_type === 'event' ? 'event-msg' : 'ai-msg') : 'user-msg']"
                 >
-                  <span class="chat-avatar" v-if="msg.participant_id">{{ msg.participant_avatar }}</span>
+                  <span class="chat-avatar">{{ msg.participant_avatar }}</span>
                   <div class="chat-body">
                     <div class="chat-name" v-if="msg.participant_name">{{ msg.participant_name }}</div>
                     <div class="chat-content">{{ msg.content }}</div>
@@ -238,8 +364,8 @@
             <span class="panel-title">交易记录</span>
             <span class="panel-badge">{{ allTrades.length }}</span>
           </div>
-          <el-table :data="allTrades" size="small" stripe max-height="280" class="trades-table">
-            <el-table-column label="选手" width="120">
+          <el-table :data="allTrades" size="small" stripe max-height="320" class="trades-table">
+            <el-table-column label="选手" width="100">
               <template #default="{ row }">
                 <div class="trade-player">
                   <span>{{ row.participant_avatar }}</span>
@@ -247,38 +373,67 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="时间" width="130">
+            <el-table-column label="时间" width="140">
               <template #default="{ row }">
                 <span class="trade-time">{{ formatTime(row.created_at) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="代码" width="80">
+            <el-table-column label="股票" width="140">
               <template #default="{ row }">
-                <span class="trade-symbol">{{ row.symbol }}</span>
+                <div class="trade-stock">
+                  <span class="trade-symbol">{{ row.symbol }}</span>
+                  <span class="trade-name" v-if="row.name">{{ row.name }}</span>
+                </div>
               </template>
             </el-table-column>
-            <el-table-column label="方向" width="70">
+            <el-table-column label="方向" width="60">
               <template #default="{ row }">
                 <el-tag :type="row.action === 'buy' ? 'danger' : 'success'" size="small" effect="dark" round>
-                  {{ row.action === 'buy' ? '买入' : '卖出' }}
+                  {{ row.action === 'buy' ? '买' : '卖' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="数量" width="80">
+            <el-table-column label="数量" width="70" align="right">
               <template #default="{ row }">{{ row.quantity }}</template>
             </el-table-column>
-            <el-table-column label="价格" width="90">
+            <el-table-column label="价格" width="80" align="right">
               <template #default="{ row }">
-                <span class="trade-price">¥{{ row.price?.toFixed(2) }}</span>
+                <span class="trade-price">{{ row.price?.toFixed(2) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="金额" width="100">
+            <el-table-column label="金额" width="90" align="right">
               <template #default="{ row }">
-                <span class="trade-amount">¥{{ row.amount?.toFixed(0) }}</span>
+                <span class="trade-amount">{{ row.amount?.toFixed(0) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="手续费" width="65" align="right">
+              <template #default="{ row }">
+                <span class="trade-fee">{{ row.fee?.toFixed(1) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="理由" prop="reason" min-width="180" show-overflow-tooltip />
           </el-table>
+        </div>
+
+        <!-- Event Timeline -->
+        <div v-if="events.length > 0" class="events-panel">
+          <div class="panel-header">
+            <span class="panel-title">事件时间线</span>
+            <span class="panel-badge">{{ events.length }}</span>
+          </div>
+          <div class="events-list">
+            <div v-for="ev in events.slice().reverse().slice(0, 20)" :key="ev.id" :class="['event-item', ev.type]">
+              <div class="event-dot"></div>
+              <div class="event-content">
+                <div class="event-title">{{ ev.title }}</div>
+                <div class="event-meta">
+                  <span v-if="ev.participant" class="event-avatar">{{ ev.participant.avatar }}</span>
+                  <span class="event-time">{{ formatTime(ev.created_at) }}</span>
+                  <el-tag :type="eventTypeTag(ev.type)" size="small" effect="plain" round>{{ eventTypeLabel(ev.type) }}</el-tag>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -362,6 +517,19 @@
         <el-form-item label="股票池（可选）">
           <el-input v-model="editPoolInput" type="textarea" :rows="3" placeholder="每行一个股票代码，留空则不限制" />
         </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="自动交易">
+              <el-switch v-model="editForm.auto_trade" active-text="开启" inactive-text="关闭" />
+              <div class="form-hint">开启后系统在交易时段自动执行AI交易</div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="交易间隔(分钟)">
+              <el-input-number v-model="editForm.trade_interval_min" :min="5" :max="120" style="width:100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
         <el-button @click="showEditDialog = false">取消</el-button>
@@ -430,15 +598,23 @@
           <el-input v-model="playerForm.api_base" placeholder="留空使用默认" />
         </el-form-item>
         <el-form-item label="API Key">
-          <el-input v-model="playerForm.api_key" placeholder="API密钥" show-password />
+          <el-input v-model="playerForm.api_key" :placeholder="editingPlayerId ? '留空则保持不变' : 'API密钥'" show-password />
         </el-form-item>
         <el-form-item label="自定义系统提示词（可选）">
           <el-input v-model="playerForm.system_prompt" type="textarea" :rows="3" placeholder="留空使用默认交易策略" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showAddPlayer = false">取消</el-button>
-        <el-button type="primary" :loading="actionLoading" @click="savePlayer" :disabled="!playerForm.name || !playerForm.provider" round>{{ editingPlayerId ? '保存' : '添加' }}</el-button>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <el-button v-if="editingPlayerId" type="info" text :loading="healthChecking" @click="checkHealth">
+            检测AI状态
+          </el-button>
+          <div v-else></div>
+          <div style="display:flex;gap:8px">
+            <el-button @click="showAddPlayer = false">取消</el-button>
+            <el-button type="primary" :loading="actionLoading" @click="savePlayer" :disabled="!playerForm.name || !playerForm.provider" round>{{ editingPlayerId ? '保存' : '添加' }}</el-button>
+          </div>
+        </div>
       </template>
     </el-dialog>
   </MainLayout>
@@ -460,7 +636,11 @@ const loadingList = ref(false)
 const selected = ref(null)
 const players = ref([])
 const actionLoading = ref(false)
-const tradeAllLoading = ref(false)
+const healthChecking = ref(false)
+const aiStarting = ref(false)
+const aiStopping = ref(false)
+const aiRunning = ref(false)
+const aiStatus = ref(null)
 const tradingPlayerId = ref(null)
 const removingPlayerId = ref(null)
 
@@ -471,6 +651,8 @@ const chatBoxRef = ref(null)
 
 const statsData = ref({})
 const statsLoaded = ref(false)
+const leaderboard = ref([])
+const events = ref([])
 
 const showCreateDialog = ref(false)
 const compForm = ref({ name: '', description: '', initial_capital: 100000, max_position_pct: 30, max_positions: 10, trading_fee: 0.0003 })
@@ -499,7 +681,9 @@ const modelList = ref([])
 const chartRef = ref(null)
 let equityChart = null
 
-const posTooltip = ref({ show: false, x: 0, y: 0, player: '', positions: [] })
+const posTooltip = ref({ show: false, x: 0, y: 0, player: '', avatar: '', provider: '', model: '', positions: [], capital: 0, trades: 0, totalReturn: 0, tab: 'pos', tradeList: [], equity: [] })
+const playerChartRef = ref(null)
+let playerChart = null
 
 const avgReturn = computed(() => {
   if (!players.value.length) return '0.00'
@@ -527,10 +711,27 @@ function statusTagType(s) {
   return map[s] || 'info'
 }
 
+function eventTypeLabel(t) {
+  const map = { limit_up: '涨停', limit_down: '跌停', stop_loss: '止损', major_drawdown: '回撤', rank_change: '排名变化', trade: '交易' }
+  return map[t] || t
+}
+
+function eventTypeTag(t) {
+  const map = { limit_up: 'danger', limit_down: 'success', stop_loss: 'warning', major_drawdown: 'danger', rank_change: 'primary', trade: 'info' }
+  return map[t] || 'info'
+}
+
 function formatTime(t) {
   if (!t) return ''
-  const d = new Date(t)
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
+  // 后端已存上海时间，直接解析显示
+  const d = new Date(t.replace(' ', 'T'))
+  if (isNaN(d.getTime())) return t
+  const m = d.getMonth() + 1
+  const day = d.getDate()
+  const h = d.getHours()
+  const min = String(d.getMinutes()).padStart(2, '0')
+  const sec = String(d.getSeconds()).padStart(2, '0')
+  return `${m}/${day} ${h}:${min}:${sec}`
 }
 
 function formatDate(t) {
@@ -540,7 +741,7 @@ function formatDate(t) {
 }
 
 function formatMoney(v) {
-  if (!v) return '0'
+  if (v == null) return '0'
   if (v >= 10000) return (v / 10000).toFixed(0) + '万'
   return v.toLocaleString()
 }
@@ -559,10 +760,17 @@ async function enterCompetition(c) {
     const res = await labApi.getCompetition(c.id)
     selected.value = res.data || res
     players.value = selected.value.participants || []
-    await loadStats()
-    await loadChat()
-    await loadAllTrades()
-    await loadEquityCurve()
+    // 并行加载所有数据
+    await Promise.all([
+      loadStats(),
+      loadLeaderboard(),
+      loadEvents(),
+      loadChat(),
+      loadAllTrades(),
+      loadEquityCurve(),
+      checkAIStatus()
+    ])
+    if (aiRunning.value) startAIPolling()
   } catch (e) {
     selected.value = c
     players.value = c.participants || []
@@ -576,6 +784,12 @@ function leaveArena() {
   allTrades.value = []
   statsLoaded.value = false
   statsData.value = {}
+  leaderboard.value = []
+  events.value = []
+  aiRunning.value = false
+  aiStatus.value = null
+  stopAIPolling()
+  hidePosTooltip()
   if (equityChart) {
     equityChart.dispose()
     equityChart = null
@@ -593,30 +807,48 @@ async function loadStats() {
   }
 }
 
+async function loadLeaderboard() {
+  if (!selected.value) return
+  try {
+    const res = await labApi.leaderboard(selected.value.id)
+    leaderboard.value = Array.isArray(res) ? res : (res.data || [])
+  } catch { leaderboard.value = [] }
+}
+
+async function loadEvents() {
+  if (!selected.value) return
+  try {
+    const res = await labApi.events(selected.value.id)
+    events.value = Array.isArray(res) ? res : (res.data || [])
+  } catch { events.value = [] }
+}
+
 async function loadChat() {
   if (!selected.value) return
   try {
     const res = await labApi.chat(selected.value.id)
-    messages.value = Array.isArray(res) ? res : (res.data || [])
+    const all = Array.isArray(res) ? res : (res.data || [])
+    messages.value = all.filter(m => m.message_type !== 'system')
     await nextTick()
-    if (chatBoxRef.value) chatBoxRef.value.scrollTop = chatBoxRef.value.scrollHeight
+    // 只在用户已经在底部时自动滚动，避免打断阅读
+    if (chatBoxRef.value) {
+      const el = chatBoxRef.value
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150
+      if (nearBottom) el.scrollTop = el.scrollHeight
+    }
   } catch { messages.value = [] }
 }
 
 async function loadAllTrades() {
   if (!players.value.length) { allTrades.value = []; return }
-  const all = []
-  for (const p of players.value) {
-    try {
-      const res = await labApi.participantTrades(p.id)
+  const results = await Promise.allSettled(
+    players.value.map(p => labApi.participantTrades(p.id).then(res => {
       const list = Array.isArray(res) ? res : (res.data || [])
-      list.forEach(t => {
-        t.participant_avatar = p.avatar
-        t.participant_name = p.name
-      })
-      all.push(...list)
-    } catch {}
-  }
+      list.forEach(t => { t.participant_avatar = p.avatar; t.participant_name = p.name })
+      return list
+    }))
+  )
+  const all = results.filter(r => r.status === 'fulfilled').flatMap(r => r.value)
   all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   allTrades.value = all
 }
@@ -633,17 +865,31 @@ async function loadEquityCurve() {
 
 function renderChart(data) {
   if (!chartRef.value) return
-  if (equityChart) equityChart.dispose()
-  equityChart = echarts.init(chartRef.value)
 
   const colors = ['#409eff', '#ef232a', '#14b143', '#e6a23c', '#909399', '#f56c6c', '#67c23a', '#b37feb']
+  const players = Array.isArray(data) ? data : (data?.players || [])
+
+  // 收集所有时间点作为x轴（取并集，按时间排序）
+  const allTimes = new Set()
+  players.forEach(p => (p.equity || []).forEach(e => allTimes.add(e.time)))
+  const rawTimes = [...allTimes].sort()
+  const xData = rawTimes.map(t => {
+    // 格式化为 MM/DD HH:MM
+    const d = new Date(t.replace(' ', 'T'))
+    if (isNaN(d.getTime())) return t
+    return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+  })
+
   const series = []
-  if (data && data.players) {
-    data.players.forEach((p, i) => {
+  if (players.length) {
+    players.forEach((p, i) => {
+      // 构建 time->value 映射，用原始时间对齐
+      const timeMap = {}
+      ;(p.equity || []).forEach(e => { timeMap[e.time] = e.value })
       series.push({
         name: p.name,
         type: 'line',
-        data: p.equity || [],
+        data: rawTimes.map(t => timeMap[t] ?? null),
         smooth: true,
         showSymbol: false,
         lineStyle: { width: 2.5 },
@@ -655,8 +901,10 @@ function renderChart(data) {
       })
     })
   }
-  const xData = data?.dates || []
 
+  if (!equityChart) {
+    equityChart = echarts.init(chartRef.value)
+  }
   equityChart.setOption({
     tooltip: {
       trigger: 'axis',
@@ -666,10 +914,10 @@ function renderChart(data) {
     },
     legend: { top: 0, textStyle: { fontSize: 11 } },
     grid: { left: 55, right: 16, top: 35, bottom: 24 },
-    xAxis: { type: 'category', data: xData, boundaryGap: false, axisLabel: { fontSize: 10 }, axisLine: { lineStyle: { color: '#dcdfe6' } } },
+    xAxis: { type: 'category', data: xData, boundaryGap: false, axisLabel: { fontSize: 10, rotate: 30 }, axisLine: { lineStyle: { color: '#dcdfe6' } } },
     yAxis: { type: 'value', axisLabel: { fontSize: 10, formatter: v => (v / 10000).toFixed(1) + '万' }, splitLine: { lineStyle: { type: 'dashed', color: '#ebeef5' } } },
     series,
-  })
+  }, true)
 }
 
 function openCreateDialog() {
@@ -681,12 +929,14 @@ function openCreateDialog() {
 function openEditDialog() {
   if (!selected.value) return
   editForm.value = {
-    name: selected.value.name || '',
-    description: selected.value.description || '',
-    initial_capital: selected.value.initial_capital || 100000,
-    max_position_pct: selected.value.max_position_pct || 30,
-    max_positions: selected.value.max_positions || 10,
-    trading_fee: selected.value.trading_fee || 0.0003,
+    name: selected.value.name ?? '',
+    description: selected.value.description ?? '',
+    initial_capital: selected.value.initial_capital ?? 100000,
+    max_position_pct: selected.value.max_position_pct ?? 30,
+    max_positions: selected.value.max_positions ?? 10,
+    trading_fee: selected.value.trading_fee ?? 0.0003,
+    auto_trade: selected.value.auto_trade !== false,
+    trade_interval_min: selected.value.trade_interval_min ?? 30,
   }
   const pool = selected.value.stock_pool
   editPoolInput.value = Array.isArray(pool) ? pool.join('\n') : (pool || '')
@@ -771,24 +1021,84 @@ async function finishCompetition() {
   } finally { actionLoading.value = false }
 }
 
-async function tradeAll() {
-  tradeAllLoading.value = true
+async function resetCompetition() {
   try {
-    await labApi.tradeAll(selected.value.id)
-    ElMessage.success('交易指令已发送')
-    await enterCompetition(selected.value)
-  } finally { tradeAllLoading.value = false }
-}
-
-async function addPlayer() {
+    await ElMessageBox.confirm('确定重置比赛？将清除所有交易记录、持仓和聊天记录，此操作不可恢复。', '重置确认', { type: 'warning', confirmButtonText: '确定重置', cancelButtonText: '取消' })
+  } catch { return }
   actionLoading.value = true
   try {
-    await labApi.addParticipant(selected.value.id, playerForm.value)
-    ElMessage.success('添加成功')
-    showAddPlayer.value = false
-    resetPlayerForm()
+    await labApi.resetCompetition(selected.value.id)
+    ElMessage.success('比赛已重置')
     await enterCompetition(selected.value)
   } finally { actionLoading.value = false }
+}
+
+// ==================== AI自主运行 ====================
+
+let aiPollTimer = null
+
+function phaseLabel(phase) {
+  const map = { idle: '待命', thinking: '思考中', analyzing: '分析中', discussing: '讨论中', trading: '交易中', done: '完成', error: '出错', waiting: '等待中' }
+  return map[phase] || phase
+}
+
+async function checkAIStatus() {
+  if (!selected.value) return
+  try {
+    const res = await labApi.aiStatus(selected.value.id)
+    const data = res.data || res
+    aiRunning.value = data.running
+    aiStatus.value = data.status
+  } catch {
+    aiRunning.value = false
+    aiStatus.value = null
+  }
+}
+
+function startAIPolling() {
+  stopAIPolling()
+  let pollCount = 0
+  aiPollTimer = setInterval(async () => {
+    await checkAIStatus()
+    if (aiRunning.value) {
+      await loadChat()
+      await loadAllTrades()
+      // 每5轮(25秒)刷新一次曲线
+      pollCount++
+      if (pollCount % 5 === 0) {
+        await loadEquityCurve()
+        await loadLeaderboard()
+        await loadEvents()
+      }
+    }
+  }, 5000)
+  checkAIStatus()
+}
+
+function stopAIPolling() {
+  if (aiPollTimer) { clearInterval(aiPollTimer); aiPollTimer = null }
+}
+
+async function startAI() {
+  aiStarting.value = true
+  try {
+    await labApi.aiStart(selected.value.id)
+    ElMessage.success('AI自主运行已启动')
+    await checkAIStatus()
+    startAIPolling()
+  } finally { aiStarting.value = false }
+}
+
+async function stopAI() {
+  aiStopping.value = true
+  try {
+    await labApi.aiStop(selected.value.id)
+    ElMessage.success('AI自主运行已停止')
+    aiRunning.value = false
+    aiStatus.value = null
+    stopAIPolling()
+    await enterCompetition(selected.value)
+  } finally { aiStopping.value = false }
 }
 
 async function removePlayer(p) {
@@ -820,16 +1130,33 @@ function resetPlayerForm() {
   }
   curlInput.value = ''
   curlResult.value = ''
+  modelList.value = []
 }
 
-function openEditPlayer(p) {
+async function openEditPlayer(p) {
   editingPlayerId.value = p.id
   playerForm.value = {
     name: p.name, avatar: p.avatar || '🤖', provider: p.provider || 'deepseek',
-    api_base: p.api_base || '', api_key: p.api_key || '', model_name: p.model_name || '',
+    api_base: p.api_base || '', api_key: '', model_name: p.model_name || '',
     system_prompt: p.system_prompt || '',
   }
   showAddPlayer.value = true
+}
+
+async function checkHealth() {
+  if (!editingPlayerId.value) return
+  healthChecking.value = true
+  try {
+    const res = await labApi.checkParticipantHealth(editingPlayerId.value)
+    const data = res.data || res
+    if (data.ok) {
+      ElMessage.success(`AI连接正常 (${data.provider}/${data.model}, ${data.latency_ms}ms)`)
+    } else {
+      ElMessage.error(`AI连接失败: ${data.error}`)
+    }
+  } catch (e) {
+    ElMessage.error('检测请求失败')
+  } finally { healthChecking.value = false }
 }
 
 async function savePlayer() {
@@ -869,9 +1196,11 @@ async function fetchModels() {
 
 async function sendChat() {
   if (!chatInput.value.trim()) return
-  await labApi.sendChat(selected.value.id, chatInput.value)
-  chatInput.value = ''
-  await loadChat()
+  try {
+    await labApi.sendChat(selected.value.id, chatInput.value)
+    chatInput.value = ''
+    await loadChat()
+  } catch {}
 }
 
 async function parseCurl() {
@@ -898,17 +1227,133 @@ async function parseCurl() {
   curlParsing.value = false
 }
 
+let hideTimer = null
+
 async function showPosTooltip(player, event) {
+  cancelHideTimer()
   const rect = event.currentTarget.getBoundingClientRect()
-  posTooltip.value = { show: true, x: rect.left, y: rect.bottom + 8, player: player.name, positions: [] }
+  let x = rect.left
+  let y = rect.bottom + 8
+  if (x + 380 > window.innerWidth) x = window.innerWidth - 390
+  if (y + 400 > window.innerHeight) y = rect.top - 408
+
+  const requestId = Date.now()
+  posTooltip.value = {
+    show: true, x, y,
+    player: player.name,
+    avatar: player.avatar || '🤖',
+    provider: player.provider || '',
+    model: player.model_name || '',
+    totalReturn: player.total_return || 0,
+    totalAssets: player.total_assets || 0,
+    capital: player.current_capital || 0,
+    trades: player.total_trades || 0,
+    tab: 'pos',
+    positions: [],
+    tradeList: [],
+    equity: [],
+    _id: player.id,
+    _requestId: requestId,
+  }
+
   try {
     const res = await labApi.participantPositions(player.id)
-    posTooltip.value.positions = Array.isArray(res) ? res : (res.data || [])
-  } catch { posTooltip.value.positions = [] }
+    if (posTooltip.value._requestId === requestId) {
+      posTooltip.value.positions = Array.isArray(res) ? res : (res.data || [])
+    }
+  } catch { if (posTooltip.value._requestId === requestId) posTooltip.value.positions = [] }
+}
+
+function startHideTimer() {
+  hideTimer = setTimeout(() => { hidePosTooltip() }, 250)
+}
+
+function cancelHideTimer() {
+  if (hideTimer) { clearTimeout(hideTimer); hideTimer = null }
+}
+
+async function loadPlayerTrades() {
+  const pid = posTooltip.value._id
+  if (!pid) return
+  try {
+    const res = await labApi.participantTrades(pid)
+    posTooltip.value.tradeList = Array.isArray(res) ? res : (res.data || [])
+  } catch { posTooltip.value.tradeList = [] }
+}
+
+async function loadPlayerEquity() {
+  const pid = posTooltip.value._id
+  if (!pid) return
+  await loadPlayerTrades()
+  if (!posTooltip.value.equity.length) {
+    try {
+      const res = await labApi.equityCurve(selected.value.id)
+      const curves = Array.isArray(res) ? res : (res.data || res)
+      const myCurve = curves.find(c => c.participant_id === pid)
+      if (myCurve) {
+        posTooltip.value.equity = myCurve.equity || []
+        await nextTick()
+        renderPlayerChart(myCurve)
+      }
+    } catch {}
+  }
+}
+
+function renderPlayerChart(curveData) {
+  if (!playerChartRef.value || !curveData) return
+  if (playerChart) playerChart.dispose()
+  playerChart = echarts.init(playerChartRef.value)
+
+  const data = (curveData.equity || []).map(e => [e.time, e.value])
+
+  playerChart.setOption({
+    grid: { left: 45, right: 10, top: 10, bottom: 20 },
+    xAxis: {
+      type: 'category',
+      data: data.map(d => d[0]),
+      show: false,
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { fontSize: 9, formatter: v => (v / 10000).toFixed(1) + '万' },
+      splitLine: { lineStyle: { type: 'dashed', color: '#ebeef5' } },
+    },
+    series: [{
+      type: 'line',
+      data: data.map(d => d[1]),
+      smooth: true,
+      showSymbol: false,
+      lineStyle: { width: 2, color: '#409eff' },
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(64,158,255,0.15)' },
+          { offset: 1, color: 'rgba(64,158,255,0.01)' },
+        ]),
+      },
+    }],
+    tooltip: {
+      trigger: 'axis',
+      formatter: params => {
+        const v = params[0]?.value
+        return v ? `¥${v.toFixed(0)}` : ''
+      },
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      borderColor: '#ebeef5',
+    },
+  })
 }
 
 function hidePosTooltip() {
+  cancelHideTimer()
   posTooltip.value.show = false
+  if (playerChart) { playerChart.dispose(); playerChart = null }
+}
+
+function formatTimeShort(t) {
+  if (!t) return ''
+  const d = new Date(t.replace(' ', 'T'))
+  if (isNaN(d.getTime())) return t
+  return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 function onResize() { equityChart?.resize() }
@@ -920,6 +1365,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
+  stopAIPolling()
+  cancelHideTimer()
   if (equityChart) { equityChart.dispose(); equityChart = null }
 })
 </script>
@@ -1072,6 +1519,81 @@ onBeforeUnmount(() => {
 .arena-hero-right {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+.auto-trade-tag {
+  margin-left: 4px;
+}
+.form-hint {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+  margin-top: 4px;
+}
+
+/* AI Auto-Run Status Bar */
+.ai-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #f0f9eb 0%, #e1f3d8 100%);
+  border: 1px solid #b3e19d;
+  border-radius: var(--panel-radius);
+  padding: 12px 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.ai-status-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ai-pulse {
+  width: 10px;
+  height: 10px;
+  background: #67c23a;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+.ai-status-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #67c23a;
+}
+.ai-status-right {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ai-player-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  background: rgba(255,255,255,0.7);
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+.ai-player-name {
+  font-weight: 600;
+}
+.ai-player-phase {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--el-fill-color);
+}
+.ai-player-phase.analyzing { color: #409eff; background: #ecf5ff; }
+.ai-player-phase.trading { color: #e6a23c; background: #fdf6ec; }
+.ai-player-phase.done { color: #67c23a; background: #f0f9eb; }
+.ai-player-phase.error { color: #f56c6c; background: #fef0f0; }
+.ai-player-phase.thinking { color: #909399; background: #f4f4f5; }
+.ai-player-trades {
+  color: var(--el-color-primary);
+  font-weight: 600;
 }
 
 /* Stats Row */
@@ -1217,7 +1739,11 @@ onBeforeUnmount(() => {
   font-size: 11px;
   color: var(--el-text-color-placeholder);
   margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
+.player-cash { opacity: 0.7; }
 .player-trade-btn { width: 100%; }
 
 .add-player-card {
@@ -1239,42 +1765,132 @@ onBeforeUnmount(() => {
   color: var(--el-text-color-placeholder);
 }
 
-/* Position Tooltip */
-.pos-tooltip {
+/* AI Player Panel (Hover) */
+.ai-panel {
   position: fixed;
   background: #fff;
-  border-radius: 10px;
-  padding: 14px;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.18);
   z-index: 2000;
-  min-width: 200px;
-  max-width: 300px;
+  width: 370px;
+  max-height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color-lighter);
 }
-.pos-tooltip-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--panel-border);
-}
-.pos-tooltip-title { font-size: 14px; font-weight: 700; }
-.pos-tooltip-sub { font-size: 11px; color: var(--el-text-color-placeholder); }
-.pos-tooltip-row {
+.ai-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 0;
-  font-size: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
-.pos-symbol { font-weight: 600; }
-.pos-qty { color: var(--el-text-color-secondary); }
-.pos-pnl { font-weight: 700; }
-.pos-tooltip-empty {
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
+.ai-panel-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ai-panel-avatar {
+  font-size: 28px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--el-fill-color-lighter);
+  border-radius: 10px;
+}
+.ai-panel-name { font-size: 15px; font-weight: 700; }
+.ai-panel-model { font-size: 11px; color: var(--el-text-color-placeholder); }
+.ai-panel-return {
+  font-size: 20px;
+  font-weight: 800;
+  font-family: var(--font-mono, monospace);
+}
+
+/* Tabs */
+.ai-panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.ai-tab {
+  flex: 1;
   text-align: center;
   padding: 8px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.ai-tab:hover { color: var(--el-color-primary); }
+.ai-tab.active {
+  color: var(--el-color-primary);
+  border-bottom-color: var(--el-color-primary);
+}
+
+/* Body */
+.ai-panel-body {
+  padding: 10px 14px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+/* Position list */
+.ai-pos-list { display: flex; flex-direction: column; gap: 6px; }
+.ai-pos-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.ai-pos-left { display: flex; flex-direction: column; }
+.ai-pos-symbol { font-weight: 700; font-family: var(--font-mono, monospace); }
+.ai-pos-name { font-size: 10px; color: var(--el-text-color-placeholder); }
+.ai-pos-mid { display: flex; flex-direction: column; align-items: flex-end; color: var(--el-text-color-secondary); }
+.ai-pos-cost { font-size: 10px; color: var(--el-text-color-placeholder); }
+.ai-pos-pnl { font-weight: 700; font-family: var(--font-mono, monospace); }
+
+/* Trade list */
+.ai-trade-list { display: flex; flex-direction: column; gap: 4px; }
+.ai-trade-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 3px 0;
+}
+.ai-trade-tag { flex-shrink: 0; }
+.ai-trade-sym { font-weight: 600; font-family: var(--font-mono, monospace); width: 56px; }
+.ai-trade-qty { color: var(--el-text-color-secondary); width: 45px; }
+.ai-trade-price { font-family: var(--font-mono, monospace); width: 55px; }
+.ai-trade-time { color: var(--el-text-color-placeholder); margin-left: auto; font-family: var(--font-mono, monospace); }
+
+/* Footer */
+.ai-panel-footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
+/* Empty */
+.ai-panel-empty {
+  text-align: center;
+  padding: 20px 0;
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
+}
+
+/* Chart */
+.ai-curve-chart {
+  width: 100%;
+  height: 160px;
 }
 
 /* ===== Main Grid ===== */
@@ -1335,6 +1951,31 @@ onBeforeUnmount(() => {
   margin-bottom: 12px;
 }
 .sys-msg { justify-content: center; }
+.user-msg { justify-content: flex-end; }
+.user-msg .chat-body { align-items: flex-end; }
+.user-msg .chat-content {
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  border: 1px solid var(--el-color-primary-light-5);
+}
+.user-msg .chat-name { color: var(--el-color-primary); }
+.debate-msg .chat-content {
+  background: linear-gradient(135deg, #fff3e0, #fff8e1);
+  border: 1px solid #ffcc02;
+  position: relative;
+}
+.debate-msg .chat-content::before {
+  content: '⚔';
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  font-size: 14px;
+}
+.event-msg .chat-content {
+  background: linear-gradient(135deg, #e8f5e9, #f1f8e9);
+  border: 1px solid #81c784;
+  font-style: italic;
+}
 .sys-msg .chat-content {
   color: var(--el-text-color-secondary);
   font-style: italic;
@@ -1397,15 +2038,92 @@ onBeforeUnmount(() => {
   padding: 16px;
 }
 .trades-table { border-radius: 8px; }
+
+/* Leaderboard */
+.leaderboard-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  padding: 16px;
+}
+.leaderboard-table { border-radius: 8px; }
+.rank-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  font-size: 11px; font-weight: 700;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+}
+.rank-badge.top {
+  background: linear-gradient(135deg, #ffd700, #ffaa00);
+  color: #fff;
+}
+.lb-player { display: flex; align-items: center; gap: 8px; }
+.lb-avatar { font-size: 18px; }
+.lb-name { font-size: 13px; font-weight: 600; }
+.lb-model { font-size: 11px; color: var(--el-text-color-placeholder); }
+
+/* Event Timeline */
+.events-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  padding: 16px;
+}
+.events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.event-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+  transition: background 0.2s;
+}
+.event-item:hover { background: var(--el-fill-color-light); }
+.event-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--el-color-info);
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.event-item.limit_up .event-dot { background: var(--el-color-danger); }
+.event-item.limit_down .event-dot { background: var(--el-color-success); }
+.event-item.stop_loss .event-dot { background: var(--el-color-warning); }
+.event-item.major_drawdown .event-dot { background: var(--el-color-danger); }
+.event-item.rank_change .event-dot { background: var(--el-color-primary); }
+.event-content { flex: 1; }
+.event-title { font-size: 13px; font-weight: 500; line-height: 1.4; }
+.event-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+.event-avatar { font-size: 14px; }
+.event-time { font-family: var(--font-mono, monospace); }
 .trade-player {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 .trade-player-name { font-size: 12px; font-weight: 500; }
-.trade-time { font-size: 12px; color: var(--el-text-color-secondary); }
-.trade-symbol { font-weight: 600; font-size: 13px; }
-.trade-price, .trade-amount { font-size: 13px; }
+.trade-time { font-size: 11px; color: var(--el-text-color-secondary); font-family: var(--font-mono, monospace); }
+.trade-stock { display: flex; flex-direction: column; }
+.trade-symbol { font-weight: 600; font-size: 12px; font-family: var(--font-mono, monospace); }
+.trade-name { font-size: 10px; color: var(--el-text-color-placeholder); }
+.trade-price, .trade-amount { font-size: 12px; font-family: var(--font-mono, monospace); }
+.trade-fee { font-size: 11px; color: var(--el-text-color-placeholder); }
 
 /* Profit / Loss */
 .profit { color: #ef232a; }

@@ -10,9 +10,11 @@ from app.db.session import get_db
 from app.models.laboratory import (
     LabCompetition, LabParticipant, LabCompPosition, LabCompTrade,
     LabChatMessage, LabLeaderboard, LabResearchTask, LabAnalyst,
-    LabAnalystReport, LabResearchReport
+    LabAnalystReport, LabResearchReport, LabCompEvent
 )
 from app.core.lab import CompetitionEngine, ResearchTeamEngine
+from app.core.lab.competition import AutoRunEngine, AccountingEngine, CompetitionEngine
+from app.utils import shanghai_now
 
 router = APIRouter(prefix="/api/v1/lab", tags=["实验室"])
 
@@ -21,14 +23,14 @@ router = APIRouter(prefix="/api/v1/lab", tags=["实验室"])
 
 class CompetitionCreate(BaseModel):
     name: str
-    description: Optional[str] = ""
-    stock_pool: Optional[List[str]] = None  # None=不限
+    description: Optional[str] = None
+    stock_pool: Optional[List[str]] = None
     initial_capital: Optional[float] = 100000.0
-    max_position_pct: Optional[float] = 0.2
+    max_position_pct: Optional[float] = 20
     max_positions: Optional[int] = 5
     allow_short: Optional[bool] = False
     trading_fee: Optional[float] = 0.0003
-    auto_trade: Optional[bool] = False
+    auto_trade: Optional[bool] = True
     trade_interval_min: Optional[int] = 30
     start_date: Optional[str] = None
     end_date: Optional[str] = None
@@ -109,19 +111,40 @@ async def get_competition(comp_id: int, db: AsyncSession = Depends(get_db)):
     )
     participants = pr.scalars().all()
 
+    # 计算每个参赛者的总市值（资金 + 持仓市值）
+    p_ids = [p.id for p in participants]
+    pos_result = await db.execute(
+        select(LabCompPosition).where(LabCompPosition.participant_id.in_(p_ids))
+    )
+    all_positions = pos_result.scalars().all()
+    pos_map = {}
+    for pos in all_positions:
+        pos_map.setdefault(pos.participant_id, []).append(pos)
+
     return {
         "id": comp.id, "name": comp.name, "description": comp.description,
         "status": comp.status, "stock_pool": comp.stock_pool,
         "initial_capital": comp.initial_capital,
+        "auto_trade": comp.auto_trade,
+        "trade_interval_min": comp.trade_interval_min,
+        "max_position_pct": comp.max_position_pct,
+        "max_positions": comp.max_positions,
+        "trading_fee": comp.trading_fee,
         "start_date": comp.start_date, "end_date": comp.end_date,
         "created_at": comp.created_at.isoformat() if comp.created_at else None,
         "participants": [{
             "id": p.id, "name": p.name, "avatar": p.avatar,
             "provider": p.provider, "model_name": p.model_name,
-            "api_base": p.api_base, "api_key": p.api_key,
-            "system_prompt": p.system_prompt,
+            "api_base": p.api_base, "system_prompt": p.system_prompt,
             "current_capital": p.current_capital, "total_return": p.total_return,
             "total_trades": p.total_trades, "status": p.status,
+            "market_value": sum(
+                pos.current_price * pos.quantity for pos in pos_map.get(p.id, [])
+            ),
+            "total_assets": p.current_capital + sum(
+                pos.current_price * pos.quantity for pos in pos_map.get(p.id, [])
+            ),
+            "positions_count": len(pos_map.get(p.id, [])),
         } for p in participants],
     }
 
@@ -133,7 +156,7 @@ async def create_competition(data: CompetitionCreate, db: AsyncSession = Depends
         description=data.description,
         stock_pool=data.stock_pool,
         initial_capital=data.initial_capital,
-        max_position_pct=data.max_position_pct,
+        max_position_pct=(data.max_position_pct or 20) / 100,
         max_positions=data.max_positions,
         allow_short=data.allow_short,
         trading_fee=data.trading_fee,
@@ -175,15 +198,64 @@ async def finish_competition(comp_id: int, db: AsyncSession = Depends(get_db)):
     if not comp:
         raise HTTPException(status_code=404, detail="比赛不存在")
 
+    await AutoRunEngine().stop(comp_id)
     comp.status = "finished"
     comp.end_date = date.today().isoformat()
     await db.commit()
 
-    engine = CompetitionEngine(db)
+    engine = AccountingEngine(db)
     await engine.update_leaderboard(comp_id)
-    await engine.post_system_message(comp_id, f"比赛「{comp.name}」已结束！最终排行榜已更新。")
+    await CompetitionEngine(db).post_system_message(comp_id, f"比赛「{comp.name}」已结束！最终排行榜已更新。")
 
     return {"message": "比赛已结束"}
+
+
+@router.put("/competitions/{comp_id}/reset")
+async def reset_competition(comp_id: int, db: AsyncSession = Depends(get_db)):
+    """重置比赛：清除所有交易、持仓、聊天、排行榜，回到初始状态"""
+    # 先停止AI自主运行
+    await AutoRunEngine().stop(comp_id)
+
+    result = await db.execute(select(LabCompetition).where(LabCompetition.id == comp_id))
+    comp = result.scalars().first()
+    if not comp:
+        raise HTTPException(status_code=404, detail="比赛不存在")
+
+    # 获取所有参赛者
+    pr = await db.execute(
+        select(LabParticipant).where(LabParticipant.competition_id == comp_id)
+    )
+    participants = pr.scalars().all()
+
+    for p in participants:
+        # 清除持仓
+        await db.execute(delete(LabCompPosition).where(LabCompPosition.participant_id == p.id))
+        # 清除交易
+        await db.execute(delete(LabCompTrade).where(LabCompTrade.participant_id == p.id))
+        # 重置参赛者数据
+        p.current_capital = comp.initial_capital
+        p.total_return = 0.0
+        p.total_trades = 0
+        p.win_rate = 0.0
+        p.max_drawdown = 0.0
+
+    # 清除聊天
+    await db.execute(delete(LabChatMessage).where(LabChatMessage.competition_id == comp_id))
+    # 清除排行榜
+    await db.execute(delete(LabLeaderboard).where(LabLeaderboard.competition_id == comp_id))
+
+    # 重置比赛
+    comp.status = "setup"
+    comp.total_rounds = 0
+    comp.start_date = None
+    comp.end_date = None
+    comp.paused_at = None
+    await db.commit()
+
+    engine = CompetitionEngine(db)
+    await engine.post_system_message(comp_id, f"比赛已重置，所有数据已清空。")
+
+    return {"message": "比赛已重置"}
 
 
 @router.put("/competitions/{comp_id}/pause")
@@ -196,8 +268,9 @@ async def pause_competition(comp_id: int, db: AsyncSession = Depends(get_db)):
     if comp.status != "active":
         raise HTTPException(status_code=400, detail="只能暂停进行中的比赛")
 
+    await AutoRunEngine().stop(comp_id)
     comp.status = "paused"
-    comp.paused_at = datetime.utcnow()
+    comp.paused_at = shanghai_now()
     await db.commit()
 
     engine = CompetitionEngine(db)
@@ -234,7 +307,12 @@ async def update_competition(comp_id: int, data: CompetitionUpdate, db: AsyncSes
     if not comp:
         raise HTTPException(status_code=404, detail="比赛不存在")
 
-    for k, v in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    # 百分比转小数
+    if "max_position_pct" in update_data and update_data["max_position_pct"] is not None:
+        update_data["max_position_pct"] = update_data["max_position_pct"] / 100
+
+    for k, v in update_data.items():
         if v is not None:
             setattr(comp, k, v)
     await db.commit()
@@ -243,9 +321,12 @@ async def update_competition(comp_id: int, data: CompetitionUpdate, db: AsyncSes
 
 @router.delete("/competitions/{comp_id}")
 async def delete_competition(comp_id: int, db: AsyncSession = Depends(get_db)):
+    # 先停止AI自主运行
+    await AutoRunEngine().stop(comp_id)
     # 级联删除
     await db.execute(delete(LabChatMessage).where(LabChatMessage.competition_id == comp_id))
     await db.execute(delete(LabLeaderboard).where(LabLeaderboard.competition_id == comp_id))
+    await db.execute(delete(LabCompEvent).where(LabCompEvent.competition_id == comp_id))
 
     result = await db.execute(select(LabParticipant).where(LabParticipant.competition_id == comp_id))
     participants = result.scalars().all()
@@ -311,19 +392,71 @@ async def update_participant(participant_id: int, data: ParticipantCreate, db: A
     p = result.scalars().first()
     if not p:
         raise HTTPException(status_code=404, detail="参赛者不存在")
-    for k, v in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    if not update_data.get("api_key"):
+        update_data.pop("api_key", None)
+    if not update_data.get("api_base"):
+        update_data.pop("api_base", None)
+    if not update_data.get("system_prompt"):
+        update_data.pop("system_prompt", None)
+    for k, v in update_data.items():
         setattr(p, k, v)
     await db.commit()
     return {"message": "更新成功"}
 
-    return {"message": "已移除"}
+
+@router.post("/participants/{participant_id}/check-health")
+async def check_participant_ai_health(participant_id: int, db: AsyncSession = Depends(get_db)):
+    """检查参赛者AI连接健康状态"""
+    from app.core.agent.llm_client import LLMClient
+    import time
+
+    result = await db.execute(select(LabParticipant).where(LabParticipant.id == participant_id))
+    p = result.scalars().first()
+    if not p:
+        raise HTTPException(status_code=404, detail="参赛者不存在")
+
+    start = time.time()
+    try:
+        llm = LLMClient(
+            provider=p.provider,
+            api_base=p.api_base,
+            api_key=p.api_key,
+            model=p.model_name,
+        )
+        reply = await llm.complete("回复ok", "你是一个测试机器人，只回复ok两个字。")
+        latency_ms = int((time.time() - start) * 1000)
+        return {
+            "ok": True,
+            "latency_ms": latency_ms,
+            "model": p.model_name,
+            "provider": p.provider,
+            "reply": (reply or "")[:50],
+        }
+    except Exception as e:
+        latency_ms = int((time.time() - start) * 1000)
+        return {
+            "ok": False,
+            "latency_ms": latency_ms,
+            "error": str(e)[:200],
+            "model": p.model_name,
+            "provider": p.provider,
+        }
 
 
 # ==================== 比赛交易 ====================
 
 @router.post("/competitions/{comp_id}/trade-all")
-async def trigger_all_trades(comp_id: int, db: AsyncSession = Depends(get_db)):
-    """触发所有参赛者交易一轮"""
+async def trigger_all_trades(
+    comp_id: int,
+    force: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    """触发所有参赛者交易一轮
+
+    Args:
+        force: 是否强制执行（跳过交易时段检查）
+    """
     result = await db.execute(select(LabCompetition).where(LabCompetition.id == comp_id))
     comp = result.scalars().first()
     if not comp:
@@ -342,7 +475,7 @@ async def trigger_all_trades(comp_id: int, db: AsyncSession = Depends(get_db)):
     engine = CompetitionEngine(db)
     results = []
     for p in participants:
-        r = await engine.run_participant_trading(p.id)
+        r = await engine.run_participant_trading(p.id, force=force)
         results.append({"name": p.name, **r})
 
     comp.total_rounds += 1
@@ -354,9 +487,113 @@ async def trigger_all_trades(comp_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/competitions/{comp_id}/participants/{participant_id}/trade")
 async def trigger_single_trade(comp_id: int, participant_id: int, db: AsyncSession = Depends(get_db)):
     """触发单个参赛者交易"""
+    # 校验参赛者属于该比赛
+    pr = await db.execute(select(LabParticipant).where(LabParticipant.id == participant_id))
+    p = pr.scalars().first()
+    if not p or p.competition_id != comp_id:
+        raise HTTPException(status_code=404, detail="参赛者不存在或不属于该比赛")
     engine = CompetitionEngine(db)
-    result = await engine.run_participant_trading(participant_id)
+    result = await engine.run_participant_trading(participant_id, force=True)
     return result
+
+
+@router.post("/competitions/{comp_id}/chat-all")
+async def trigger_all_chat(comp_id: int, db: AsyncSession = Depends(get_db)):
+    """触发所有参赛者发表市场分析（不交易）"""
+    result = await db.execute(select(LabCompetition).where(LabCompetition.id == comp_id))
+    comp = result.scalars().first()
+    if not comp:
+        raise HTTPException(status_code=404, detail="比赛不存在")
+    if comp.status != "active":
+        raise HTTPException(status_code=400, detail="比赛未在进行中")
+
+    pr = await db.execute(
+        select(LabParticipant).where(
+            LabParticipant.competition_id == comp_id,
+            LabParticipant.status == "active"
+        )
+    )
+    participants = pr.scalars().all()
+
+    engine = CompetitionEngine(db)
+    results = []
+    for p in participants:
+        r = await engine.run_chat_only(p.id)
+        results.append({"name": p.name, **r})
+
+    return {"message": f"已触发{len(results)}名选手发言", "results": results}
+
+
+@router.post("/competitions/{comp_id}/auto-trade-run")
+async def run_auto_trade_round(comp_id: int, db: AsyncSession = Depends(get_db)):
+    """执行一轮自动交易（旧接口，保留兼容）"""
+    result = await db.execute(select(LabCompetition).where(LabCompetition.id == comp_id))
+    comp = result.scalars().first()
+    if not comp:
+        raise HTTPException(status_code=404, detail="比赛不存在")
+    if comp.status != "active" or not comp.auto_trade:
+        return {"message": "比赛未开启自动交易"}
+
+    pr = await db.execute(
+        select(LabParticipant).where(
+            LabParticipant.competition_id == comp_id,
+            LabParticipant.status == "active"
+        )
+    )
+    participants = pr.scalars().all()
+
+    engine = CompetitionEngine(db)
+    results = []
+    for p in participants:
+        r = await engine.run_participant_trading(p.id, force=True)
+        results.append({"name": p.name, **r})
+
+    comp.total_rounds += 1
+    await db.commit()
+
+    return {"message": f"自动交易完成，{len(results)}名选手", "results": results}
+
+
+# ==================== AI自主运行 ====================
+
+@router.post("/competitions/{comp_id}/ai-start")
+async def start_ai_auto_run(comp_id: int, db: AsyncSession = Depends(get_db)):
+    """启动AI自主运行：所有选手在后台自主交易+发言"""
+    result = await db.execute(select(LabCompetition).where(LabCompetition.id == comp_id))
+    comp = result.scalars().first()
+    if not comp:
+        raise HTTPException(status_code=404, detail="比赛不存在")
+    if comp.status != "active":
+        raise HTTPException(status_code=400, detail="比赛未在进行中")
+
+    from app.db.session import SessionLocal
+    engine = AutoRunEngine()
+    ret = await engine.start(comp_id, SessionLocal)
+    if not ret.get("ok"):
+        raise HTTPException(status_code=400, detail=ret.get("error", "启动失败"))
+
+    return {"message": "AI自主运行已启动"}
+
+
+@router.post("/competitions/{comp_id}/ai-stop")
+async def stop_ai_auto_run(comp_id: int, db: AsyncSession = Depends(get_db)):
+    """停止AI自主运行"""
+    engine = AutoRunEngine()
+    await engine.stop(comp_id)
+
+    return {"message": "AI自主运行已停止"}
+
+
+@router.get("/competitions/{comp_id}/ai-status")
+async def get_ai_auto_run_status(comp_id: int):
+    """获取AI自主运行状态"""
+    engine = AutoRunEngine()
+    status = engine.get_status(comp_id)
+    running = engine.is_running(comp_id)
+    return {
+        "running": running,
+        "status": status,
+    }
 
 
 @router.get("/competitions/{comp_id}/stats")
@@ -420,15 +657,17 @@ async def get_trades(participant_id: int, db: AsyncSession = Depends(get_db)):
         select(LabCompTrade)
         .where(LabCompTrade.participant_id == participant_id)
         .order_by(desc(LabCompTrade.created_at))
-        .limit(100)
+        .limit(200)
     )
+    trades = result.scalars().all()
+
     return [{
         "id": t.id, "symbol": t.symbol, "name": t.name,
         "action": t.action, "quantity": t.quantity, "price": t.price,
         "amount": t.amount, "fee": t.fee, "reason": t.reason,
         "confidence": t.confidence,
         "created_at": t.created_at.isoformat() if t.created_at else None,
-    } for t in result.scalars().all()]
+    } for t in trades]
 
 
 @router.get("/participants/{participant_id}/positions")
@@ -476,13 +715,16 @@ async def get_chat(comp_id: int, limit: int = 50, db: AsyncSession = Depends(get
     } for m in messages]
 
 
+class ChatMessage(BaseModel):
+    content: str
+
 @router.post("/competitions/{comp_id}/chat")
-async def post_chat(comp_id: int, content: str, db: AsyncSession = Depends(get_db)):
+async def post_chat(comp_id: int, data: ChatMessage, db: AsyncSession = Depends(get_db)):
     """用户发送群聊消息"""
     msg = LabChatMessage(
         competition_id=comp_id,
         participant_id=None,
-        content=f"[用户] {content}",
+        content=data.content,
         message_type="text",
     )
     db.add(msg)
@@ -506,6 +748,7 @@ async def get_leaderboard(comp_id: int, db: AsyncSession = Depends(get_db)):
         "rank": i + 1,
         "id": p.id, "name": p.name, "avatar": p.avatar,
         "provider": p.provider, "model_name": p.model_name,
+        "api_base": p.api_base, "system_prompt": p.system_prompt,
         "current_capital": p.current_capital,
         "total_return": p.total_return,
         "total_trades": p.total_trades,
@@ -562,7 +805,7 @@ async def get_equity_curve(comp_id: int, db: AsyncSession = Depends(get_db)):
         market_value = sum(pos.current_price * pos.quantity for pos in positions.values())
         total = running_capital + market_value
         equity.append({
-            "time": datetime.utcnow().isoformat(),
+            "time": shanghai_now().isoformat(),
             "value": total,
         })
 
@@ -581,6 +824,40 @@ def _get_color(pid: int) -> str:
     """为每个参赛者分配颜色"""
     colors = ["#ef232a", "#409eff", "#67c23a", "#e6a23c", "#f56c6c", "#909399", "#b37feb", "#36cfc9"]
     return colors[(pid - 1) % len(colors)]
+
+
+# ==================== 事件时间线 ====================
+
+@router.get("/competitions/{comp_id}/events")
+async def get_events(comp_id: int, limit: int = 50, db: AsyncSession = Depends(get_db)):
+    """获取比赛事件时间线"""
+    from app.models.laboratory import LabCompEvent
+    result = await db.execute(
+        select(LabCompEvent)
+        .where(LabCompEvent.competition_id == comp_id)
+        .order_by(LabCompEvent.created_at.desc())
+        .limit(limit)
+    )
+    events = result.scalars().all()
+    events.reverse()
+
+    # 获取参与者信息
+    pr = await db.execute(
+        select(LabParticipant).where(LabParticipant.competition_id == comp_id)
+    )
+    p_map = {p.id: p for p in pr.scalars().all()}
+
+    return [{
+        "id": e.id,
+        "type": e.event_type,
+        "title": e.title,
+        "detail": e.detail,
+        "participant": {
+            "name": p_map[e.participant_id].name,
+            "avatar": p_map[e.participant_id].avatar,
+        } if e.participant_id and e.participant_id in p_map else None,
+        "created_at": e.created_at.isoformat() if e.created_at else None,
+    } for e in events]
 
 
 # ==================== 分析师管理 ====================

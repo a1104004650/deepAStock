@@ -18,6 +18,7 @@ from typing import Optional
 
 from app.core.datasource.base import DataSourceBase
 from app.utils.logger import logger
+from app.utils import shanghai_now
 
 _UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 _SINA_HEADERS = {**_UA, "Referer": "https://finance.sina.com.cn"}
