@@ -3,15 +3,9 @@
     <div class="page">
       <!-- Layer 1: Competition List -->
       <div v-if="!selected" class="selection-layer">
-        <div class="selection-header">
-          <div>
-            <h2 class="page-title">AI炒股比赛</h2>
-            <p class="page-subtitle">多个AI智能体实时模拟交易对决</p>
-          </div>
-          <el-button type="primary" @click="openCreateDialog" round>
-            <el-icon><Plus /></el-icon>新建比赛
-          </el-button>
-        </div>
+        <PageHeader eyebrow="AI LAB / PAPER TRADING ARENA" title="AI炒股比赛" subtitle="平台负责行情、撮合、风控和记账，AI只负责自主决策">
+          <template #actions><el-button type="primary" @click="openCreateDialog" round><el-icon><Plus /></el-icon>新建比赛</el-button></template>
+        </PageHeader>
         <div class="comp-grid">
           <div
             v-for="c in competitions"
@@ -325,8 +319,8 @@
           </div>
           <div class="grid-chat">
             <div class="panel-header">
-              <span class="panel-title">群聊</span>
-              <span class="panel-badge">{{ messages.length }}</span>
+              <div><span class="panel-title">AI思考流</span><span class="panel-subtitle">对话用于观察观点，不直接改变交易决策</span></div>
+              <div class="chat-head-actions"><span class="panel-badge">{{ messages.length }}</span><el-button size="small" plain :loading="chatLoading" @click="triggerAllChat">让AI交流</el-button></div>
             </div>
             <div class="chat-box">
               <div class="chat-messages" ref="chatBoxRef">
@@ -628,6 +622,7 @@ import {
   User, Edit, Delete, CircleCloseFilled, Refresh, Close
 } from '@element-plus/icons-vue'
 import MainLayout from '../../layout/MainLayout.vue'
+import PageHeader from '../../components/PageHeader.vue'
 import { labApi } from '../../api'
 import * as echarts from 'echarts'
 
@@ -647,6 +642,7 @@ const removingPlayerId = ref(null)
 const messages = ref([])
 const allTrades = ref([])
 const chatInput = ref('')
+const chatLoading = ref(false)
 const chatBoxRef = ref(null)
 
 const statsData = ref({})
@@ -839,18 +835,21 @@ async function loadChat() {
   } catch { messages.value = [] }
 }
 
+async function triggerAllChat() {
+  if (!selected.value) return
+  chatLoading.value = true
+  try {
+    await labApi.chatAll(selected.value.id)
+    await loadChat()
+  } finally { chatLoading.value = false }
+}
+
 async function loadAllTrades() {
-  if (!players.value.length) { allTrades.value = []; return }
-  const results = await Promise.allSettled(
-    players.value.map(p => labApi.participantTrades(p.id).then(res => {
-      const list = Array.isArray(res) ? res : (res.data || [])
-      list.forEach(t => { t.participant_avatar = p.avatar; t.participant_name = p.name })
-      return list
-    }))
-  )
-  const all = results.filter(r => r.status === 'fulfilled').flatMap(r => r.value)
-  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  allTrades.value = all
+  if (!selected.value) { allTrades.value = []; return }
+  try {
+    const res = await labApi.competitionTrades(selected.value.id)
+    allTrades.value = (Array.isArray(res) ? res : (res.data || [])).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  } catch { allTrades.value = [] }
 }
 
 async function loadEquityCurve() {
@@ -1062,16 +1061,16 @@ function startAIPolling() {
     await checkAIStatus()
     if (aiRunning.value) {
       await loadChat()
-      await loadAllTrades()
-      // 每5轮(25秒)刷新一次曲线
+      // 每3轮(45秒)刷新一次交易记录和曲线
       pollCount++
-      if (pollCount % 5 === 0) {
+      if (pollCount % 3 === 0) {
+        await loadAllTrades()
         await loadEquityCurve()
         await loadLeaderboard()
         await loadEvents()
       }
     }
-  }, 5000)
+  }, 15000)
   checkAIStatus()
 }
 
@@ -1521,9 +1520,6 @@ onBeforeUnmount(() => {
   gap: 8px;
   align-items: center;
 }
-.auto-trade-tag {
-  margin-left: 4px;
-}
 .form-hint {
   font-size: 11px;
   color: var(--el-text-color-placeholder);
@@ -1563,6 +1559,8 @@ onBeforeUnmount(() => {
   font-weight: 700;
   color: #67c23a;
 }
+.panel-subtitle { color:#9099a7; font-size:10px; margin-left:8px; font-weight:400; }
+.chat-head-actions { display:flex; align-items:center; gap:6px; }
 .ai-status-right {
   display: flex;
   gap: 12px;

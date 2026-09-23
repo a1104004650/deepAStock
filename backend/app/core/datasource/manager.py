@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.datasource.base import DataSourceBase
-from app.core.datasource.sina_source import SinaSource, to_standard_symbol, to_standard_symbol
+from app.core.datasource.sina_source import SinaSource, to_standard_symbol
 from app.core.datasource.hithink_source import HithinkSource
 from app.models.market import Kline, SectorMoneyFlow, DragonTiger, LimitUp
 from app.models.cache import CacheMetadata
@@ -96,12 +96,38 @@ class DataSourceManager:
         ans = await self._call("get_order_book", symbol)
         if not isinstance(ans, dict):
             return {}
+        # 计算委比/委差
+        ob = ans.get("order_book", {})
+        bid_total = sum(b.get("volume", 0) for b in ob.get("bid", []))
+        ask_total = sum(a.get("volume", 0) for a in ob.get("ask", []))
+        total = bid_total + ask_total
+        ans["bid_total"] = bid_total
+        ans["ask_total"] = ask_total
+        ans["wei_bi"] = round((bid_total - ask_total) / total * 100, 2) if total > 0 else 0
+        ans["wei_cha"] = bid_total - ask_total
         return ans
 
     async def get_ticks(self, symbol: str) -> dict:
         ans = await self._call("get_ticks", symbol)
         if not isinstance(ans, dict):
             return {}
+        # 计算内外盘
+        ticks = ans.get("ticks", [])
+        inner = 0  # 内盘（主动卖）
+        outer = 0  # 外盘（主动买）
+        for t in ticks:
+            side = t.get("side", "")
+            vol = t.get("volume", 0)
+            if side == "B":
+                outer += vol
+            elif side == "S":
+                inner += vol
+        total = inner + outer
+        ans["inner_volume"] = inner
+        ans["outer_volume"] = outer
+        ans["inner_pct"] = round(inner / total * 100, 1) if total > 0 else 50
+        ans["outer_pct"] = round(outer / total * 100, 1) if total > 0 else 50
+        ans["side_data_available"] = bool(total > 0)
         return ans
 
     async def get_indices(self) -> list[dict]:

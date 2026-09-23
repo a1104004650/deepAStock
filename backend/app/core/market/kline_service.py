@@ -4,6 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.datasource.manager import DataSourceManager
 from app.utils.indicators import compute_indicators, detect_chan_signals
 from app.core.market.intraday_analyzer import analyze_intraday
+import time
+
+
+_INTRADAY_DAILY_CACHE: dict[str, tuple[float, list[dict]]] = {}
+_INTRADAY_DAILY_TTL = 300
 
 
 class KlineService:
@@ -30,6 +35,16 @@ class KlineService:
         return self.dsm.primary.get_intraday(symbol)
 
     async def get_intraday_analysis(self, symbol: str, pre_close: float = 0) -> dict:
-        """分时主力行为分析（含 VWAP/量比/信号/摘要）"""
+        """分时主力行为分析（含 VWAP/量比/信号/摘要/日K位置）"""
         rows = self.dsm.primary.get_intraday(symbol)
-        return analyze_intraday(rows, pre_close)
+        # 日K位置变化慢，短缓存避免自选股分时轮询重复请求60天日K。
+        cache_key = symbol.upper()
+        cached = _INTRADAY_DAILY_CACHE.get(cache_key)
+        if cached and time.monotonic() - cached[0] < _INTRADAY_DAILY_TTL:
+            daily_bars = cached[1]
+        else:
+            end_date = date.today()
+            start_date = end_date - timedelta(days=60)
+            daily_bars = await self.dsm.get_klines(symbol, "day", start_date, end_date)
+            _INTRADAY_DAILY_CACHE[cache_key] = (time.monotonic(), daily_bars)
+        return analyze_intraday(rows, pre_close, daily_bars)

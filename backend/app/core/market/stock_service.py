@@ -110,8 +110,11 @@ class StockService:
                  "report_date": r.report_date.isoformat()} for r in rows]
 
     async def get_sentiment(self, symbol: str) -> dict:
-        return {"symbol": symbol, "news_count": 0, "positive_score": 0.0,
-                "negative_score": 0.0, "attention_rank": None, "forum_activity": 0}
+        # 当前免费数据源没有稳定的论坛/舆情统计，明确标记不可用，避免把缺失误显示为中性零值。
+        return {"symbol": symbol, "available": False, "news_count": None,
+                "positive_score": None, "negative_score": None,
+                "attention_rank": None, "forum_activity": None,
+                "message": "暂无可靠的免费舆情统计数据"}
 
     async def get_sector(self, symbol: str) -> dict:
         info = await self.dsm.get_stock_sector(symbol)

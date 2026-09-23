@@ -4,9 +4,9 @@
       <div class="flex gap" style="align-items:center;margin-bottom:10px;flex-wrap:wrap">
         <h2 style="font-size:18px">实盘交易导入</h2>
         <el-button size="small" type="primary" :loading="loading" @click="load">刷新</el-button>
-        <el-popconfirm title="删除全部交易记录？该操作不可撤销" @confirm="clearAll">
+        <el-popconfirm title="清空全部交易记录并重置持仓？该操作不可撤销" confirm-button-text="确认重置" @confirm="resetLedger">
           <template #reference>
-            <el-button size="small" type="danger" :loading="clearing">清空全部记录</el-button>
+            <el-button size="small" type="danger" :loading="clearing">清空并重置</el-button>
           </template>
         </el-popconfirm>
       </div>
@@ -178,6 +178,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import MainLayout from '../layout/MainLayout.vue'
 import { tradeApi, stockApi } from '../api'
+import { fmtAmt as fmt } from '../utils/format'
 
 const jsonText = ref('')
 const importing = ref(false)
@@ -202,10 +203,6 @@ function getReview(row) {
   } catch {
     return null
   }
-}
-
-function fmt(v) {
-  return v == null ? '-' : Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 async function searchStock(kw) {
@@ -280,7 +277,7 @@ async function importJson() {
 async function importFile(e) {
   const file = e.target.files[0]
   if (!file) return
-  if (!/\.(csv|xlsx|xls|csv)$/i.test(file.name)) return ElMessage.warning('请选择 CSV 或 Excel 文件')
+  if (!/\.(csv|xlsx|xls)$/i.test(file.name)) return ElMessage.warning('请选择 CSV 或 Excel 文件')
   const fd = new FormData()
   fd.append('file', file)
   try {
@@ -309,6 +306,15 @@ async function clearAll() {
   } finally {
     clearing.value = false
   }
+}
+
+async function resetLedger() {
+  clearing.value = true
+  try {
+    const r = await tradeApi.reset()
+    ElMessage.success(`账本已重置，删除 ${r.deleted || 0} 条记录`)
+    await load()
+  } finally { clearing.value = false }
 }
 
 function quickBuy(qty) {

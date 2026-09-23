@@ -1,13 +1,13 @@
 <template>
   <MainLayout>
     <div class="page">
-      <div class="flex gap" style="align-items:center;margin-bottom:10px;flex-wrap:wrap">
-        <h2 style="font-size: 18px">大盘看板</h2>
-        <el-tag size="small" type="info">{{ todayStr }}</el-tag>
-        <el-button size="small" type="primary" :loading="loading" @click="load">刷新</el-button>
-        <el-button size="small" type="warning" :loading="mktLoading" @click="analyzeMarket">AI 大盘分析</el-button>
-        <span class="fs12" style="color:#909399">每 15 秒自动刷新行情</span>
-      </div>
+      <PageHeader eyebrow="MARKET TERMINAL / A-SHARE" title="大盘看板" :subtitle="`${todayStr} · 30秒自动刷新行情 · 公开行情仅供研究参考`">
+        <template #badge><el-tag size="small" type="info">盘中监测</el-tag></template>
+        <template #actions>
+          <el-button size="small" type="primary" :loading="loading" @click="load">刷新行情</el-button>
+          <el-button size="small" type="warning" :loading="mktLoading" @click="analyzeMarket">AI 大盘分析</el-button>
+        </template>
+      </PageHeader>
 
       <div class="funnel-top">
         <div class="overview-bar">
@@ -147,6 +147,24 @@
               <el-divider direction="vertical" />
               <span class="fs12" style="color:#606266">A股成交 <b class="mono">{{ fmtMoney(distribution.amount) }}</b></span>
             </div>
+            <div class="flex gap mt8" style="flex-wrap:wrap">
+              <div class="stat-item">
+                <div class="stat-value" :class="marketStats.consecutive_rate > 30 ? 'danger' : ''">{{ marketStats.consecutive_rate ?? '-' }}%</div>
+                  <div class="stat-label">连板率</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">{{ marketStats.consecutive_count ?? '-' }}家</div>
+                <div class="stat-label">连板股</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value" :class="marketStats.limit_ratio > 3 ? 'profit' : marketStats.limit_ratio != null && marketStats.limit_ratio < 1 ? 'danger' : ''">{{ marketStats.limit_ratio ?? '∞' }}</div>
+                <div class="stat-label" title="涨停家数 ÷ 跌停家数">涨跌停比</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">{{ marketStats.up_ratio ?? '-' }}%</div>
+                <div class="stat-label" title="上涨家数 ÷ 全市场统计家数">上涨占比</div>
+              </div>
+            </div>
             <!-- 涨跌区间分布柱状图 -->
             <div class="mt4">
               <div class="fs12 mb8" style="color:#909399">涨跌区间分布（家数）</div>
@@ -165,11 +183,27 @@
         <el-col :xs="24" :sm="12">
           <div class="card" style="height:100%">
             <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
-              <span class="fs14 bold">沪深两市大盘资金流向 <span class="fs12" style="color:#909399">{{ marketFlow.date }} · 今日分时</span></span>
+              <span class="fs14 bold">沪深两市大盘资金流向 <span class="fs12" style="color:#909399">{{ marketFlow.date }}</span></span>
+              <el-radio-group v-model="flowViewMode" size="small">
+                <el-radio-button value="daily">日级</el-radio-button>
+                <el-radio-button value="intraday">分时</el-radio-button>
+              </el-radio-group>
             </div>
-            <div class="chart-box mt4">
-              <LineChart v-if="mfChartData.length" :data="mfChartData" height="235px" :multi="mfSeries" :area="true" />
-              <div v-else class="fs12" style="color:#909399;text-align:center;height:235px;line-height:235px">资金流向加载中…</div>
+            <div v-if="flowViewMode === 'intraday'" class="chart-box mt4">
+              <div ref="flowIntradayChartEl" class="flow-intraday-chart"></div>
+              <div v-if="!mfChartData.length" class="fs12" style="color:#909399;text-align:center;height:235px;line-height:235px">分时资金流向加载中…</div>
+            </div>
+            <div v-else class="chart-box mt4">
+              <div v-if="mfDailyChartData.length" class="flow-daily-chart">
+                <div v-for="(item, i) in mfDailyChartData" :key="i" class="flow-daily-row">
+                  <span class="fs11" style="color:#606266;width:36px;flex-shrink:0">{{ item.date }}</span>
+                  <div class="flow-daily-bar-wrap">
+                    <div class="flow-daily-bar" :style="{ width: item.barPct + '%', background: item.main_net >= 0 ? '#ef232a' : '#14b143' }"></div>
+                  </div>
+                  <span class="mono fs11" :class="item.main_net >= 0 ? 'up' : 'down'" style="width:60px;text-align:right;flex-shrink:0">{{ signed(item.main_net) }}亿</span>
+                </div>
+              </div>
+              <div v-else class="fs12" style="color:#909399;text-align:center;height:235px;line-height:235px">日级资金流向加载中…</div>
             </div>
             <div class="ai-comment" v-if="flowComment">💡 {{ flowComment }}</div>
           </div>
@@ -234,59 +268,89 @@
             <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
               <span class="fs14 bold">板块监控</span>
               <div class="flex gap" style="align-items:center">
-                <el-radio-group v-model="sectorKind" size="small">
-                  <el-radio-button value="all">全部</el-radio-button>
-                  <el-radio-button value="行业">行业</el-radio-button>
-                  <el-radio-button value="概念">概念</el-radio-button>
+                <el-radio-group v-model="sectorTabMode" size="small">
+                  <el-radio-button value="monitor">实时行情</el-radio-button>
+                  <el-radio-button value="rotation">板块轮动</el-radio-button>
                 </el-radio-group>
-                <span class="fs12" style="color:#909399">点击板块查看分时</span>
-                <el-button size="small" :loading="sectorLoading" @click="loadSectorMonitor">刷新</el-button>
+                <span v-if="sectorTabMode === 'monitor'" class="fs12" style="color:#909399">点击板块查看分时</span>
+                <el-button size="small" :loading="sectorLoading" @click="sectorTabMode === 'monitor' ? loadSectorMonitor() : loadSectorSpeed()">刷新</el-button>
               </div>
             </div>
-            <div class="sector-grid mt8">
-              <div v-for="s in filteredSectors" :key="s.symbol"
-                class="sector-card" :class="{ active: selectedSector?.symbol === s.symbol }"
-                @click="selectSector(s)">
-                <div class="fs12 bold">
-                  <span v-if="s.kind && !s.is_etf" class="kind-badge" :class="'kind-' + (s.kind === '行业' ? 'industry' : 'concept')">{{ s.kind }}</span>
-                  {{ s.sector }}
-                </div>
-                <div class="mono fs13" :class="Number(s.change_pct) >= 0 ? 'up' : 'down'">
-                  {{ Number(s.change_pct) >= 0 ? '+' : '' }}{{ (s.change_pct || 0).toFixed(2) }}%
-                </div>
-                <div class="fs11" style="color:#909399">{{ fmtMoney(s.amount) }}</div>
-                <div v-if="s.is_etf === false" class="fs11" style="color:#c0c4cc">
-                  领涨 <b style="color:#606266">{{ s.leader_name || '-' }}</b>
+            <template v-if="sectorTabMode === 'monitor'">
+              <el-radio-group v-model="sectorKind" size="small" class="mt8">
+                <el-radio-button value="all">全部</el-radio-button>
+                <el-radio-button value="行业">行业</el-radio-button>
+                <el-radio-button value="概念">概念</el-radio-button>
+              </el-radio-group>
+            </template>
+            <!-- 板块轮动视图 -->
+            <template v-if="sectorTabMode === 'rotation'">
+              <div v-if="sectorSpeedList.length" class="mt8">
+                <div class="fs12 mb8" style="color:#909399">板块涨速排名（东方财富实时板块涨幅排序）</div>
+                <div v-for="(s, i) in sectorSpeedList" :key="s.sector_name" class="speed-row">
+                  <span class="speed-rank mono" :class="i < 3 ? 'speed-top' : ''">{{ i + 1 }}</span>
+                  <span class="speed-name">{{ s.sector_name }}</span>
+                  <div class="speed-bar-wrap">
+                    <div class="speed-bar" :style="{ width: s.barPct + '%', background: s.change_pct >= 0 ? '#ef232a' : '#14b143' }"></div>
+                  </div>
+                  <span class="mono fs12 speed-pct" :class="s.change_pct >= 0 ? 'up' : 'down'">{{ s.change_pct >= 0 ? '+' : '' }}{{ (s.change_pct || 0).toFixed(2) }}%</span>
+                  <span class="fs11 speed-flow" :class="s.net_inflow >= 0 ? 'up' : 'down'">{{ signed(s.net_inflow) }}亿</span>
+                  <span v-if="s.leader" class="fs11 speed-leader">
+                    <el-link v-if="s.leader_symbol" type="primary" :underline="false" style="font-size:11px" @click="goStock(s.leader_symbol, s.leader)">{{ s.leader }}</el-link>
+                    <span v-else style="color:#909399">{{ s.leader }}</span>
+                  </span>
+                  <span v-if="s.count" class="fs11" style="color:#c0c4cc;width:30px;text-align:right">{{ s.count }}只</span>
                 </div>
               </div>
-              <el-empty v-if="!sectorList.length" description="暂无数据" :image-size="40" />
-            </div>
-            <div class="ai-comment" v-if="sectorComment">💡 板块点评：{{ sectorComment }}</div>
-            <!-- 选中板块详情：ETF 有分时图，概念/行业展示实时行情+领涨股 -->
-            <div v-if="selectedSector" class="mt8" style="border-top:1px solid #f0f0f0;padding-top:8px">
-              <div class="flex gap" style="align-items:center;flex-wrap:wrap">
-                <span class="fs13 bold">{{ selectedSector.name }}</span>
-                <span class="mono fs13" :class="Number(selectedSector.change_pct) >= 0 ? 'up' : 'down'">
-                  {{ selectedSector.price || '-' }} ({{ Number(selectedSector.change_pct) >= 0 ? '+' : '' }}{{ (selectedSector.change_pct || 0).toFixed(2) }}%)
-                </span>
-                <span class="fs12" style="color:#909399">{{ fmtMoney(selectedSector.amount) }}</span>
-              </div>
-              <template v-if="selectedSector.is_etf === false">
-                <div class="fs12 mt4" style="line-height:1.8">
-                  成分股 <b>{{ selectedSector.count || '-' }}</b> · 领涨股
-                  <el-link v-if="selectedSector.leader_symbol" type="primary" :underline="false" style="font-size:12px"
-                    @click="goStock(selectedSector.leader_symbol, selectedSector.leader_name)">
-                    {{ selectedSector.leader_name }}
-                  </el-link>
-                  <span v-else>{{ selectedSector.leader_name || '-' }}</span>
-                  <span class="fs11" style="color:#c0c4cc">（概念板块暂无 ETF 分时，展示板块实时行情）</span>
+              <el-empty v-else class="mt8" description="暂无板块轮动数据" :image-size="40" />
+            </template>
+            <!-- 实时行情视图 -->
+            <template v-if="sectorTabMode === 'monitor'">
+              <div class="sector-grid mt8">
+                <div v-for="s in filteredSectors" :key="s.symbol"
+                  class="sector-card" :class="{ active: selectedSector?.symbol === s.symbol }"
+                  @click="selectSector(s)">
+                  <div class="fs12 bold">
+                    <span v-if="s.kind && !s.is_etf" class="kind-badge" :class="'kind-' + (s.kind === '行业' ? 'industry' : 'concept')">{{ s.kind }}</span>
+                    {{ s.sector }}
+                  </div>
+                  <div class="mono fs13" :class="Number(s.change_pct) >= 0 ? 'up' : 'down'">
+                    {{ Number(s.change_pct) >= 0 ? '+' : '' }}{{ (s.change_pct || 0).toFixed(2) }}%
+                  </div>
+                  <div class="fs11" style="color:#909399">{{ fmtMoney(s.amount) }}</div>
+                  <div v-if="s.is_etf === false" class="fs11" style="color:#c0c4cc">
+                    领涨 <b style="color:#606266">{{ s.leader_name || '-' }}</b>
+                  </div>
                 </div>
-              </template>
-              <template v-else>
-                <LineChart v-if="sectorIntraday.length" :data="sectorIntraday" height="180px" :pre-close="sectorPreClose" class="mt4" />
-                <div v-else class="fs12" style="color:#909399;text-align:center;height:60px;line-height:60px">分时数据加载中…</div>
-              </template>
-            </div>
+                <el-empty v-if="!sectorList.length" description="暂无数据" :image-size="40" />
+              </div>
+              <div class="ai-comment" v-if="sectorComment">💡 板块点评：{{ sectorComment }}</div>
+              <!-- 选中板块详情：ETF 有分时图，概念/行业展示实时行情+领涨股 -->
+              <div v-if="selectedSector" class="mt8" style="border-top:1px solid #f0f0f0;padding-top:8px">
+                <div class="flex gap" style="align-items:center;flex-wrap:wrap">
+                  <span class="fs13 bold">{{ selectedSector.name }}</span>
+                  <span class="mono fs13" :class="Number(selectedSector.change_pct) >= 0 ? 'up' : 'down'">
+                    {{ selectedSector.price || '-' }} ({{ Number(selectedSector.change_pct) >= 0 ? '+' : '' }}{{ (selectedSector.change_pct || 0).toFixed(2) }}%)
+                  </span>
+                  <span class="fs12" style="color:#909399">{{ fmtMoney(selectedSector.amount) }}</span>
+                </div>
+                <template v-if="selectedSector.is_etf === false">
+                  <div class="fs12 mt4" style="line-height:1.8">
+                    成分股 <b>{{ selectedSector.count || '-' }}</b> · 领涨股
+                    <el-link v-if="selectedSector.leader_symbol" type="primary" :underline="false" style="font-size:12px"
+                      @click="goStock(selectedSector.leader_symbol, selectedSector.leader_name)">
+                      {{ selectedSector.leader_name }}
+                    </el-link>
+                    <span v-else>{{ selectedSector.leader_name || '-' }}</span>
+                    <span class="fs11" style="color:#c0c4cc">（概念板块暂无 ETF 分时，展示板块实时行情）</span>
+                  </div>
+                </template>
+                <template v-else>
+                  <LineChart v-if="sectorIntraday.length" :data="sectorIntraday" height="180px" :pre-close="sectorPreClose" class="mt4" />
+                  <div v-else class="fs12" style="color:#909399;text-align:center;height:60px;line-height:60px">分时数据加载中…</div>
+                </template>
+              </div>
+            </template>
           </div>
         </el-col>
       </el-row>
@@ -500,14 +564,17 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import MainLayout from '../layout/MainLayout.vue'
+import PageHeader from '../components/PageHeader.vue'
 import LineChart from '../components/LineChart.vue'
 import KlineChart from '../components/KlineChart.vue'
+import * as echarts from 'echarts'
 import { marketApi, agentApi, rssApi } from '../api'
 import { useSymbolStore } from '../stores/symbol'
 import { formatNewsTime as _formatNewsTime, toEpochMs } from '../utils/time'
+import { fmtPrice, fmtMoney } from '../utils/format'
 
 const router = useRouter()
 const symbolStore = useSymbolStore()
@@ -521,7 +588,7 @@ const loading = ref(false)
 const mktLoading = ref(false)
 const mktSummary = ref('')
 const mktDate = ref('')
-const openSections = ref(['sentiment', 'hot', 'sectors', 'fundflow', 'calendar', 'news'])
+const openSections = ref(loadPanelsState())
 const indices = ref([])
 const news = ref([])
 const newsFilter = ref('')
@@ -557,8 +624,79 @@ const mfSeries = [
   { name: '中单', key: 'mid_net', color: '#67c23a', area: false },
   { name: '小单', key: 'small_net', color: '#909399', area: false }
 ]
+const flowViewMode = ref('intraday')
 const mfChartData = computed(() => {
   return Array.isArray(marketFlow.value.intraday) ? marketFlow.value.intraday : []
+})
+const mfDailyChartData = computed(() => {
+  const daily = Array.isArray(marketFlow.value.daily) ? marketFlow.value.daily : []
+  if (!daily.length) return []
+  const maxAbs = Math.max(1, ...daily.map(d => Math.abs(d.main_net || 0)))
+  return daily.map(d => ({
+    date: (d.date || '').slice(5) || d.date || '',
+    main_net: d.main_net || 0,
+    barPct: Math.min(100, Math.round(Math.abs(d.main_net || 0) / maxAbs * 100))
+  }))
+})
+const flowIntradayChartEl = ref(null)
+let flowIntradayChart = null
+
+function renderFlowIntradayChart() {
+  if (!flowIntradayChartEl.value || !mfChartData.value.length) return
+  if (flowIntradayChart) { flowIntradayChart.dispose(); flowIntradayChart = null }
+  flowIntradayChart = echarts.init(flowIntradayChartEl.value)
+  const data = mfChartData.value
+  const times = data.map(d => d.time)
+  const mainNet = data.map(d => d.main_net ?? null)
+  const superLarge = data.map(d => (d.super_net || 0) + (d.large_net || 0))
+  const mainColor = '#ef232a'
+  flowIntradayChart.setOption({
+    animation: false,
+    tooltip: {
+      trigger: 'axis',
+      valueFormatter: v => v == null ? '-' : (v >= 0 ? '+' : '') + (v / 1e8).toFixed(2) + '亿'
+    },
+    legend: { top: 0, right: 10, textStyle: { fontSize: 11 } },
+    grid: { left: 56, right: 16, top: 28, bottom: 24 },
+    xAxis: { type: 'category', data: times, boundaryGap: false, axisLabel: { fontSize: 10 } },
+    yAxis: {
+      scale: true,
+      splitLine: { lineStyle: { color: '#f0f0f0' } },
+      axisLabel: { fontSize: 10, formatter: v => Math.abs(v) >= 1e8 ? (v / 1e8).toFixed(1) + '亿' : v }
+    },
+    series: [
+      {
+        name: '主力净流入',
+        type: 'line',
+        data: mainNet,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { width: 1.8, color: mainColor },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(239,35,42,0.35)' },
+            { offset: 1, color: 'rgba(239,35,42,0.03)' }
+          ])
+        }
+      },
+      {
+        name: '超大单+大单',
+        type: 'line',
+        data: superLarge,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { width: 1.4, color: '#e6a23c', type: 'dashed' }
+      }
+    ]
+  })
+}
+watch(mfChartData, () => {
+  if (flowViewMode.value === 'intraday') renderFlowIntradayChart()
+})
+watch(flowViewMode, (v) => {
+  if (v === 'intraday') {
+    nextTick(renderFlowIntradayChart)
+  }
 })
 function stripHtml(s) {
   if (!s) return ''
@@ -572,6 +710,7 @@ function formatNewsTime(ts) {
 }
 const ladder = ref({})
 const distribution = ref({})
+const marketStats = ref({})
 const flowRank = ref({ industries: { in: [], out: [] }, concepts: { in: [], out: [] } })
 const etfFlow = ref({ in_top: [], out_top: [], all: [] })
 const etfDim = ref('net_1d')
@@ -582,6 +721,8 @@ const selectedSector = ref(null)
 const sectorIntraday = ref([])
 const sectorPreClose = ref(0)
 const sectorKind = ref('all')
+const sectorTabMode = ref('monitor')
+const sectorSpeedRaw = ref([])
 const filteredSectors = computed(() => {
   let list = sectorList.value || []
   if (sectorKind.value !== 'all') {
@@ -591,6 +732,15 @@ const filteredSectors = computed(() => {
   const etfs = list.filter(s => s.is_etf === true).sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0))
   const boards = list.filter(s => s.is_etf !== true).sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0))
   return [...etfs, ...boards]
+})
+const sectorSpeedList = computed(() => {
+  const rows = sectorSpeedRaw.value || []
+  if (!rows.length) return []
+  const maxAbs = Math.max(1, ...rows.map(r => Math.abs(r.change_pct || 0)))
+  return rows.map(r => ({
+    ...r,
+    barPct: Math.min(100, Math.round(Math.abs(r.change_pct || 0) / maxAbs * 100))
+  }))
 })
 const hotStocks = ref([])
 
@@ -652,6 +802,14 @@ async function loadSectorMonitor() {
   sectorLoading.value = false
 }
 
+async function loadSectorSpeed() {
+  sectorLoading.value = true
+  try {
+    sectorSpeedRaw.value = (await marketApi.sectorSpeed()) || []
+  } catch { sectorSpeedRaw.value = [] }
+  sectorLoading.value = false
+}
+
 async function selectSector(s) {
   selectedSector.value = s
   sectorIntraday.value = []
@@ -699,7 +857,8 @@ const etfOut = computed(() => etfFlow.value.out_top || [])
 const etfFlowDate = computed(() => (etfFlow.value.in_top || []).find((r) => r.flow_date)?.flow_date || '')
 const maxBoard = computed(() => {
   const keys = Object.keys(ladder.value.ladder || {})
-  return keys.length ? Math.max(...keys.map((k) => parseInt(k, 10))) : 0
+  const nums = keys.map(k => parseInt(k, 10)).filter(n => !isNaN(n))
+  return nums.length ? Math.max(...nums) : 0
 })
 
 const sectorOptions = computed(() => (sectorList.value || [])
@@ -721,11 +880,64 @@ function sectorNameFor(symbol) {
   return hit ? hit.sector : ''
 }
 
-const candSource = ref('hot')
-const candNoST = ref(true)
-const candNoMonitored = ref(true)
-const candUpOnly = ref(false)
-const candSector = ref('')
+const HOME_FILTERS_KEY = 'home_filters'
+const HOME_PANELS_KEY = 'home_panels'
+
+function isTradingHours() {
+  const now = new Date()
+  const h = now.getHours(), m = now.getMinutes()
+  const t = h * 60 + m
+  return (t >= 570 && t <= 900)
+}
+
+function loadFilterState() {
+  try {
+    const raw = localStorage.getItem(HOME_FILTERS_KEY)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch { return null }
+}
+
+function saveFilterState() {
+  try {
+    localStorage.setItem(HOME_FILTERS_KEY, JSON.stringify({
+      candSource: candSource.value,
+      candNoST: candNoST.value,
+      candNoMonitored: candNoMonitored.value,
+      candUpOnly: candUpOnly.value,
+      candSector: candSector.value,
+    }))
+  } catch {}
+}
+
+function getDefaultPanels() {
+  if (isTradingHours()) return ['sentiment', 'hot', 'sectors']
+  return ['sentiment']
+}
+
+function loadPanelsState() {
+  try {
+    const raw = localStorage.getItem(HOME_PANELS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length) return parsed
+    }
+  } catch {}
+  return getDefaultPanels()
+}
+
+function savePanelsState() {
+  try {
+    localStorage.setItem(HOME_PANELS_KEY, JSON.stringify(openSections.value))
+  } catch {}
+}
+
+const savedFilters = loadFilterState()
+const candSource = ref(savedFilters?.candSource ?? 'hot')
+const candNoST = ref(savedFilters?.candNoST ?? true)
+const candNoMonitored = ref(savedFilters?.candNoMonitored ?? true)
+const candUpOnly = ref(savedFilters?.candUpOnly ?? false)
+const candSector = ref(savedFilters?.candSector ?? '')
 
 const candPool = computed(() => {
   const src = candSource.value
@@ -910,7 +1122,7 @@ const moversLoadedAt = ref(0)
 const hotLoadedAt = ref(0)
 const distributionLoadedAt = ref(0)
 const lastTickAt = ref(Date.now())
-let heartbeatTimer = null
+let mainTimer = null
 
 const ST_NAME_RE = /(^|[^A-Za-z0-9])(S*ST|\*ST|退[A-Z0-9]{0,4}|X?D[A-Z]{0,2})/i
 
@@ -986,18 +1198,6 @@ const impTag = (v) => (v === 1 ? 'danger' : v === 3 ? 'info' : 'warning')
 
 const todayStr = new Date().toLocaleDateString('zh-CN')
 
-function fmtPrice(v) {
-  return v == null ? '-' : Number(v).toFixed(2)
-}
-function fmtMoney(v) {
-  if (v == null) return '-'
-  const n = Number(v)
-  const abs = Math.abs(n)
-  if (abs >= 1e8) return (n / 1e8).toFixed(2) + '亿'
-  if (abs >= 1e4) return (n / 1e4).toFixed(2) + '万'
-  return n.toFixed(0)
-}
-
 // ---- 每个看板模块独立接口调用，独立定时刷新 ----
 async function loadIndices() {
   try { indices.value = await marketApi.indices() } catch { /* 保留旧数据 */ }
@@ -1054,6 +1254,9 @@ async function loadLadder() {
 async function loadMarketFlow() {
   try { marketFlow.value = (await marketApi.marketFlow()) || { date: '', intraday: [], daily: [] } } catch { /* 保留旧数据 */ }
 }
+async function loadMarketStats() {
+  try { marketStats.value = (await marketApi.marketStats()) || {} } catch { /* 保留旧数据 */ }
+}
 
 async function analyzeMarket() {
   mktLoading.value = true
@@ -1083,35 +1286,45 @@ async function load() {
       loadPriceMovers(),
       loadMarketFlow(),
       loadCalendar(),
-      loadRegulatory()
+      loadRegulatory(),
+      loadMarketStats()
     ])
   } finally {
     loading.value = false
   }
 }
 
-let indexTimer = null
-let newsTimer = null
-let flowTimer = null
-let distTimer = null
-let sectorTimer = null
+async function refreshAll() {
+  lastTickAt.value = Date.now()
+  await Promise.all([
+    loadIndices(),
+    ...mainIdxDefs.map((m) => loadPanel(m.code)),
+    loadSectorFlowTop(),
+    loadEtf(),
+    loadNews(),
+    loadRssNews(),
+    loadDistribution(),
+    loadLadder(),
+    loadSectorMonitor(),
+    loadHotStocks(),
+    loadPriceMovers(),
+    loadMarketFlow(),
+    loadCalendar(),
+    loadRegulatory(),
+    loadMarketStats()
+  ])
+}
+
+watch([candSource, candNoST, candNoMonitored, candUpOnly, candSector], saveFilterState)
+watch(openSections, savePanelsState, { deep: true })
 
 onMounted(() => {
   load()
-  heartbeatTimer = setInterval(() => { lastTickAt.value = Date.now() }, 15000)
-  indexTimer = setInterval(() => { loadIndices(); mainIdxDefs.forEach((m) => loadPanel(m.code)) }, 15000)
-  newsTimer = setInterval(() => { loadNews(); loadRssNews() }, 60000)
-  flowTimer = setInterval(() => { loadSectorFlowTop(); loadEtf(); loadHotStocks(); loadPriceMovers() }, 60000)
-  distTimer = setInterval(() => { loadDistribution(); loadLadder(); loadMarketFlow(); loadCalendar(); loadRegulatory() }, 60000)
-  sectorTimer = setInterval(loadSectorMonitor, 15000)
+  mainTimer = setInterval(refreshAll, 30000)
 })
 onUnmounted(() => {
-  if (indexTimer) clearInterval(indexTimer)
-  if (newsTimer) clearInterval(newsTimer)
-  if (flowTimer) clearInterval(flowTimer)
-  if (distTimer) clearInterval(distTimer)
-  if (sectorTimer) clearInterval(sectorTimer)
-  if (heartbeatTimer) clearInterval(heartbeatTimer)
+  if (mainTimer) clearInterval(mainTimer)
+  if (flowIntradayChart) { flowIntradayChart.dispose(); flowIntradayChart = null }
 })
 </script>
 
@@ -1208,7 +1421,7 @@ onUnmounted(() => {
   flex-direction: column;
 }
 @media (min-width: 768px) {
-  .col-card { height: 380px; }
+  .col-card { min-height: 380px; max-height: 500px; overflow-y: auto; }
   .col-card.flow-card { height: 260px; }
 }
 .news-scroll {
@@ -1222,6 +1435,34 @@ onUnmounted(() => {
 }
 .chart-box {
   min-height: 180px;
+}
+.flow-intraday-chart {
+  width: 100%;
+  height: 235px;
+}
+.flow-daily-chart {
+  height: 235px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.flow-daily-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.flow-daily-bar-wrap {
+  flex: 1;
+  height: 10px;
+  background: #f0f0f0;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.flow-daily-bar {
+  height: 100%;
+  border-radius: 5px;
+  transition: width .3s;
 }
 .idx-card {
   cursor: pointer;
@@ -1361,4 +1602,82 @@ onUnmounted(() => {
 .kind-badge { display: inline-block; font-size: 9px; padding: 0 3px; border-radius: 2px; margin-right: 2px; font-weight: 400; line-height: 14px; vertical-align: middle; }
 .kind-industry { background: rgba(46,107,198,.08); color: var(--c-primary); }
 .kind-concept { background: #fdf6ec; color: #e6a23c; }
+.speed-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--c-border);
+}
+.speed-rank {
+  width: 20px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--c-text-3);
+  flex-shrink: 0;
+}
+.speed-rank.speed-top {
+  color: #ef232a;
+  font-weight: 700;
+}
+.speed-name {
+  width: 90px;
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.speed-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 40px;
+}
+.speed-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .3s;
+}
+.speed-pct {
+  width: 60px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.speed-flow {
+  width: 60px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.speed-leader {
+  width: 70px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-item {
+  background: var(--c-bg-card);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  text-align: center;
+  min-width: 80px;
+}
+.stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--c-text-1);
+  line-height: 1.2;
+  margin-bottom: 2px;
+}
+.stat-value.danger { color: var(--c-down); }
+.stat-value.profit { color: var(--c-up); }
+.stat-label {
+  font-size: 11px;
+  color: var(--c-text-3);
+}
 </style>

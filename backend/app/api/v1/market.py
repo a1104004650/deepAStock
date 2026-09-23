@@ -218,6 +218,52 @@ async def get_distribution(db: AsyncSession = Depends(get_db)):
     return await svc.get_market_distribution()
 
 
+@router.get("/market-stats")
+async def get_market_stats(db: AsyncSession = Depends(get_db)):
+    """市场情绪指标：涨跌停比/炸板率/连板率/赚钱效应"""
+    svc = MarketService(db)
+    dist = await svc.get_market_distribution()
+    limit_up = await svc.get_limit_up()
+
+    up = dist.get("up_count", 0)
+    down = dist.get("down_count", 0)
+    limit_up_count = dist.get("limit_up", 0)
+    limit_down_count = dist.get("limit_down", 0)
+    total = dist.get("total", 1)
+
+    # 连板统计
+    consecutive = [s for s in limit_up if s.get("consecutive_days", 1) > 1]
+    first_board = [s for s in limit_up if s.get("first_limit", False)]
+
+    # 涨跌停比
+    limit_ratio = round(limit_up_count / limit_down_count, 2) if limit_down_count > 0 else None
+
+    # 连板率 = 连板股 / 涨停总数
+    consecutive_rate = round(len(consecutive) / max(limit_up_count, 1) * 100, 1)
+
+    # 上涨占比
+    up_ratio = round(up / max(total, 1) * 100, 1)
+
+    return {
+        "up_count": up,
+        "down_count": down,
+        "flat_count": dist.get("flat_count", 0),
+        "total": total,
+        "limit_up": limit_up_count,
+        "limit_down": limit_down_count,
+        "limit_ratio": limit_ratio,
+        "consecutive_count": len(consecutive),
+        "first_board_count": len(first_board),
+        "consecutive_rate": consecutive_rate,
+        "consecutive_rate_basis": "连板股/涨停总数",
+        "limit_ratio_basis": "涨停家数/跌停家数",
+        "data_available": bool(dist.get("total") or limit_up),
+        "up_ratio": up_ratio,
+        "limit_up_list": dist.get("limit_up_list", [])[:20],
+        "amount": dist.get("amount", 0),
+    }
+
+
 @router.get("/news")
 async def get_news(limit: int = 50, db: AsyncSession = Depends(get_db)):
     svc = MarketService(db)
@@ -281,6 +327,45 @@ async def get_sector_constituents(symbol: str, db: AsyncSession = Depends(get_db
 async def get_hot_stocks(top: int = 15, db: AsyncSession = Depends(get_db)):
     svc = MarketService(db)
     return await svc.get_hot_stocks(top)
+
+
+@router.get("/screening")
+async def screen_stocks(
+    min_change: float = -10,
+    max_change: float = 10,
+    min_turnover: float = 0,
+    min_heat: float = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+):
+    """基于免费实时行情的短线初筛，不伪造基本面数据。"""
+    svc = MarketService(db)
+    rows = await svc.get_hot_stocks(max(100, min(500, limit * 3)))
+    result = []
+    for row in rows:
+        change = float(row.get("change_pct") or 0)
+        turnover = float(row.get("turnover") or 0)
+        heat = float(row.get("heat") or 0)
+        if change < min_change or change > max_change:
+            continue
+        if turnover < min_turnover or heat < min_heat:
+            continue
+        result.append({
+            **row,
+            "screen_reason": "热度/成交额/涨跌幅符合条件",
+        })
+    result.sort(key=lambda x: float(x.get("heat") or 0), reverse=True)
+    return {
+        "items": result[:max(1, min(200, limit))],
+        "count": len(result),
+        "source": "免费实时行情热度榜",
+        "filters": {
+            "min_change": min_change,
+            "max_change": max_change,
+            "min_turnover": min_turnover,
+            "min_heat": min_heat,
+        },
+    }
 
 
 @router.get("/price-movers")

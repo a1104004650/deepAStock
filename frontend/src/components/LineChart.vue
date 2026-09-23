@@ -11,6 +11,7 @@ const SIGNAL_COLORS = {
   '洗盘': '#909399',
   '诱多': '#f56c6c',
   '诱空': '#67c23a',
+  '出货': '#e74c3c',
   '真拉升': '#409eff',
   'T买': '#14b143',
   'T卖': '#ef232a',
@@ -117,17 +118,18 @@ function _doRender() {
           coord: [i, price[i]],
           value: sig.signal,
           symbol: sig.signal === '真拉升' ? 'triangle' : sig.signal === '诱多' ? 'diamond' :
-            sig.signal === '诱空' ? 'rect' : sig.signal === '洗盘' ? 'circle' : 'pin',
-          symbolSize: sig.confidence > 70 ? 18 : sig.confidence > 50 ? 14 : 10,
+            sig.signal === '诱空' ? 'triangle' : sig.signal === '洗盘' ? 'circle' :
+            sig.signal === '出货' ? 'rect' : 'pin',
+          symbolSize: sig.confidence > 70 ? 10 : sig.confidence > 50 ? 8 : 6,
           itemStyle: { color: SIGNAL_COLORS[sig.signal] || '#409eff' },
           label: {
             show: true,
-            formatter: sig.signal + ' ' + sig.confidence + '%',
-            fontSize: sig.confidence > 50 ? 9 : 8,
+            formatter: sig.signal,
+            fontSize: 8,
             color: '#fff',
             backgroundColor: SIGNAL_COLORS[sig.signal] || '#409eff',
             borderRadius: 3,
-            padding: [2, 4],
+            padding: [1, 3],
             position: 'top',
           }
         })

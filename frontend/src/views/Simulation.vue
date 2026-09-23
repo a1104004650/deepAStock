@@ -81,7 +81,7 @@
           </el-col>
 
           <el-col :xs="24" :sm="9">
-            <el-tabs v-model="poolTab" class="pool-tabs">
+            <el-tabs v-model="poolTabs[acc.id]" class="pool-tabs">
               <el-tab-pane label="持仓池" name="positions">
                 <el-table :data="(acc.positions || []).slice(0, 10)" size="small" max-height="250" @row-click="showPosChart">
                   <el-table-column label="名称" min-width="110">
@@ -296,6 +296,7 @@ import MainLayout from '../layout/MainLayout.vue'
 import LineChart from '../components/LineChart.vue'
 import KlineChart from '../components/KlineChart.vue'
 import { simulationApi, agentApi, stockApi } from '../api'
+import { fmtAmt as fmt } from '../utils/format'
 
 const accounts = ref([])
 const agents = ref([])
@@ -313,8 +314,7 @@ const chartDialog = ref(false)
 const chartTitle = ref('个股分析')
 const posKline = ref([])
 const posCzsc = ref({})
-const symChartRef = ref(null)
-const poolTab = ref('positions')
+const poolTabs = ref({})
 const trackInput = reactive({})
 const poolSourceNote = '来源于最近一次 18:00 每日复盘报告'
 
@@ -346,15 +346,12 @@ function logTagType(t) {
   return t === 'error' ? 'warning' : t === 'decision' ? 'success' : t === 'pool' ? 'primary' : 'info'
 }
 
-function fmt(v) {
-  return v == null ? '-' : Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-function fmtPct(v) {
-  return v == null ? '0%' : (Number(v) * 100).toFixed(2) + '%'
-}
 function sign(v) {
   const n = Number(v || 0)
   return n >= 0 ? (n > 0 ? '+' : '') : '-'
+}
+function fmtPct(v) {
+  return v == null ? '0%' : (Number(v) * 100).toFixed(2) + '%'
 }
 function pnlCls(v) {
   const n = Number(v || 0)
@@ -428,18 +425,27 @@ async function load() {
   accounts.value = await simulationApi.accounts()
   const agentMap = {}
   for (const a of agents.value) agentMap[a.id] = a
-  for (const acc of accounts.value) {
+  await Promise.all(accounts.value.map(async (acc) => {
     const ag = agentMap[acc.agent_config_id]
     acc.agent_name = ag?.name
     acc.agent_type = ag?.agent_type
-    try { acc.performance = await simulationApi.performance(acc.id) } catch { acc.performance = {} }
-    try { acc.positions = await simulationApi.positions(acc.id) } catch { acc.positions = [] }
-    try { acc.trades = await simulationApi.trades(acc.id) } catch { acc.trades = [] }
-    try { acc.equity = await simulationApi.equity(acc.id) } catch { acc.equity = [] }
-    try { acc.pool = await simulationApi.pool(acc.id) } catch { acc.pool = {} }
-    try { acc.stats = await simulationApi.stats(acc.id) } catch { acc.stats = {} }
-    try { acc.reviews = await simulationApi.reviews(acc.id) } catch { acc.reviews = [] }
-  }
+    const [perf, pos, trd, eq, pl, st, rv] = await Promise.allSettled([
+      simulationApi.performance(acc.id),
+      simulationApi.positions(acc.id),
+      simulationApi.trades(acc.id),
+      simulationApi.equity(acc.id),
+      simulationApi.pool(acc.id),
+      simulationApi.stats(acc.id),
+      simulationApi.reviews(acc.id),
+    ])
+    acc.performance = perf.status === 'fulfilled' ? perf.value : {}
+    acc.positions = pos.status === 'fulfilled' ? pos.value : []
+    acc.trades = trd.status === 'fulfilled' ? trd.value : []
+    acc.equity = eq.status === 'fulfilled' ? eq.value : []
+    acc.pool = pl.status === 'fulfilled' ? pl.value : {}
+    acc.stats = st.status === 'fulfilled' ? st.value : {}
+    acc.reviews = rv.status === 'fulfilled' ? rv.value : []
+  }))
   await nextTick()
   renderBar()
 }

@@ -1,10 +1,11 @@
 <template>
   <MainLayout>
     <div class="page">
-      <div class="flex gap" style="align-items:center;margin-bottom:10px">
-        <h2 style="font-size:18px">自选股</h2>
-        <el-button size="small" type="primary" :loading="loading" @click="load">刷新行情</el-button>
-      </div>
+      <PageHeader eyebrow="PORTFOLIO / WATCHLIST" title="自选股" subtitle="分组管理、实时盘口、分时行为和个股研究">
+        <template #actions>
+          <el-button size="small" type="primary" :loading="loading" @click="load">刷新行情</el-button>
+        </template>
+      </PageHeader>
 
       <el-row :gutter="10">
         <!-- 左侧：分组 + 自选股列表 -->
@@ -70,6 +71,12 @@
                     <span v-if="!batchMode && !showRecent && row.id" class="wl-del" @click.stop="removeOne(row)">✕</span>
                   </span>
                 </div>
+                <div v-if="row.volume_ratio != null || row.turnover_rate != null || row.amplitude != null" class="wl-line fs11" style="color:#c0c4cc">
+                  <span v-if="row.volume_ratio != null">量比 {{ Number(row.volume_ratio).toFixed(2) }}</span>
+                  <span v-if="row.turnover_rate != null">换 {{ Number(row.turnover_rate).toFixed(2) }}%</span>
+                  <span v-if="row.amplitude != null">振 {{ Number(row.amplitude).toFixed(2) }}%</span>
+                </div>
+
               </div>
             </el-scrollbar>
             <el-empty v-if="!displayItems.length" description="暂无自选股" :image-size="50" />
@@ -83,6 +90,44 @@
             <div class="flex gap" style="align-items:center;flex-wrap:wrap">
               <span class="fs16 bold">{{ symbolStore.selectedRealtime.name || symbolStore.selectedSymbol }}</span>
               <span class="fs12" style="color:#909399">{{ symbolStore.selectedSymbol }}</span>
+              <el-popover placement="bottom" :width="340" trigger="click" v-model:visible="alertPopoverVisible">
+                <template #reference>
+                  <el-badge :value="currentAlerts.filter(a => a.enabled && !a.triggered).length || undefined" :max="99">
+                    <el-button size="small" link :type="currentAlerts.length ? 'warning' : 'info'">
+                      <el-icon :size="16"><Bell /></el-icon>
+                    </el-button>
+                  </el-badge>
+                </template>
+                <div class="alert-popover">
+                  <div class="fs13 bold mb8">预警管理</div>
+                  <div v-if="currentAlerts.length" class="alert-list">
+                    <div v-for="a in currentAlerts" :key="a.id" class="alert-item" :class="{ triggered: a.triggered, disabled: !a.enabled }">
+                      <div class="flex between" style="align-items:center">
+                        <span class="fs12 bold">{{ ALERT_TYPES.find(t => t.value === a.type)?.label }}</span>
+                        <div class="flex gap" style="align-items:center">
+                          <el-button size="small" link @click="resetAlertTriggered(a.id)" v-if="a.triggered">重置</el-button>
+                          <el-switch size="small" :model-value="a.enabled" @change="toggleAlertEnabled(a)" />
+                          <el-button size="small" link type="danger" @click="deleteAlert(a.id)"><el-icon><Close /></el-icon></el-button>
+                        </div>
+                      </div>
+                      <div class="fs12 mt2" style="color:#909399">
+                        阈值: {{ a.threshold }} <span v-if="a.triggered" style="color:#e6a23c">· 已触发</span>
+                      </div>
+                    </div>
+                  </div>
+                  <el-empty v-else description="暂无预警" :image-size="30" style="padding:8px 0" />
+                  <el-divider style="margin:8px 0" />
+                  <div class="fs12 bold mb4">添加预警</div>
+                  <div class="alert-form">
+                    <el-select v-model="alertFormType" size="small" style="width:140px">
+                      <el-option v-for="t in ALERT_TYPES" :key="t.value" :label="t.label" :value="t.value" />
+                    </el-select>
+                    <el-input v-model="alertFormThreshold" size="small" placeholder="阈值" type="number" style="width:100px" @keyup.enter="addAlert" />
+                    <el-switch v-model="alertFormEnabled" size="small" />
+                    <el-button size="small" type="primary" @click="addAlert" :disabled="!alertFormThreshold">添加</el-button>
+                  </div>
+                </div>
+              </el-popover>
               <span v-if="symbolStore.selectedRealtime.price" class="fs18 bold mono" :class="pctCls(symbolStore.selectedRealtime)">
                 {{ fmt(symbolStore.selectedRealtime.price) }}
                 <span class="fs12">{{ symbolStore.selectedRealtime.change_pct >= 0 ? '+' : '' }}{{ symbolStore.selectedRealtime.change }} / {{ symbolStore.selectedRealtime.change_pct >= 0 ? '+' : '' }}{{ symbolStore.selectedRealtime.change_pct }}%</span>
@@ -135,7 +180,7 @@
               <div v-else style="position:relative;height:100%">
                 <LineChart v-if="intraday.length" :data="intraday" height="430px" :volume="true"
                   :pre-close="symbolStore.selectedRealtime.prev_close"
-                  :signals="intradayFilteredSignals" :show-vwap="!!intradaySignals.length"
+                  :signals="intradayFilteredSignals" :show-vwap="true"
                   :show-t="intradayShowT" />
                 <el-empty v-else description="暂无分时数据" :image-size="70" style="position:absolute;inset:0" />
                 <!-- 分时图工具栏 -->
@@ -144,14 +189,23 @@
                   <el-checkbox v-model="intradayShowT" size="small">做T信号</el-checkbox>
                 </div>
                 <!-- 主力意图标签 -->
-                <div v-if="intradayShowSignals && intradaySummary?.intent" class="intent-bar">
-                  <span class="intent-label" :class="'intent-' + (intradaySummary.intent.primary === '真拉升' ? 'rally' : intradaySummary.intent.primary === '诱多' ? 'trap' : intradaySummary.intent.primary === '诱空' ? 'bear' : intradaySummary.intent.primary === '吸筹' ? 'accumulate' : intradaySummary.intent.primary === '洗盘' ? 'shakeout' : 'wait')">
+                 <div v-if="intradayShowSignals && intradaySummary?.intent" class="intent-bar">
+                  <span class="intent-label" :class="'intent-' + (intradaySummary.intent.primary === '真拉升' ? 'rally' : intradaySummary.intent.primary === '诱多' ? 'trap' : intradaySummary.intent.primary === '诱空' ? 'bear' : intradaySummary.intent.primary === '吸筹' ? 'accumulate' : intradaySummary.intent.primary === '洗盘' ? 'shakeout' : intradaySummary.intent.primary === '出货' ? 'distribution' : 'wait')">
                     {{ intradaySummary.intent.primary }}
                   </span>
                   <span v-if="intradaySummary.intent.confidence > 0" class="fs11" style="color:#606266">{{ intradaySummary.intent.confidence }}%</span>
+                  <span v-if="intradayDailyContext?.daily_trend && intradayDailyContext.daily_trend !== 'unknown'" class="intent-context">
+                    日K{{ intradayDailyContext.daily_trend }} · {{ dailyPositionLabel }}
+                  </span>
+                  <span v-if="intradaySummary.daily_behavior?.t_bias" class="intent-context">
+                    做T：{{ intradaySummary.daily_behavior.t_bias }}
+                  </span>
                   <template v-for="(v, k) in intradaySummary.intent.all_scores" :key="k">
                     <span v-if="v > 10" class="fs11" style="color:#606266">{{ k }}{{ Math.round(v) }}%</span>
                   </template>
+                </div>
+                <div v-if="intradayShowSignals && intradaySummary?.daily_behavior?.reason" class="intent-reason">
+                  {{ intradaySummary.daily_behavior.reason }}
                 </div>
               </div>
             </div>
@@ -159,6 +213,19 @@
             <!-- 个股详情（原多tab整合为一） -->
             <el-tabs v-model="detailTab" class="mt8" type="border-card">
               <el-tab-pane label="个股详情" name="detail" lazy>
+                <div class="detail-command">
+                  <div class="detail-command-head">
+                    <div><span class="detail-kicker">STOCK BRIEF / DECISION SNAPSHOT</span><h3>{{ symbolStore.selectedRealtime.name || symbolStore.selectedSymbol }} <small>{{ symbolStore.selectedSymbol }}</small></h3></div>
+                    <el-tag v-if="czsc.current_state?.trend" :type="czsc.current_state.trend === 'up' ? 'danger' : czsc.current_state.trend === 'down' ? 'success' : 'info'">{{ czsc.current_state.trend === 'up' ? '日K多头' : czsc.current_state.trend === 'down' ? '日K空头' : '日K震荡' }}</el-tag>
+                  </div>
+                  <div class="detail-metrics">
+                    <div><span>现价</span><b class="mono">{{ fmt(symbolStore.selectedRealtime.price) }}</b><em :class="pctCls(symbolStore.selectedRealtime)">{{ symbolStore.selectedRealtime.change_pct == null ? '-' : `${symbolStore.selectedRealtime.change_pct >= 0 ? '+' : ''}${Number(symbolStore.selectedRealtime.change_pct).toFixed(2)}%` }}</em></div>
+                    <div><span>主力意图</span><b>{{ intradaySummary?.intent?.primary || '未分析' }}</b><em>{{ intradaySummary?.intent?.confidence ? `${intradaySummary.intent.confidence}%` : '切换分时分析' }}</em></div>
+                    <div><span>资金趋势</span><b>{{ flowSummary?.trend === 'inflow' ? '持续流入' : flowSummary?.trend === 'outflow' ? '持续流出' : '方向反复' }}</b><em>{{ flowSummary?.net_5d == null ? '-' : `5日 ${fmtBig(flowSummary.net_5d * 1e8)}` }}</em></div>
+                    <div><span>估值/换手</span><b>{{ finOverview?.pe ?? '-' }} PE</b><em>{{ finOverview?.turnover == null ? '-' : `${finOverview.turnover}% 换手` }}</em></div>
+                  </div>
+                  <div v-if="intradaySummary?.daily_behavior?.reason" class="detail-verdict"><span>主力依据</span>{{ intradaySummary.daily_behavior.reason }}</div>
+                </div>
                 <div v-if="czsc.current_state" class="mb8">
                   <el-tag size="small" :type="czsc.current_state.trend === 'up' ? 'danger' : czsc.current_state.trend === 'down' ? 'success' : 'info'">
                     趋势: {{ czsc.current_state.trend === 'up' ? '多头' : czsc.current_state.trend === 'down' ? '空头' : '震荡' }}
@@ -453,6 +520,35 @@
               <div class="side-panel">
                 <div class="quote-block">
                   <div class="quote-title">五档挂单 <span class="fs11" style="color:#909399">单位:手</span></div>
+                   <div v-if="orderBookSummary.bid_total || orderBookSummary.ask_total" class="ob-summary" title="委比仅反映当前五档挂单，不代表真实成交方向；主动买/卖来自逐笔成交方向，免费数据源可能存在未标注成交">
+                    <div class="ob-row">
+                      <span class="ob-label">委比</span>
+                      <span class="mono fs12" :class="orderBookSummary.wei_bi > 0 ? 'up' : orderBookSummary.wei_bi < 0 ? 'down' : ''">
+                        {{ orderBookSummary.wei_bi > 0 ? '+' : '' }}{{ orderBookSummary.wei_bi }}%
+                      </span>
+                      <span class="ob-label" style="margin-left:12px">委差</span>
+                      <span class="mono fs12" :class="orderBookSummary.wei_cha > 0 ? 'up' : orderBookSummary.wei_cha < 0 ? 'down' : ''">
+                        {{ orderBookSummary.wei_cha > 0 ? '+' : '' }}{{ orderBookSummary.wei_cha >= 10000 ? (orderBookSummary.wei_cha / 10000).toFixed(1) + '万' : orderBookSummary.wei_cha }}
+                      </span>
+                    </div>
+                    <div class="ob-row" style="margin-top:4px">
+                      <span class="ob-label">外盘</span>
+                      <span class="mono fs12 down">{{ orderBookSummary.ask_total || '-' }}</span>
+                      <span class="ob-label" style="margin-left:12px">内盘</span>
+                      <span class="mono fs12 up">{{ orderBookSummary.bid_total || '-' }}</span>
+                    </div>
+                    <div v-if="ticksSummary.outer_volume || ticksSummary.inner_volume" class="ob-row" style="margin-top:4px">
+                       <span class="ob-label">主动买/卖</span>
+                       <span class="mono fs11 up">{{ ticksSummary.outer_volume }}</span>
+                      <span style="margin:0 4px;color:#dcdfe6">/</span>
+                       <span class="mono fs11 down">{{ ticksSummary.inner_volume }}</span>
+                      <div class="ob-bar">
+                        <div class="ob-bar-outer" :style="{ width: ticksSummary.outer_pct + '%' }"></div>
+                        <div class="ob-bar-inner" :style="{ width: ticksSummary.inner_pct + '%' }"></div>
+                      </div>
+                       <span class="fs11" style="color:#909399;margin-left:4px">{{ ticksSummary.outer_pct }}% / {{ ticksSummary.inner_pct }}%</span>
+                    </div>
+                  </div>
                   <div class="order-grid">
                     <div v-for="i in 5" :key="i" class="order-row" :class="{ 'row-hl': (askBook[i-1] && askBook[i-1].__hl) || (bidBook[i-1] && bidBook[i-1].__hl) }">
                       <span class="fs11" style="color:#909399">卖{{ i }}</span>
@@ -524,6 +620,8 @@
           <el-button type="primary" @click="confirmAddGroup" :disabled="!newGroupName.trim()">确定</el-button>
         </template>
       </el-dialog>
+
+
     </div>
   </MainLayout>
 </template>
@@ -531,13 +629,15 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh, Close } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
+import { Plus, Refresh, Close, Bell, BellFilled } from '@element-plus/icons-vue'
 import MainLayout from '../layout/MainLayout.vue'
+import PageHeader from '../components/PageHeader.vue'
 import HQChartKline from '../components/HQChartKline.vue'
 import LineChart from '../components/LineChart.vue'
 import { watchlistApi, stockApi, marketApi, agentApi } from '../api'
 import { useSymbolStore } from '../stores/symbol'
+import { fmtPrice as fmt, fmtLarge as fmtBig } from '../utils/format'
 
 const route = useRoute()
 const groups = ref([])
@@ -556,6 +656,14 @@ const kline = ref([])
 const intraday = ref([])
 const intradaySignals = ref([])
 const intradaySummary = ref(null)
+const intradayDailyContext = ref(null)
+const dailyPositionLabel = computed(() => {
+  const ctx = intradayDailyContext.value || {}
+  if (ctx.near_support) return '支撑附近'
+  if (ctx.near_resistance) return '阻力附近'
+  if (ctx.position_pct != null) return `${Math.round(ctx.position_pct)}%位置`
+  return '位置未知'
+})
 const intradayShowSignals = ref(false)
 const intradayShowT = ref(false)
 const intradayFilteredSignals = computed(() => {
@@ -586,6 +694,8 @@ const bidBook = ref([])
 const askBook = ref([])
 const ticksIncremental = ref([])
 const ticksScroller = ref(null)
+const orderBookSummary = ref({ bid_total: 0, ask_total: 0, wei_bi: 0, wei_cha: 0 })
+const ticksSummary = ref({ inner_volume: 0, outer_volume: 0, inner_pct: 50, outer_pct: 50 })
 let obSeq = 0   // order-book 请求序号，防竞态
 let tickSeq = 0  // ticks 请求序号，防竞态
 const showRecent = ref(false)
@@ -594,6 +704,107 @@ const recentPriceMap = ref({})
 const recentLoading = ref(false)
 const batchMode = ref(false)
 const selectedForDelete = ref([])
+
+const ALERTS_KEY = 'stock_alerts'
+const alertPopoverVisible = ref(false)
+const alertFormType = ref('price_above')
+const alertFormThreshold = ref('')
+const alertFormEnabled = ref(true)
+
+const ALERT_TYPES = [
+  { value: 'price_above', label: '价格上穿' },
+  { value: 'price_below', label: '价格下穿' },
+  { value: 'speed_up', label: '涨速>X%/分' },
+  { value: 'speed_down', label: '跌速>X%/分' },
+  { value: 'volume_surge', label: '量比>X' },
+]
+
+function getAlerts() {
+  try { return JSON.parse(localStorage.getItem(ALERTS_KEY) || '[]') } catch { return [] }
+}
+
+function saveAlerts(list) {
+  localStorage.setItem(ALERTS_KEY, JSON.stringify(list))
+}
+
+const currentAlerts = computed(() => {
+  const sym = symbolStore.selectedSymbol
+  if (!sym) return []
+  return getAlerts().filter(a => a.symbol === sym)
+})
+
+function addAlert() {
+  const sym = symbolStore.selectedSymbol
+  const name = symbolStore.selectedRealtime?.name || sym
+  if (!sym || !alertFormThreshold.value) return
+  const threshold = Number(alertFormThreshold.value)
+  if (isNaN(threshold) || threshold <= 0) {
+    ElMessage.warning('请输入有效的阈值')
+    return
+  }
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission()
+  const alerts = getAlerts()
+  alerts.push({
+    id: crypto.randomUUID(),
+    symbol: sym,
+    name,
+    type: alertFormType.value,
+    threshold,
+    enabled: alertFormEnabled.value,
+    created_at: new Date().toISOString(),
+    triggered: false,
+  })
+  saveAlerts(alerts)
+  alertFormThreshold.value = ''
+  alertPopoverVisible.value = false
+  ElMessage.success('预警已添加')
+}
+
+function deleteAlert(id) {
+  const alerts = getAlerts().filter(a => a.id !== id)
+  saveAlerts(alerts)
+}
+
+function toggleAlertEnabled(alert) {
+  alert.enabled = !alert.enabled
+  const alerts = getAlerts().map(a => a.id === alert.id ? alert : a)
+  saveAlerts(alerts)
+}
+
+function resetAlertTriggered(id) {
+  const alerts = getAlerts().map(a => a.id === id ? { ...a, triggered: false } : a)
+  saveAlerts(alerts)
+}
+
+function checkAlerts(symbol, realtimeData) {
+  if (!realtimeData || !realtimeData.price) return
+  const alerts = getAlerts()
+  let changed = false
+  for (const alert of alerts) {
+    if (!alert.enabled || alert.triggered || alert.symbol !== symbol) continue
+    let triggered = false
+    if (alert.type === 'price_above' && Number(realtimeData.price) >= alert.threshold) triggered = true
+    if (alert.type === 'price_below' && Number(realtimeData.price) <= alert.threshold) triggered = true
+    if (alert.type === 'speed_up' && Number(realtimeData.speed || 0) >= alert.threshold) triggered = true
+    if (alert.type === 'speed_down' && Number(realtimeData.speed || 0) <= -alert.threshold) triggered = true
+    if (alert.type === 'volume_surge' && Number(realtimeData.volume_ratio || 0) >= alert.threshold) triggered = true
+    if (triggered) {
+      alert.triggered = true
+      changed = true
+      const typeLabel = alert.type.includes('price') ? '价格' : alert.type.includes('speed') ? '涨速' : '量比'
+      ElNotification({
+        title: '交易预警',
+        message: `${alert.name} ${typeLabel}达到 ${alert.threshold}`,
+        type: 'warning',
+        duration: 10000,
+      })
+      if (Notification.permission === 'granted') {
+        new Notification('交易预警', { body: `${alert.name} 触发${typeLabel}预警` })
+      }
+    }
+  }
+  if (changed) saveAlerts(alerts)
+}
 
 const RECENT_KEY = 'recent_viewed'
 const GROUP_STATE_KEY = 'watchlist_tab_state'
@@ -682,14 +893,24 @@ function addToRecent(symbol, name) {
 const currentGroup = computed(() => groups.value.find(g => g.id === currentGroupId.value) || { items: [] })
 const displayItems = computed(() => {
   if (showRecent.value) {
-    return recentList.value.map(r => ({ ...r, price: recentPriceMap.value[r.symbol]?.price, change_pct: recentPriceMap.value[r.symbol]?.change_pct }))
+    return recentList.value.map(r => {
+      const rt = recentPriceMap.value[r.symbol] || {}
+      return { ...r, price: rt.price, change_pct: rt.change_pct, volume_ratio: rt.volume_ratio, turnover_rate: rt.turnover_rate, amplitude: rt.amplitude }
+    })
   }
-  return currentGroup.value.items || []
+  const items = currentGroup.value.items || []
+  const sel = symbolStore.selectedSymbol
+  const rt = symbolStore.selectedRealtime
+  if (!sel || !rt?.price) return items
+  return items.map(item => {
+    if (item.symbol === sel) {
+      return { ...item, price: rt.price, change_pct: rt.change_pct, change: rt.change, volume_ratio: rt.volume_ratio, turnover_rate: rt.turnover_rate, amplitude: rt.amplitude }
+    }
+    return item
+  })
 })
 
-function fmt(v) { return v == null || v === '' ? '-' : Number(v).toFixed(2) }
 function fmtVol(v) { if (v == null) return '-'; const n = Number(v); return n >= 1e8 ? (n / 1e8).toFixed(2) + '亿手' : n >= 1e4 ? (n / 1e4).toFixed(2) + '万手' : n.toFixed(0) }
-function fmtBig(v) { if (v == null) return '-'; const n = Number(v); return n >= 1e8 ? (n / 1e8).toFixed(2) + '亿' : n >= 1e4 ? (n / 1e4).toFixed(2) + '万' : n.toFixed(0) }
 function pctCls(row) { return (row.change_pct || 0) >= 0 ? 'up' : 'down' }
 function pctClsObj(v) { return Number(v || 0) >= 0 ? 'up' : 'down' }
 function priceCls(p) {
@@ -704,6 +925,14 @@ function tickKey(t) {
 }
 
 function applyOrderBookIncremental(p) {
+  if (p?.bid_total != null || p?.wei_bi != null) {
+    orderBookSummary.value = {
+      bid_total: p.bid_total ?? 0,
+      ask_total: p.ask_total ?? 0,
+      wei_bi: p.wei_bi ?? 0,
+      wei_cha: p.wei_cha ?? 0,
+    }
+  }
   const bid = p?.order_book?.bid
   const ask = p?.order_book?.ask
   if (!bid && !ask) return  // 空响应不覆盖旧数据
@@ -728,6 +957,14 @@ function applyOrderBookIncremental(p) {
 }
 
 function applyTicksIncremental(p) {
+  if (p?.inner_volume != null || p?.outer_volume != null) {
+    ticksSummary.value = {
+      inner_volume: p.inner_volume ?? 0,
+      outer_volume: p.outer_volume ?? 0,
+      inner_pct: p.inner_pct ?? 50,
+      outer_pct: p.outer_pct ?? 50,
+    }
+  }
   const fresh = p?.ticks
   if (!fresh || !fresh.length) return  // 空响应不覆盖旧数据
   const rows = ticksIncremental.value
@@ -769,6 +1006,18 @@ async function loadOrderBook() {
     if (seq !== obSeq) return  // 有更新的请求在途，丢弃旧响应
     applyOrderBookIncremental(p)
   } catch { /* 保留已有增量数据 */ }
+}
+
+async function refreshSelectedRealtime() {
+  const sym = symbolStore.selectedSymbol
+  if (!sym) return
+  try {
+    const b = await stockApi.basic(sym)
+    if (b?.realtime) {
+      symbolStore.updateRealtime({ ...b.realtime, name: b.name || symbolStore.selectedRealtime.name })
+      checkAlerts(sym, { ...b.realtime, name: b.name })
+    }
+  } catch { /* ignore */ }
 }
 
 async function loadTicks() {
@@ -833,20 +1082,21 @@ function selectItem(row) {
   addToRecent(row.symbol, row.name)
   detailTab.value = 'detail'
   loadKline()
-  loadStockDetail()
+       loadStockDetail()
 }
 
-async function loadStockDetail() {
+async function loadStockDetail(basicOverride = null) {
   const sym = symbolStore.selectedSymbol
   if (!sym) return
   const [basic, czscData, formData, finData, finOv, flowData, fsData, nzData, secData, rankData, chainData] = await Promise.allSettled([
-    stockApi.basic(sym), stockApi.czsc(sym), stockApi.forms(sym),
+    basicOverride ? Promise.resolve(basicOverride) : stockApi.basic(sym), stockApi.czsc(sym), stockApi.forms(sym),
     stockApi.financial(sym), stockApi.financialOverview(sym), stockApi.moneyFlow(sym), stockApi.moneyFlowSummary(sym),
     stockApi.news(sym), stockApi.sector(sym),
     stockApi.industryRanking(sym), stockApi.industryChain(sym),
   ])
   if (basic.status === 'fulfilled' && basic.value) {
     symbolStore.updateRealtime({ ...basic.value.realtime, name: basic.value.name || symbolStore.selectedRealtime.name })
+    checkAlerts(sym, { ...basic.value.realtime, name: basic.value.name })
   }
   if (czscData.status === 'fulfilled') czsc.value = czscData.value || {}
   if (formData.status === 'fulfilled') forms.value = formData.value || []
@@ -876,6 +1126,7 @@ async function loadKline() {
     intraday.value = []
     intradaySignals.value = []
     intradaySummary.value = null
+    intradayDailyContext.value = null
     kline.value = []
   }
   _lastPeriod = period.value
@@ -889,6 +1140,7 @@ async function loadKline() {
           if (b?.realtime?.prev_close) {
             preClose = b.realtime.prev_close
             symbolStore.updateRealtime(b.realtime)
+            checkAlerts(sym, b.realtime)
           }
         } catch {}
       }
@@ -897,6 +1149,7 @@ async function loadKline() {
       intraday.value = r.bars || []
       intradaySignals.value = [...(r.signals || []), ...(r.t_signals || [])]
       intradaySummary.value = r.summary || null
+      intradayDailyContext.value = r.daily_context || null
       return
     }
     const r = await stockApi.kline(sym, { period: period.value })
@@ -998,8 +1251,8 @@ async function load(silent = false) {
     }
     if (symbolStore.selectedSymbol) {
       loadBrain()
-      loadKline()
-      loadStockDetail()
+       loadKline()
+        loadStockDetail()
     } else {
       // 自动选中第一个分组的第一个个股
       const firstGroup = groups.value.find(g => g.items?.length)
@@ -1023,8 +1276,9 @@ async function loadWithSymbol(sym) {
       const row = { symbol: sym, name: basic.name || sym, price: basic.realtime?.price, change_pct: basic.realtime?.change_pct }
       symbolStore.select(sym, row)
       addToRecent(sym, row.name)
+      checkAlerts(sym, basic.realtime || row)
       loadKline()
-      loadStockDetail()
+       loadStockDetail(basic)
     }
   } catch {}
 }
@@ -1099,7 +1353,7 @@ function removeOne(row) {
       if (symbolStore.selectedSymbol === row.symbol) symbolStore.clear()
       load()
     }))
-    .catch(() => {})
+    .catch(() => ElMessage.error('删除失败'))
 }
 
 function toggleDelete(row) {
@@ -1155,8 +1409,26 @@ function persistTabState() {
 }
 watch([currentGroupId, showRecent], persistTabState)
 
+function isTradingHours() {
+  const now = new Date()
+  const h = now.getHours(), m = now.getMinutes()
+  const t = h * 60 + m
+  return (t >= 570 && t <= 690) || (t >= 780 && t <= 900)
+}
+
+async function refreshWatchlistPrices() {
+  try {
+    const data = await watchlistApi.groups()
+    if (!data) return
+    groups.value = data
+    if (showRecent.value && recentList.value.length) loadRecentPrices()
+  } catch { /* keep existing data */ }
+}
+
 let orderBookTimer = null
 let ticksTimer = null
+let watchlistRefreshTimer = null
+let klineTimer = null
 let loaded = false
 onMounted(() => {
   restoreTabState()
@@ -1164,13 +1436,20 @@ onMounted(() => {
   if (qSym) { loadWithSymbol(qSym) } else { load() }
   loaded = true
   orderBookTimer = setInterval(() => {
-    if (symbolStore.selectedSymbol) loadKline()
-    if (symbolStore.selectedSymbol) loadOrderBook()
-    if (showRecent.value && recentList.value.length) loadRecentPrices()
+    if (symbolStore.selectedSymbol) {
+      loadOrderBook()
+      refreshSelectedRealtime()
+    }
   }, 5000)
+  klineTimer = setInterval(() => {
+    if (symbolStore.selectedSymbol) loadKline()
+  }, 30000)
   ticksTimer = setInterval(() => {
     if (symbolStore.selectedSymbol) loadTicks()
   }, 8000)
+  watchlistRefreshTimer = setInterval(() => {
+    if (isTradingHours()) refreshWatchlistPrices()
+  }, 10000)
 })
 // 路由变化时重新加载（解决导航回自选股不刷新的问题）
 watch(() => route.path, (p) => {
@@ -1180,17 +1459,17 @@ watch(() => route.path, (p) => {
     else if (!symbolStore.selectedSymbol) { load() }
   }
 })
-onUnmounted(() => { if (orderBookTimer) clearInterval(orderBookTimer); if (ticksTimer) clearInterval(ticksTimer) })
+onUnmounted(() => { if (orderBookTimer) clearInterval(orderBookTimer); if (ticksTimer) clearInterval(ticksTimer); if (watchlistRefreshTimer) clearInterval(watchlistRefreshTimer); if (klineTimer) clearInterval(klineTimer) })
 </script>
 
 <style scoped>
-.group-item { display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; }
-.group-item:hover { background: #f3f4f6; }
-.group-item.active { background: #409eff; color: #fff; box-shadow: 0 2px 6px rgba(64,158,255,.4); }
+.group-item { display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 5px; cursor: pointer; margin-bottom: 4px; border-left: 2px solid transparent; transition: .16s ease; }
+.group-item:hover { background: #f3f4f6; border-left-color: var(--c-primary); }
+.group-item.active { background: #edf3fb; color: var(--c-primary); border-left-color: var(--c-primary); box-shadow: none; font-weight: 600; }
 .group-item.active .fs12, .group-item.active .group-del, .group-item.active .el-icon { color: #fff !important; }
 .wl-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; }
 .wl-item:hover { background: #f3f4f6; }
-.wl-item.active { background: #ecf5ff; border-color: #b3d8ff; }
+.wl-item.active { background: #f0f5fb; border-color: #b8cce6; box-shadow: inset 3px 0 0 var(--c-primary); }
 .wl-line { display: flex; justify-content: space-between; align-items: center; }
 .brain-card { padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; height: 100%; }
 .brain-text { color: #303133; line-height: 1.7; max-height: 180px; overflow: auto; }
@@ -1209,7 +1488,19 @@ onUnmounted(() => { if (orderBookTimer) clearInterval(orderBookTimer); if (ticks
 .intent-bear { background: #67c23a; }
 .intent-accumulate { background: #e6a23c; }
 .intent-shakeout { background: #909399; }
+.intent-distribution { background: #e74c3c; }
 .intent-wait { background: #c0c4cc; }
+.intent-context { color: #909399; font-size: 11px; border-left: 1px solid #dcdfe6; padding-left: 8px; }
+.intent-reason { position:absolute; left:56px; top:38px; max-width:420px; color:#606266; font-size:11px; background:rgba(255,255,255,.94); padding:3px 8px; border-radius:4px; }
+.detail-command { background:linear-gradient(110deg,#f5f8fc,#fff); border:1px solid #dfe6ef; border-radius:7px; padding:13px; margin-bottom:12px; }
+.detail-command-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.detail-kicker { color:var(--c-primary); font:600 10px var(--font-mono); letter-spacing:.1em; }
+.detail-command h3 { margin-top:4px; font-size:19px; color:#18212f; }.detail-command h3 small { color:#9aa3af; font:normal 11px var(--font-mono); margin-left:5px; }
+.detail-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:13px; }
+.detail-metrics > div { background:#fff; border:1px solid #e7ebf0; border-radius:5px; padding:8px 9px; min-width:0; }
+.detail-metrics span, .detail-metrics em { display:block; color:#8b93a1; font-size:10px; font-style:normal; }.detail-metrics b { display:block; color:#253142; font:600 14px var(--font-mono); margin:4px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }.detail-metrics em { color:#606c7b; }
+.detail-verdict { margin-top:10px; padding-top:9px; border-top:1px solid #e7ebf0; color:#606c7b; font-size:11px; line-height:1.6; }.detail-verdict span { color:#9aa3af; margin-right:7px; }
+@media (max-width:820px) { .detail-metrics { grid-template-columns:repeat(2,1fr); } }
 .intraday-toolbar { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
 .quote-block { padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fafbfc; height: 100%; }
 .quote-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; }
@@ -1227,6 +1518,17 @@ onUnmounted(() => { if (orderBookTimer) clearInterval(orderBookTimer); if (ticks
                 .ticks-row .el-tag { width: 100%; justify-content: center; padding: 0; font-size: 9px; }
 .ticks-row.row-hl, .order-row.row-hl { background: #fff7e6; }
 .ticks-row:hover { background: #f7f8fa; }
+.ob-summary { padding: 6px 8px; background: #f8f9fa; border-radius: 4px; margin-bottom: 6px; }
+.ob-row { display: flex; align-items: center; gap: 4px; }
+.ob-label { font-size: 11px; color: #909399; min-width: 30px; }
+.ob-bar { flex: 1; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden; display: flex; min-width: 60px; }
+.ob-bar-outer { background: #ef232a; height: 100%; transition: width .3s; }
+.ob-bar-inner { background: #14b143; height: 100%; transition: width .3s; }
+.alert-popover .alert-list { max-height: 200px; overflow-y: auto; }
+.alert-popover .alert-item { padding: 6px 8px; border: 1px solid #eef0f3; border-radius: 6px; margin-bottom: 4px; background: #fafbfc; }
+.alert-popover .alert-item.triggered { border-color: #e6a23c; background: #fdf6ec; }
+.alert-popover .alert-item.disabled { opacity: 0.5; }
+.alert-popover .alert-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 @media (max-width: 991px) {
   .main-split { flex-direction: column; }
   .side-panel { width: 100%; max-height: none; }
