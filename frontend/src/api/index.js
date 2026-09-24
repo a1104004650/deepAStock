@@ -45,6 +45,8 @@ export const labApi = {
   researchDetail: (id) => http.get(`/lab/research/${id}`),
   runResearch: (id) => http.post(`/lab/research/${id}/run`),
   deleteResearch: (id) => http.delete(`/lab/research/${id}`),
+  // 朴素预测基线（对照契约）
+  forecastBaseline: (data) => http.post('/lab/forecast/baseline', data),
 }
 
 // 行情
@@ -73,6 +75,8 @@ export const marketApi = {
   priceMovers: (top = 8) => http.get('/market/price-movers', { params: { top } }),
   marketFlow: () => http.get('/market/market-flow'),
   marketStats: () => http.get('/market/market-stats'),
+  regime: () => http.get('/market/regime'),
+  regimeHistory: (days = 20) => http.get('/market/regime/history', { params: { days } }),
   regulatory: () => http.get('/market/regulatory'),
   investCalendar: () => http.get('/market/invest-calendar'),
   dragonTigerSeats: (tradeDate) => http.get('/market/dragon-tiger/seats', { params: { trade_date: tradeDate } }),
@@ -213,6 +217,8 @@ export const rssApi = {
 // 策略回测
 export const backtestApi = {
   run: (data) => http.post('/backtest/run', data),
+  sensitivity: (data) => http.post('/backtest/sensitivity', data),
+  walkForward: (data) => http.post('/backtest/walk-forward', data),
   strategies: () => http.get('/backtest/strategies'),
   createStrategy: (data) => http.post('/backtest/strategies', data),
   updateStrategy: (id, data) => http.put(`/backtest/strategies/${id}`, data),

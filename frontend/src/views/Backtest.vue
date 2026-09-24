@@ -2,7 +2,7 @@
   <MainLayout>
     <div class="page">
       <div class="flex between" style="align-items:center;margin-bottom:10px">
-         <div><h2 style="font-size:18px">策略回测</h2><span class="fs12" style="color:#909399">Python脚本驱动 · 日线事件回测 · 不使用未来数据</span></div>
+         <div><h2 style="font-size:18px">策略回测</h2><span class="fs12" style="color:#909399">Python脚本驱动 · T日收盘生成信号 · T+1日开盘成交</span></div>
         <el-button size="small" @click="openManager">策略管理（编辑 / 新增 / 自己写）</el-button>
       </div>
 
@@ -132,6 +132,10 @@
               <el-button type="primary" :loading="running" style="width:100%" @click="run">
                 {{ running ? '回测中…' : '开始回测' }}
               </el-button>
+              <div class="flex gap8 mt8">
+                <el-button size="small" style="flex:1" :loading="sensRunning" @click="runSensitivity">参数敏感性</el-button>
+                <el-button size="small" style="flex:1" :loading="wfRunning" @click="runWalkForward">时间留出验证</el-button>
+              </div>
             </el-form>
           </div>
         </el-col>
@@ -141,6 +145,9 @@
             <div class="flex between" style="align-items:center;margin-bottom:10px">
               <span class="fs14 bold">{{ result.symbol }} · {{ result.strategy_name }}</span>
               <span class="fs12" style="color:#909399">{{ result.start_date }} ~ {{ result.end_date }} · {{ result.metrics.bars }} 个交易日</span>
+            </div>
+            <div v-if="result.data_window && !result.data_window.complete" class="coverage-warning">
+              实际数据覆盖 {{ result.data_window.actual_start || '-' }} ~ {{ result.data_window.actual_end || '-' }}，短于请求区间；结果只基于实际取得的数据。
             </div>
             <el-row :gutter="8" class="mb8">
               <el-col v-for="m in metricCards" :key="m.label" :xs="12" :sm="8" :md="4">
@@ -186,6 +193,90 @@
           </div>
           <div v-else class="card">
             <el-empty description="配置左侧参数后点击「开始回测」" :image-size="90" />
+          </div>
+
+          <!-- 参数敏感性 -->
+          <div v-if="sensitivity" class="card mt8">
+            <div class="flex between" style="align-items:center;margin-bottom:8px">
+              <span class="fs14 bold">参数敏感性 · {{ sensitivity.param_key }}</span>
+              <el-tag v-if="sensitivity.summary?.sensitive" size="small" type="warning">参数敏感</el-tag>
+              <el-tag v-else-if="sensitivity.summary" size="small" type="success">相对稳健</el-tag>
+            </div>
+            <div v-if="sensitivity.summary" class="fs12" style="color:#909399;margin-bottom:8px">
+              扫描 {{ sensitivity.summary.n_points }} 点 · 收益均值 {{ (sensitivity.summary.return_mean * 100).toFixed(2) }}% ·
+              Sharpe [{sensitivity.summary.sharpe_min}, {sensitivity.summary.sharpe_max}] ·
+              最优 {{ sensitivity.summary.best_value }} / 最差 {{ sensitivity.summary.worst_value }}
+            </div>
+            <el-table :data="sensitivity.rows" size="small" max-height="240">
+              <el-table-column :label="sensitivity.param_key" width="100">
+                <template #default="{ row }"><span class="mono">{{ row.param_value }}</span></template>
+              </el-table-column>
+              <el-table-column label="累计收益" width="100" align="right">
+                <template #default="{ row }">
+                  <span v-if="row.metrics" :class="row.metrics.total_return >= 0 ? 'up' : 'down'">{{ (row.metrics.total_return * 100).toFixed(2) }}%</span>
+                  <span v-else style="color:#c0c4cc">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="Sharpe" width="90" align="right">
+                <template #default="{ row }"><span v-if="row.metrics" class="mono">{{ row.metrics.sharpe?.toFixed(2) }}</span><span v-else>-</span></template>
+              </el-table-column>
+              <el-table-column label="最大回撤" width="100" align="right">
+                <template #default="{ row }"><span v-if="row.metrics" class="down">{{ (row.metrics.max_drawdown * 100).toFixed(1) }}%</span><span v-else>-</span></template>
+              </el-table-column>
+              <el-table-column label="交易数" width="80" align="right">
+                <template #default="{ row }">{{ row.metrics?.trade_count ?? '-' }}</template>
+              </el-table-column>
+              <el-table-column label="胜率" width="80" align="right">
+                <template #default="{ row }">{{ row.metrics ? (row.metrics.win_rate * 100).toFixed(0) + '%' : '-' }}</template>
+              </el-table-column>
+              <el-table-column label="错误" min-width="120">
+                <template #default="{ row }"><span v-if="row.error" style="color:#f56c6c">{{ row.error }}</span></template>
+              </el-table-column>
+            </el-table>
+            <div v-if="sensitivity.summary?.basis" class="fs11 mt4" style="color:#c0c4cc">{{ sensitivity.summary.basis }}</div>
+          </div>
+
+          <!-- Walk-forward 时间留出 -->
+          <div v-if="walkForward" class="card mt8">
+            <div class="flex between" style="align-items:center;margin-bottom:8px">
+              <span class="fs14 bold">Walk-Forward 时间留出 · {{ walkForward.n_splits }} 折</span>
+              <el-tag v-if="walkForward.summary?.stable" size="small" type="success">OOS 稳健</el-tag>
+              <el-tag v-else-if="walkForward.summary" size="small" type="danger">OOS 不稳健 / 过拟合风险</el-tag>
+            </div>
+            <div v-if="walkForward.summary" class="fs12" style="color:#909399;margin-bottom:8px">
+              留出段平均收益 {{ (walkForward.summary.oos_return_mean * 100).toFixed(2) }}% ·
+              正收益折数 {{ walkForward.summary.oos_positive_folds }}/{{ walkForward.summary.n_folds }} ·
+              平均 Sharpe {{ walkForward.summary.oos_sharpe_mean }}
+              <span v-if="walkForward.optimize_param"> · 训练选参: {{ walkForward.optimize_param }}</span>
+            </div>
+            <el-table :data="walkForward.folds" size="small" max-height="260">
+              <el-table-column label="折" width="50" prop="fold" />
+              <el-table-column label="留出区间" min-width="160">
+                <template #default="{ row }"><span class="mono fs11">{{ row.oos_range?.join(' ~ ') }}</span></template>
+              </el-table-column>
+              <el-table-column label="选参" width="90">
+                <template #default="{ row }"><span class="mono">{{ Object.values(row.chosen_params || {})[0] ?? '-' }}</span></template>
+              </el-table-column>
+              <el-table-column label="训练Sharpe" width="100" align="right">
+                <template #default="{ row }">{{ row.train_sharpe != null ? row.train_sharpe : '-' }}</template>
+              </el-table-column>
+              <el-table-column label="OOS收益" width="100" align="right">
+                <template #default="{ row }">
+                  <span v-if="row.oos_total_return != null" :class="row.oos_total_return >= 0 ? 'up' : 'down'">{{ (row.oos_total_return * 100).toFixed(2) }}%</span>
+                  <span v-else style="color:#c0c4cc">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="OOS Sharpe" width="100" align="right">
+                <template #default="{ row }">{{ row.oos_sharpe != null ? row.oos_sharpe.toFixed(2) : '-' }}</template>
+              </el-table-column>
+              <el-table-column label="OOS回撤" width="90" align="right">
+                <template #default="{ row }"><span v-if="row.oos_max_drawdown != null" class="down">{{ (row.oos_max_drawdown * 100).toFixed(1) }}%</span><span v-else>-</span></template>
+              </el-table-column>
+              <el-table-column label="交易数" width="70" align="right">
+                <template #default="{ row }">{{ row.oos_trade_count ?? '-' }}</template>
+              </el-table-column>
+            </el-table>
+            <div v-if="walkForward.summary?.basis" class="fs11 mt4" style="color:#c0c4cc">{{ walkForward.summary.basis }}</div>
           </div>
         </el-col>
       </el-row>
@@ -299,7 +390,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
 import MainLayout from '../layout/MainLayout.vue'
-import { backtestApi, stockApi, watchlistApi, marketApi } from '../api'
+import { backtestApi, stockApi, watchlistApi } from '../api'
 
 const mode = ref('single')
 const form = reactive({
@@ -314,6 +405,10 @@ const strategies = ref([])
 const paramsInputs = reactive({})
 const result = ref(null)
 const running = ref(false)
+const sensRunning = ref(false)
+const wfRunning = ref(false)
+const sensitivity = ref(null)
+const walkForward = ref(null)
 const searchResults = ref([])
 const searchLoading = ref(false)
 
@@ -337,6 +432,8 @@ const metricCards = computed(() => {
   return [
     { label: '累计收益', value: ((m.total_return * 100).toFixed(2)) + '%', cls: pctCls(m.total_return) },
     { label: '年化收益', value: ((m.annualized_return * 100).toFixed(2)) + '%', cls: pctCls(m.annualized_return) },
+    { label: '基准收益', value: result.value.benchmark?.available ? ((result.value.benchmark.total_return * 100).toFixed(2)) + '%' : '-', cls: result.value.benchmark?.total_return >= 0 ? 'up' : 'down' },
+    { label: '超额收益', value: m.excess_return == null ? '-' : ((m.excess_return * 100).toFixed(2)) + '%', cls: pctCls(m.excess_return || 0) },
     { label: '最大回撤', value: ((m.max_drawdown * 100).toFixed(2)) + '%', cls: 'down' },
     { label: 'Sharpe', value: m.sharpe?.toFixed(2) || '-', cls: m.sharpe > 1 ? 'up' : m.sharpe > 0 ? 'flat' : 'down' },
     { label: 'Sortino', value: m.sortino?.toFixed(2) || '-', cls: m.sortino > 1 ? 'up' : m.sortino > 0 ? 'flat' : 'down' },
@@ -356,7 +453,6 @@ const metricCards = computed(() => {
 
 const chartEl = ref(null)
 let chart = null
-const benchmarkData = ref([])
 
 function fmtNum(v) {
   return Number(v).toLocaleString('zh-CN', { maximumFractionDigits: 2 })
@@ -388,13 +484,8 @@ function renderChart(curve) {
   const dates = curve.map(c => c.dt)
   const equities = curve.map(c => c.equity)
   // 归一化基准为1
-  const benchDates = benchmarkData.value.map(b => b.dt)
-  const benchVals = benchmarkData.value.map(b => b.close)
-  let benchNorm = []
-  if (benchVals.length > 0) {
-    const base = benchVals[0]
-    benchNorm = benchVals.map(v => equities[0] * v / base)
-  }
+  const benchmarkMap = new Map((result.value?.benchmark?.equity_curve || []).map(b => [b.dt, b.equity]))
+  const benchNorm = dates.map(dt => benchmarkMap.get(dt) ?? null)
   // 找最大回撤位置
   let peak = 0, maxDd = 0, ddStart = 0, ddEnd = 0
   let pIdx = 0
@@ -436,7 +527,7 @@ function renderChart(curve) {
     ]) },
     markPoint: { data: markPoints, animation: false }
   }]
-  if (benchNorm.length) {
+  if (result.value?.benchmark?.available) {
     series.push({
       name: '沪深300',
       type: 'line',
@@ -490,17 +581,71 @@ async function run() {
        initial_capital: form.initial_capital,
        ...execution
     })
-    // 获取沪深300基准
-    benchmarkData.value = []
-    try {
-      const benchKline = await marketApi.kline({ symbol: 'SH000300', period: 'day', start: range.value[0], end: range.value[1] })
-      benchmarkData.value = (benchKline?.data || []).map(k => ({ dt: k.dt, close: k.close }))
-    } catch { benchmarkData.value = [] }
     requestAnimationFrame(() => renderChart(result.value.equity_curve || []))
   } catch (e) {
     ElMessage.error(e?.response?.data?.detail || e?.message || '回测失败')
   } finally {
     running.value = false
+  }
+}
+
+function basePayload() {
+  if (mode.value === 'portfolio') {
+    if (!form.symbols?.length) { ElMessage.warning('请先选择至少一只组合股票'); return null }
+  } else if (!form.symbol) {
+    ElMessage.warning('请先选择股票'); return null
+  }
+  if (!range.value?.length) { ElMessage.warning('请选择时间区间'); return null }
+  if (!form.strategy) { ElMessage.warning('请选择策略'); return null }
+  return {
+    symbol: mode.value === 'single' ? form.symbol : '',
+    symbols: mode.value === 'portfolio' ? form.symbols : [],
+    strategy: form.strategy,
+    strategy_id: activeStrategy.value?.id,
+    params: { ...paramsInputs },
+    start_date: range.value[0],
+    end_date: range.value[1],
+    initial_capital: form.initial_capital,
+    ...execution
+  }
+}
+
+async function runSensitivity() {
+  const payload = basePayload()
+  if (!payload) return
+  const numeric = activeSchema.value.filter(p => p.type === 'int' || p.type === 'number')
+  if (!numeric.length) { ElMessage.warning('当前策略没有可扫描的数值参数'); return }
+  const key = numeric[0].key
+  sensRunning.value = true
+  sensitivity.value = null
+  try {
+    sensitivity.value = await backtestApi.sensitivity({ ...payload, param_key: key })
+    ElMessage.success('敏感性扫描完成')
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.detail || e?.message || '敏感性分析失败')
+  } finally {
+    sensRunning.value = false
+  }
+}
+
+async function runWalkForward() {
+  const payload = basePayload()
+  if (!payload) return
+  const numeric = activeSchema.value.filter(p => p.type === 'int' || p.type === 'number')
+  wfRunning.value = true
+  walkForward.value = null
+  try {
+    walkForward.value = await backtestApi.walkForward({
+      ...payload,
+      n_splits: 4,
+      optimize_param: numeric[0]?.key || '',
+      optimize_values: []
+    })
+    ElMessage.success('时间留出验证完成')
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.detail || e?.message || 'walk-forward 失败')
+  } finally {
+    wfRunning.value = false
   }
 }
 
@@ -633,6 +778,9 @@ onBeforeUnmount(() => {
   background: #fafbfc;
   margin-bottom: 4px;
 }
+.coverage-warning { margin-bottom:8px; padding:8px 10px; color:#765411; background:#fff8e6; border:1px solid #e9c46a; font-size:11px; line-height:1.5; }
+.gap8 { gap: 8px; }
+.mt8 { margin-top: 8px; }
 .execution-fields { display:flex; gap:6px; width:100%; }.execution-fields .el-input-number { width:50%; }
 .strategy-layout { display: flex; gap: 12px; align-items: flex-start; }
 .strategy-list { width: 260px; flex-shrink: 0; }

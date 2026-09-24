@@ -21,7 +21,13 @@
           </template>
           <span class="ov-item">
             <span class="ov-name">情绪</span>
-            <el-tag :type="emotion.tagType" size="small">{{ emotion.label }}</el-tag>
+            <el-tag :type="emotion.tagType" size="small" :title="emotion.basis || ''">{{ emotion.label }}</el-tag>
+            <el-link
+              v-if="regime?.stage?.label"
+              type="primary" :underline="false" class="fs11"
+              style="margin-left:4px"
+              @click="$router.push('/regime')"
+            >周期 →</el-link>
           </span>
           <span class="ov-sep" />
           <span class="ov-item">
@@ -146,6 +152,17 @@
               <span class="fs12" style="color:#909399">连板高度 <b>{{ maxBoard }}</b></span>
               <el-divider direction="vertical" />
               <span class="fs12" style="color:#606266">A股成交 <b class="mono">{{ fmtMoney(distribution.amount) }}</b></span>
+            </div>
+            <div v-if="regimeStageStrip.length" class="regime-mini mt4" title="近10日周期阶段评分（regime）">
+              <span class="fs11" style="color:#909399;margin-right:6px">阶段</span>
+              <el-tag
+                v-for="(r, i) in regimeStageStrip" :key="i"
+                size="small" effect="plain"
+                :type="r.score >= 65 ? 'danger' : r.score <= 25 ? 'info' : 'warning'"
+                :title="`${r.date} · ${r.label} · ${r.score}`"
+                style="margin-right:4px"
+              >{{ r.label }} {{ r.score }}</el-tag>
+              <el-link type="primary" :underline="false" class="fs11" @click="$router.push('/regime')">详情</el-link>
             </div>
             <div class="flex gap mt8" style="flex-wrap:wrap">
               <div class="stat-item">
@@ -1062,29 +1079,86 @@ const emotion = computed(() => {
   const limDown = distribution.value.limit_down || 0
   const breadth = up - down
   const risk = limUp - limDown
-  if (breadth > 200 && risk > 0) return { label: '情绪偏强 · 赚钱效应好', tagType: 'danger' }
-  if (breadth > 0 && risk >= 0) return { label: '震荡偏强', tagType: 'warning' }
-  if (breadth < -200 && risk < 0) return { label: '情绪冰点 · 亏钱效应', tagType: 'info' }
-  if (breadth < 0) return { label: '震荡偏弱', tagType: 'info' }
-  return { label: '多空均衡', tagType: 'success' }
+
+  // 周期阶段优先（regime 口径：宽度35/涨停结构30/接力20/轮动15，缺项降置信度）
+  const st = regime.value?.stage
+  const score = regime.value?.score
+  if (st?.label && score != null) {
+    const toneMap = {
+      climax: 'danger', markup: 'danger', start: 'warning',
+      repair: 'success', decline: 'info', ice: 'info', unknown: 'info'
+    }
+    return {
+      label: `${st.label} · ${score}`,
+      tagType: toneMap[st.code] || 'success',
+      regime: { stage: st, score, confidence: regime.value?.confidence, delta: regime.value?.score_delta },
+      basis: regime.value?.methodology || '市场状态=周期阶段(regime)为主，结合当日涨跌宽度与涨跌停结构'
+    }
+  }
+
+  // 无 regime 时退回宽度启发式（旧口径，明确标注）
+  if (breadth > 200 && risk > 0) return { label: '情绪偏强 · 赚钱效应好', tagType: 'danger', basis: '涨跌宽度+涨跌停结构（启发式）' }
+  if (breadth > 0 && risk >= 0) return { label: '震荡偏强', tagType: 'warning', basis: '涨跌宽度+涨跌停结构（启发式）' }
+  if (breadth < -200 && risk < 0) return { label: '情绪冰点 · 亏钱效应', tagType: 'info', basis: '涨跌宽度+涨跌停结构（启发式）' }
+  if (breadth < 0) return { label: '震荡偏弱', tagType: 'info', basis: '涨跌宽度+涨跌停结构（启发式）' }
+  return { label: '多空均衡', tagType: 'success', basis: '涨跌宽度+涨跌停结构（启发式）' }
 })
+
+const regime = ref(null)
+const regimeHistory = ref([])
+const regimeTrend = computed(() => {
+  const rows = (regimeHistory.value || []).slice(-7)
+  if (rows.length < 2) return ''
+  const scores = rows.map(r => Number(r.score)).filter(n => Number.isFinite(n))
+  if (scores.length < 2) return ''
+  const d = scores[scores.length - 1] - scores[0]
+  if (d >= 8) return `近${scores.length}日评分 +${d.toFixed(1)}，阶段回升`
+  if (d <= -8) return `近${scores.length}日评分 ${d.toFixed(1)}，阶段回落`
+  return `近${scores.length}日评分 ${d >= 0 ? '+' : ''}${d.toFixed(1)}，阶段震荡`
+})
+const regimeStageStrip = computed(() => {
+  const rows = (regimeHistory.value || []).slice(-10)
+  return rows.map(r => ({ date: (r.trade_date || r.date || '').slice(5), score: r.score, label: r.stage?.label || r.stage_label || '-' }))
+})
+
+async function loadRegime() {
+  try {
+    const [cur, hist] = await Promise.all([
+      marketApi.regime().catch(() => null),
+      marketApi.regimeHistory(20).catch(() => [])
+    ])
+    regime.value = cur || null
+    regimeHistory.value = Array.isArray(hist) ? hist : []
+  } catch { /* 保留旧数据 */ }
+}
 
 // ---- 轻量 AI 点评（启发式，无需 LLM Key；随行情自动更新） ----
 const stateComment = computed(() => {
+  const parts = []
+  if (regime.value?.stage?.label && regime.value?.score != null) {
+    parts.push(`周期阶段【${regime.value.stage.label}】评分 ${regime.value.score}`)
+    if (regime.value.previous_score != null) {
+      const d = regime.value.score - regime.value.previous_score
+      parts.push(`较前值 ${d >= 0 ? '+' : ''}${d.toFixed(1)}`)
+    }
+    if (regimeTrend.value) parts.push(regimeTrend.value)
+    if (regime.value.confidence != null) parts.push(`置信度 ${Math.round(regime.value.confidence * 100)}%`)
+    parts.push('口径=宽度/涨停结构/接力/轮动四分项加权，缺项降置信度，不伪装中性')
+  }
   const up = distribution.value.up_count || 0
   const down = distribution.value.down_count || 0
   const limUp = distribution.value.limit_up || 0
   const limDown = distribution.value.limit_down || 0
-  if (!up && !down) return ''
-  const breadth = up - down
-  const parts = []
-  if (breadth > 300) parts.push(`普涨格局，上涨 ${up} 家远超下跌 ${down} 家，短线做多气氛浓`)
-  else if (breadth < -300) parts.push(`大面积下跌（${down}家），情绪偏冰点，谨慎追高`)
-  else if (breadth > 100) parts.push(`涨多跌少（${up}↑/${down}↓），结构偏强`)
-  else if (breadth < -100) parts.push(`跌多涨少（${up}↑/${down}↓），注意回撤风险`)
-  else parts.push('涨跌互现，多空均衡，宜选强弃弱')
-  if (limUp >= 10 && limDown === 0) parts.push('涨停潮无跌停，赚钱效应极佳')
-  else if (limDown > limUp) parts.push(`跌停(${limDown})多于涨停(${limUp})，风险偏好下降`)
+  if (up || down) {
+    const breadth = up - down
+    if (breadth > 300) parts.push(`当日普涨（${up}/${down}）`)
+    else if (breadth < -300) parts.push(`当日大面积下跌（${down}家），谨慎追高`)
+    else if (breadth > 100) parts.push(`涨多跌少（${up}↑/${down}↓）`)
+    else if (breadth < -100) parts.push(`跌多涨少（${up}↑/${down}↓）`)
+    else parts.push('涨跌互现')
+    if (limUp >= 10 && limDown === 0) parts.push('涨停潮无跌停')
+    else if (limDown > limUp) parts.push(`跌停(${limDown})>涨停(${limUp})`)
+  }
   return parts.join('；')
 })
 const flowComment = computed(() => {
@@ -1287,7 +1361,8 @@ async function load() {
       loadMarketFlow(),
       loadCalendar(),
       loadRegulatory(),
-      loadMarketStats()
+      loadMarketStats(),
+      loadRegime()
     ])
   } finally {
     loading.value = false
@@ -1311,7 +1386,8 @@ async function refreshAll() {
     loadMarketFlow(),
     loadCalendar(),
     loadRegulatory(),
-    loadMarketStats()
+    loadMarketStats(),
+    loadRegime()
   ])
 }
 
@@ -1329,6 +1405,19 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.regime-mini {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+}
+.regime-mini .el-tag {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .overview-bar {
   display: flex;
   align-items: center;

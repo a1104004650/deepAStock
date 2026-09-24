@@ -1335,7 +1335,15 @@ async function addStock(row) {
   try {
     const resp = await watchlistApi.addItem({ group_id: currentGroupId.value, symbol: row.symbol, name: row.name })
     if (resp && resp.ok === false) {
-      if (resp.error === 'already_exists') ElMessage.warning(`${row.name} 已在自选中`)
+      if (resp.error === 'already_exists') {
+        await load(true)
+        showRecent.value = false
+        const group = groups.value.find(g => g.id === currentGroupId.value)
+        const existing = (group?.items || []).find(item => item.symbol === row.symbol)
+        searchDialog.value = false
+        if (existing) selectItem(existing)
+        ElMessage.warning(`${row.name} 已在「${group?.name || '当前分组'}」中，已为你定位`)
+      }
       else ElMessage.error(resp.message || resp.error || '添加失败，请稍后重试')
       return
     }

@@ -203,7 +203,7 @@ async def _build_stock_context(db: AsyncSession, symbol: str) -> AgentContext:
 @router.get("/")
 async def list_agents(db: AsyncSession = Depends(get_db)):
     await ensure_default_agents(db)
-    return await get_agent_configs(db)
+    return await get_agent_configs(db, expose_secrets=False)
 
 
 @router.post("/")
@@ -221,6 +221,8 @@ async def update_agent(agent_id: int, body: AgentConfigUpdate, db: AsyncSession 
     if not cfg:
         raise HTTPException(404, "agent not found")
     for k, v in body.model_dump(exclude_none=True).items():
+        if k == "api_key" and not v:
+            continue
         setattr(cfg, k, v)
     await db.commit()
     return {"ok": True}

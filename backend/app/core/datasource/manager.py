@@ -64,12 +64,20 @@ class DataSourceManager:
             # 分钟K线实时性强，不走数据库缓存
             return await self._call("get_klines", symbol, period, None, None) or []
         cached = await self._load_klines_db(symbol, period)
+
+        def _in_range(rows: list[dict]) -> list[dict]:
+            start_s = start.isoformat() if start else None
+            end_s = end.isoformat() if end else None
+            return [row for row in (rows or [])
+                    if (not start_s or str(row.get("dt")) >= start_s)
+                    and (not end_s or str(row.get("dt")) <= end_s)]
+
         if cached:
             last_date = cached[-1]["dt"]
             today = date.today()
             # 若缓存已经包含今天，直接返回
             if last_date >= today.isoformat() if isinstance(last_date, str) else last_date >= today:
-                return cached
+                return _in_range(cached)
 
         # 请求增量
         start_date = date.today() - timedelta(days=400) if not start else start
@@ -80,7 +88,7 @@ class DataSourceManager:
 
         # 合并
         merged = self._merge(cached, new_data)
-        return merged or new_data
+        return _in_range(merged or new_data)
 
     async def get_realtime(self, symbols: list[str]) -> dict[str, dict]:
         ans = await self._call("get_realtime", list(dict.fromkeys(symbols)))

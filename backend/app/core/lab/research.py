@@ -138,14 +138,14 @@ class ResearchTeamEngine:
             task.progress = 50
             await self.db.commit()
 
-            await self._stage2_discuss(task, analysts, research_reports, stock_data)
+            discussion_reports = await self._stage2_discuss(task, analysts, research_reports, stock_data)
 
             # Stage 3: 综合报告
             task.stage = "report"
             task.progress = 80
             await self.db.commit()
 
-            final_report = await self._stage3_report(task, analysts, research_reports, stock_data)
+            final_report = await self._stage3_report(task, analysts, research_reports, discussion_reports, stock_data)
 
             # 完成
             task.status = "completed"
@@ -239,8 +239,9 @@ class ResearchTeamEngine:
         analysts: List[LabAnalyst],
         research_reports: Dict[int, Dict],
         stock_data: Dict
-    ):
+    ) -> Dict[int, Dict]:
         """Stage 2: 交叉质询"""
+        discussions = {}
         for analyst in analysts:
             if analyst.id not in research_reports:
                 continue
@@ -286,6 +287,7 @@ class ResearchTeamEngine:
                     )
 
                     if result:
+                        discussions[analyst.id] = result
                         report = LabAnalystReport(
                             task_id=task.id,
                             analyst_id=analyst.id,
@@ -305,11 +307,13 @@ class ResearchTeamEngine:
 
             except Exception as e:
                 logger.warning(f"Analyst {analyst.name} discuss failed: {e}")
+        return discussions
 
     async def _stage3_report(
         self, task: LabResearchTask,
         analysts: List[LabAnalyst],
         research_reports: Dict[int, Dict],
+        discussion_reports: Dict[int, Dict],
         stock_data: Dict
     ) -> Optional[LabResearchReport]:
         """Stage 3: 生成综合报告"""
@@ -325,6 +329,7 @@ class ResearchTeamEngine:
                     "score": content.get("score", 5),
                     "reasoning": content.get("reasoning", ""),
                     "concerns": content.get("concerns", []),
+                    "discussion": discussion_reports.get(analyst.id, {}),
                 })
 
         # 找综合分析师(overall角色)
@@ -336,7 +341,7 @@ class ResearchTeamEngine:
             return None
 
         stock_context = self._format_stock_context(task, stock_data)
-        prompt = f"""请综合以下分析师的报告, 生成最终研究报告。
+        prompt = f"""请综合以下分析师的原始报告和交叉质询结果，生成最终研究报告。分歧必须来自实际质询内容，不得凭空构造；每条结论必须给出可核验的数据依据（evidence）；必须给出风险反方（bear_case，即反驳多头/看多逻辑的论据）；最后给出结构化最终决策（final_decision）。
 
 股票: {task.symbol} ({task.stock_name or ''})
 
@@ -352,12 +357,23 @@ class ResearchTeamEngine:
   "technical_score": 6.0,
   "sentiment_score": 5.5,
   "overall_score": 6.3,
-  "recommendation": "中性",
+  "recommendation": "强烈推荐/推荐/中性/谨慎/回避",
   "target_price_low": 100.0,
   "target_price_high": 120.0,
   "risk_factors": ["风险1", "风险2"],
   "consensus": ["共识点1", "共识点2"],
   "divergences": ["分歧点1"],
+  "evidence": [{{"point": "结论", "basis": "数据/事实依据", "source": "分析师名或行情字段"}}],
+  "bear_case": [{{"argument": "反方论据", "strength": "强/中/弱", "trigger": "何种情况下成立"}}],
+  "final_decision": {{
+    "action": "买入/加仓/持有/减仓/观望/清仓",
+    "horizon": "短线/波段/中期",
+    "entry_zone": "建议介入区间或条件",
+    "stop_loss": "失效条件/止损位",
+    "position_hint": "轻仓/半仓/重仓/空仓",
+    "confidence": 0.6,
+    "rationale": "一句话决策理由"
+  }},
   "full_report": "完整的Markdown格式报告..."
 }}"""
 
@@ -395,6 +411,9 @@ class ResearchTeamEngine:
                     risk_factors=result.get("risk_factors", []),
                     consensus=result.get("consensus", []),
                     divergences=result.get("divergences", []),
+                    evidence=result.get("evidence", []),
+                    bear_case=result.get("bear_case", []),
+                    final_decision=result.get("final_decision") or {},
                     full_report=result.get("full_report", ""),
                 )
                 self.db.add(report)

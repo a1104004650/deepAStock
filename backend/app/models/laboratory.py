@@ -195,5 +195,8 @@ class LabResearchReport(Base):
     risk_factors: Mapped[dict] = mapped_column(JSON, nullable=True)
     consensus: Mapped[dict] = mapped_column(JSON, nullable=True)
     divergences: Mapped[dict] = mapped_column(JSON, nullable=True)
+    evidence: Mapped[dict] = mapped_column(JSON, nullable=True)
+    bear_case: Mapped[dict] = mapped_column(JSON, nullable=True)
+    final_decision: Mapped[dict] = mapped_column(JSON, nullable=True)
     full_report: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: shanghai_now())

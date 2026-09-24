@@ -316,16 +316,18 @@ class ReplayEngine:
             select(ReplayReport).order_by(ReplayReport.date.desc()).limit(days)
         )).scalars().all()
         result = []
-        prev_limit_up = 0
         prev_first_symbols = set()
         prev_multi_symbols = set()
-        for r in reversed(rows):
+        for index, r in enumerate(reversed(rows)):
             ms = r.market_summary or {}
             la = r.limit_analysis or {}
             ladder = (la.get("ladder") or {}).get("ladder") or {}
             total_limit = ms.get("limit_up_count", 0)
             # 跌停数从distribution获取
             dist = ms.get("distribution") or {}
+            total = int(dist.get("total") or 0)
+            up_count = int(dist.get("up_count") or 0)
+            down_count = int(dist.get("down_count") or 0)
             limit_down = dist.get("limit_down", 0) or dist.get("limit_down_count", 0)
             multi_board = 0
             first_symbols = set()
@@ -356,6 +358,12 @@ class ReplayEngine:
             )[:5]
             result.append({
                 "date": r.date.isoformat(),
+                "up_count": up_count,
+                "down_count": down_count,
+                "flat_count": int(dist.get("flat_count") or 0),
+                "total": total,
+                "up_ratio": round(up_count / total * 100, 1) if total else 0,
+                "amount": dist.get("amount", 0),
                 "limit_up": total_limit,
                 "limit_down": limit_down,
                 "multi_board": multi_board,
@@ -366,9 +374,9 @@ class ReplayEngine:
                 "broken": broken,
                 "consecutive_rate": consecutive_rate,
                 "broken_rate": broken_rate,
+                "has_previous": index > 0,
                 "top_sectors": [{"name": s.get("sector_name"), "limit_up": s.get("limit_up_count", 0), "net_inflow": s.get("net_inflow", 0)} for s in top_sectors],
             })
-            prev_limit_up = total_limit
             prev_first_symbols = first_symbols
             prev_multi_symbols = multi_symbols
         return result

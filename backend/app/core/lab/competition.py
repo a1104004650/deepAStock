@@ -754,12 +754,12 @@ class CompetitionEngine:
 
     async def _ai_generate_intents(
         self, participant: LabParticipant, context: Dict[str, Any], round_num: int
-    ) -> List[Dict]:
+    ) -> Dict[str, Any]:
         """
         AI只生成交易意图(intents)，不负责可行性验证。
         平台会负责：风控校验、资金计算、T+1检查、撮合。
 
-        返回: [{"symbol": "600519", "action": "buy", "quantity": 600, "reason": "..."}]
+        返回: {"intents": [...], "analysis": "...", "summary": "..."}
         """
         system_prompt = participant.system_prompt or self._default_system_prompt()
 
@@ -863,7 +863,7 @@ class CompetitionEngine:
             )
             logger.warning(f"AI intent generation failed for {participant.name}: {e}")
 
-        return []
+        return {"intents": [], "analysis": "", "summary": "", "error": "AI意图生成失败"}
 
     # ==================== 手动触发（兼容旧接口） ====================
 
@@ -963,8 +963,8 @@ class CompetitionEngine:
         context = await self._build_trading_context(participant, positions, pool, competition)
 
         # 生成分析（不生成交易指令）
-        intents = await self._ai_generate_intents(participant, context, 1)
-        await self._chat_post(participant, intents, [])
+        ai_result = await self._ai_generate_intents(participant, context, 1)
+        await self._chat_post(participant, ai_result.get("intents", []), [])
 
         return {"success": True, "trades": 0}
 

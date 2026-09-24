@@ -6,6 +6,7 @@ from app.core.agent.research_agent import ResearchAgent, PROMPT_RESEARCH
 from app.core.agent.short_term_agent import ShortTermAgent, PROMPT_SHORT_TERM
 from app.core.agent.swing_agent import SwingAgent, PROMPT_SWING
 from app.models.agent import AgentConfig
+from app.config import settings
 
 AGENT_CLASSES = {
     "research": ResearchAgent,
@@ -13,9 +14,9 @@ AGENT_CLASSES = {
     "swing": SwingAgent,
 }
 
-LLM_API_BASE = "https://developer.amd.com.cn/radeon/api/v1"
-LLM_MODEL = "DeepSeek-V4-Flash"
-LLM_API_KEY = "rc-b51b579e1112986fe585d5eada11eafd995a796426feb0b9"
+LLM_API_BASE = settings.LLM_API_BASE
+LLM_MODEL = settings.LLM_MODEL
+LLM_API_KEY = settings.LLM_API_KEY
 
 DEFAULT_AGENTS = [
     {
@@ -62,14 +63,16 @@ def create_agent(config: dict) -> BaseAgent:
     return cls(config)
 
 
-async def get_agent_configs(db: AsyncSession, user_id: int = 0) -> list[dict]:
+async def get_agent_configs(db: AsyncSession, user_id: int = 0, expose_secrets: bool = True) -> list[dict]:
     rows = (await db.execute(
         select(AgentConfig).where(AgentConfig.user_id.in_([user_id, 0]))
         .order_by(AgentConfig.id)
     )).scalars().all()
     result = [{
         "id": r.id, "agent_type": r.agent_type, "name": r.name, "system_prompt": r.system_prompt,
-        "model_name": r.model_name, "api_base": r.api_base, "api_key": r.api_key,
+        "model_name": r.model_name, "api_base": r.api_base,
+        "api_key": r.api_key if expose_secrets else None,
+        "has_api_key": bool(r.api_key),
         "provider": getattr(r, "provider", None),
         "temperature": float(r.temperature), "max_tokens": r.max_tokens,
         "is_active": r.is_active, "is_default": r.is_default,
@@ -77,6 +80,10 @@ async def get_agent_configs(db: AsyncSession, user_id: int = 0) -> list[dict]:
     # 若无配置，返回默认三个
     if not any(r.get("is_default") for r in result):
         result = [default_agent_to_dict(a, 0) for a in DEFAULT_AGENTS]
+        if not expose_secrets:
+            for row in result:
+                row["has_api_key"] = bool(row.get("api_key"))
+                row["api_key"] = None
     return result
 
 

@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # 应用
     APP_NAME: str = "deepAStock 深度A股交易"
-    APP_VERSION: str = "1.7.1"
+    APP_VERSION: str = "1.8.0"
     DEBUG: bool = False
 
     # 数据库 (默认 SQLite, 可切换 PostgreSQL)
@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     PRIMARY_SOURCE: str = "sina+tencent"
     BACKUP_SOURCE: str = "tencent"
     SOURCE_TIMEOUT: float = 5.0
+
+    # 默认智能体；密钥只允许通过环境变量注入，禁止写入源码。
+    LLM_API_BASE: str = ""
+    LLM_API_KEY: str = ""
+    LLM_MODEL: str = "deepseek-chat"
 
     # RSSHub（本地部署订阅源，仅走自建实例，不调用公网 RSSHub）
     RSSHUB_BASE: str = "http://127.0.0.1:1200"

@@ -105,6 +105,7 @@ html {
 .between { justify-content: space-between; }
 .gap { gap: 8px; }
 .mt8 { margin-top: 8px; }
+.mt4 { margin-top: 4px; }
 .mt16 { margin-top: 16px; }
 .mb8 { margin-bottom: 8px; }
 .mb4 { margin-bottom: 4px; }
