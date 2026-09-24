@@ -443,11 +443,23 @@ class BacktestRequest(BaseModel):
     commission: float = Field(0.0003, ge=0, le=0.02, description="手续费率")
     slippage: float = Field(0.001, ge=0, le=0.05, description="滑点比例")
     enforce_price_limit: bool = Field(True, description="执行涨跌停限制")
+    benchmark_symbol: str = Field("SH000300", description="业绩比较基准，默认沪深300")
 
 
 class StrategyTestRequest(BaseModel):
     code: str = Field("", description="策略代码")
     params: dict = Field(default_factory=dict)
+
+
+class SensitivityRequest(BacktestRequest):
+    param_key: str = Field("", description="要扫描的参数 key")
+    values: list = Field(default_factory=list, description="参数取值列表；为空则按 schema min/max/step 自动生成")
+
+
+class WalkForwardRequest(BacktestRequest):
+    n_splits: int = Field(4, ge=2, le=12, description="时间留出折数")
+    optimize_param: str = Field("", description="可选：在训练段扫描的参数 key（留空则各折使用同一组参数）")
+    optimize_values: list = Field(default_factory=list, description="优化参数候选值；为空按 schema 生成")
 
 
 # ---------------------------------------------------------------- 策略执行引擎
@@ -484,10 +496,11 @@ def _finish_metrics(equity_curve: list, trades: list, capital: float) -> dict:
                 dd_start_idx = cur_start
                 dd_end_idx = i
 
-    # 修复周期
+    # 修复周期必须回到最大回撤开始时的峰值，而不是回到全区间最后形成的峰值。
+    drawdown_peak = equity_curve[dd_start_idx]["equity"] if equity_curve else capital
     recovery_idx = len(equity_curve) - 1
     for i in range(dd_end_idx, len(equity_curve)):
-        if equity_curve[i]["equity"] >= peak:
+        if equity_curve[i]["equity"] >= drawdown_peak:
             recovery_idx = i
             break
     recovery_days = recovery_idx - dd_end_idx
@@ -528,10 +541,12 @@ def _finish_metrics(equity_curve: list, trades: list, capital: float) -> dict:
     # Calmar ratio
     calmar = ann / max_dd if max_dd > 0 else 0
 
-    # 盈亏比
+    # Profit factor = 总盈利 / 总亏损；平均盈利/亏损另行返回。
     avg_win = sum(t["pnl"] for t in wins) / len(wins) if wins else 0
     avg_loss = abs(sum(t["pnl"] for t in losses) / len(losses)) if losses else 0
-    profit_factor = avg_win / avg_loss if avg_loss > 0 else 0
+    gross_profit = sum(t["pnl"] for t in wins)
+    gross_loss = abs(sum(t["pnl"] for t in losses))
+    profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
 
     # 平均持仓天数
     holding_days = []
@@ -597,14 +612,16 @@ def _finish_metrics(equity_curve: list, trades: list, capital: float) -> dict:
 
 
 def _simulate(bars: list, signals: list, capital: float, commission: float = 0.0003, slippage: float = 0.001, enforce_price_limit: bool = True) -> dict:
-    """单只股票资金模拟：信号当日开盘价成交，buy 只允许空仓建仓，sell 按持仓比例减仓。"""
+    """单只股票模拟：T 日收盘后生成信号，统一在下一交易日开盘成交。"""
     opens = {str(b["dt"]): float(b["open"]) for b in bars}
     closes = {str(b["dt"]): float(b["close"]) for b in bars}
     sigs: dict = {}
+    next_date = {str(bars[i]["dt"]): str(bars[i + 1]["dt"]) for i in range(len(bars) - 1)}
     for s in signals or []:
         dt = str(s.get("dt"))
-        if dt in opens:
-            sigs.setdefault(dt, []).append(s)
+        execution_dt = next_date.get(dt)
+        if execution_dt in opens:
+            sigs.setdefault(execution_dt, []).append(s)
 
     cash = float(capital)
     shares = 0.0
@@ -676,8 +693,8 @@ def _simulate(bars: list, signals: list, capital: float, commission: float = 0.0
     }
 
 
-def _simulate_portfolio(bars_map: dict, signals: list, capital: float, commission: float = 0.0003, slippage: float = 0.001) -> dict:
-    """自选组合资金模拟：多只股票按日期对齐，buy 按 fraction 分配可用资金建仓，sell 按持仓比例减仓。"""
+def _simulate_portfolio(bars_map: dict, signals: list, capital: float, commission: float = 0.0003, slippage: float = 0.001, enforce_price_limit: bool = True) -> dict:
+    """组合模拟：各标的 T 日信号在该标的下一交易日开盘成交。"""
     open_map = {sym: {str(b["dt"]): float(b["open"]) for b in bars} for sym, bars in bars_map.items()}
     close_map = {sym: {str(b["dt"]): float(b["close"]) for b in bars} for sym, bars in bars_map.items()}
     dates = sorted({str(b["dt"]) for bars in bars_map.values() for b in bars})
@@ -694,11 +711,20 @@ def _simulate_portfolio(bars_map: dict, signals: list, capital: float, commissio
         lasts[sym] = out
 
     sigs: dict = {}
+    next_dates = {
+        sym: {str(bars[i]["dt"]): str(bars[i + 1]["dt"]) for i in range(len(bars) - 1)}
+        for sym, bars in bars_map.items()
+    }
+    previous_closes = {
+        sym: {str(bars[i]["dt"]): float(bars[i - 1]["close"]) for i in range(1, len(bars))}
+        for sym, bars in bars_map.items()
+    }
     for s in signals or []:
         sym = str(s.get("symbol", ""))
         dt = str(s.get("dt"))
-        if sym in open_map and dt in open_map[sym]:
-            sigs.setdefault(dt, []).append(s)
+        execution_dt = next_dates.get(sym, {}).get(dt)
+        if sym in open_map and execution_dt in open_map[sym]:
+            sigs.setdefault(execution_dt, []).append(s)
 
     cash = float(capital)
     positions: dict = {}
@@ -711,6 +737,12 @@ def _simulate_portfolio(bars_map: dict, signals: list, capital: float, commissio
             action = str(s.get("action", "")).lower()
             frac = min(max(float(s.get("fraction", 1.0)), 0.0), 1.0)
             fill = open_map[sym][dt] * (1 + slippage if action == "buy" else 1 - slippage)
+            previous_close = previous_closes.get(sym, {}).get(dt)
+            if enforce_price_limit and previous_close:
+                if action == "buy" and fill >= previous_close * 1.095:
+                    continue
+                if action == "sell" and fill <= previous_close * 0.905:
+                    continue
             pos = positions.get(sym)
             if action == "buy":
                 if pos is None and cash > 0:
@@ -927,6 +959,10 @@ async def run_backtest(body: BacktestRequest, db: AsyncSession = Depends(get_db)
         end = date.fromisoformat(end_s)
     except ValueError:
         raise HTTPException(400, "end_date 格式应为 YYYY-MM-DD")
+    if start > end:
+        raise HTTPException(400, "start_date 不能晚于 end_date")
+    if body.initial_capital <= 0:
+        raise HTTPException(400, "initial_capital 必须大于 0")
 
     portfolio = [s.strip().upper() for s in (body.symbols or []) if s and s.strip()]
     if not portfolio and not (body.symbol or "").strip():
@@ -968,7 +1004,7 @@ async def run_backtest(body: BacktestRequest, db: AsyncSession = Depends(get_db)
             raise HTTPException(400, f"策略执行出错: {e}")
         if not isinstance(signals, list):
             raise HTTPException(400, "run() 必须返回信号列表")
-        result = _simulate_portfolio(bars_map, signals, float(body.initial_capital), body.commission, body.slippage)
+        result = _simulate_portfolio(bars_map, signals, float(body.initial_capital), body.commission, body.slippage, body.enforce_price_limit)
         result["symbols"] = portfolio
         result["symbol"] = "+".join(portfolio)
     else:
@@ -1001,7 +1037,377 @@ async def run_backtest(body: BacktestRequest, db: AsyncSession = Depends(get_db)
     result["strategy"] = cfg.key
     result["strategy_name"] = cfg.name
     result["params"] = merged
-    result["execution"] = {"commission": body.commission, "slippage": body.slippage, "enforce_price_limit": body.enforce_price_limit}
+    result["execution"] = {
+        "commission": body.commission,
+        "slippage": body.slippage,
+        "enforce_price_limit": body.enforce_price_limit,
+        "signal_time": "close_t",
+        "fill_time": "open_t_plus_1",
+        "lot_size": 100,
+    }
     result["start_date"] = start.isoformat()
     result["end_date"] = end.isoformat()
+    curve = result.get("equity_curve") or []
+    actual_start = date.fromisoformat(curve[0]["dt"]) if curve else None
+    actual_end = date.fromisoformat(curve[-1]["dt"]) if curve else None
+    result["data_window"] = {
+        "requested_start": start.isoformat(),
+        "requested_end": end.isoformat(),
+        "actual_start": curve[0]["dt"] if curve else None,
+        "actual_end": curve[-1]["dt"] if curve else None,
+        "bars": len(curve),
+        "complete": bool(actual_start and actual_end and (actual_start - start).days <= 7 and (end - actual_end).days <= 7),
+    }
+
+    benchmark_symbol = (body.benchmark_symbol or "SH000300").strip().upper()
+    benchmark = {"symbol": benchmark_symbol, "name": "沪深300" if benchmark_symbol == "SH000300" else benchmark_symbol, "available": False, "equity_curve": []}
+    try:
+        benchmark_payload = await KlineService(db).get_klines(benchmark_symbol, "day", start, end)
+        benchmark_bars = (benchmark_payload or {}).get("data", []) or []
+        close_by_date = {str(b["dt"]): float(b["close"]) for b in benchmark_bars if b.get("close") is not None}
+        common = [(c["dt"], close_by_date[c["dt"]]) for c in curve if c["dt"] in close_by_date]
+        if len(common) >= 2:
+            base = common[0][1]
+            bench_curve = [{"dt": dt, "equity": round(float(body.initial_capital) * close / base, 2)} for dt, close in common]
+            bench_metrics = _finish_metrics(bench_curve, [], float(body.initial_capital))
+            benchmark.update({
+                "available": True,
+                "actual_start": common[0][0],
+                "actual_end": common[-1][0],
+                "bars": len(common),
+                "total_return": bench_metrics["total_return"],
+                "annualized_return": bench_metrics["annualized_return"],
+                "equity_curve": bench_curve,
+            })
+            result["metrics"]["excess_return"] = round(result["metrics"]["total_return"] - bench_metrics["total_return"], 4)
+            result["metrics"]["annualized_excess_return"] = round(result["metrics"]["annualized_return"] - bench_metrics["annualized_return"], 4)
+    except Exception as e:
+        logger.warning(f"backtest benchmark fetch failed for {benchmark_symbol}: {e}")
+    result["benchmark"] = benchmark
     return result
+
+
+# ---------------------------------------------------------------- 敏感性 / Walk-Forward
+
+def _param_values_from_schema(schema: list, key: str, explicit: list, cap: int = 9) -> list:
+    if explicit:
+        return [v for v in explicit if v is not None][:cap]
+    for s in (schema or []):
+        if isinstance(s, dict) and s.get("key") == key:
+            lo, hi, step = s.get("min"), s.get("max"), s.get("step") or 1
+            if lo is None or hi is None:
+                base = s.get("default")
+                return [base] if base is not None else []
+            vals, cur = [], float(lo)
+            while cur <= float(hi) + 1e-9 and len(vals) < cap:
+                vals.append(int(cur) if str(s.get("type")) == "int" else round(cur, 6))
+                cur += float(step)
+            return vals
+    return []
+
+
+async def _load_bars_for_body(db: AsyncSession, body: BacktestRequest, start: date, end: date):
+    portfolio = [s.strip().upper() for s in (body.symbols or []) if s and s.strip()]
+    if portfolio:
+        if len(portfolio) > 20:
+            raise HTTPException(400, "自选组合最多支持 20 只股票")
+        bars_map = {}
+        for sym in portfolio:
+            payload = await KlineService(db).get_klines(sym, "day", start, end)
+            klines = (payload or {}).get("data", []) or []
+            if not klines:
+                raise HTTPException(502, f"{sym} K线获取失败或区间无数据")
+            bars_map[sym] = klines
+        return portfolio, bars_map, None
+    if not (body.symbol or "").strip():
+        raise HTTPException(400, "请提供 symbol 或 symbols")
+    payload = await KlineService(db).get_klines(body.symbol, "day", start, end)
+    klines = (payload or {}).get("data", []) or []
+    if not klines:
+        raise HTTPException(404, f"未获取到 {body.symbol} 区间 K 线数据")
+    return [body.symbol.upper()], None, klines
+
+
+def _run_once(run_fn, portfolio, bars_map, klines, params, body) -> dict:
+    target = bars_map if bars_map is not None else klines
+    signals = _run_strategy(run_fn, target, params) or []
+    if not isinstance(signals, list):
+        raise HTTPException(400, "run() 必须返回信号列表")
+    if bars_map is not None:
+        out = _simulate_portfolio(bars_map, signals, float(body.initial_capital), body.commission, body.slippage, body.enforce_price_limit)
+    else:
+        out = _simulate(klines, signals, float(body.initial_capital), body.commission, body.slippage, body.enforce_price_limit)
+    m = out["metrics"]
+    return {
+        "total_return": m["total_return"],
+        "annualized_return": m["annualized_return"],
+        "max_drawdown": m["max_drawdown"],
+        "sharpe": m["sharpe"],
+        "sortino": m["sortino"],
+        "win_rate": m["win_rate"],
+        "trade_count": m["trade_count"],
+        "profit_factor": m["profit_factor"],
+        "bars": m["bars"],
+    }
+
+
+def _parse_body_dates(body: BacktestRequest) -> tuple[date, date]:
+    try:
+        start = date.fromisoformat(body.start_date)
+    except ValueError:
+        raise HTTPException(400, "start_date 格式应为 YYYY-MM-DD")
+    end_s = body.end_date or date.today().isoformat()
+    try:
+        end = date.fromisoformat(end_s)
+    except ValueError:
+        raise HTTPException(400, "end_date 格式应为 YYYY-MM-DD")
+    if start > end:
+        raise HTTPException(400, "start_date 不能晚于 end_date")
+    if body.initial_capital <= 0:
+        raise HTTPException(400, "initial_capital 必须大于 0")
+    return start, end
+
+
+def _merged_params(cfg: StrategyConfig, body: BacktestRequest) -> dict:
+    merged = _default_params(cfg)
+    merged.update({k: v for k, v in (body.params or {}).items() if v is not None})
+    return merged
+
+
+@router.post("/sensitivity")
+async def run_sensitivity(body: SensitivityRequest, db: AsyncSession = Depends(get_db)):
+    """单参数敏感性扫描：固定其余参数，扫描 param_key 取值，报告指标随参数变化。"""
+    cfg = await _resolve_strategy(db, body)
+    start, end = _parse_body_dates(body)
+    if not body.param_key:
+        raise HTTPException(400, "请指定 param_key")
+    try:
+        run_fn = _compile_strategy(cfg.code)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    base = _merged_params(cfg, body)
+    values = _param_values_from_schema(cfg.params_schema, body.param_key, body.values)
+    if not values:
+        raise HTTPException(400, f"无法为参数「{body.param_key}」生成扫描取值，请显式传 values")
+    portfolio, bars_map, klines = await _load_bars_for_body(db, body, start, end)
+
+    rows = []
+    for v in values:
+        params = dict(base)
+        params[body.param_key] = v
+        try:
+            metrics = _run_once(run_fn, portfolio, bars_map, klines, params, body)
+            rows.append({"param_value": v, "params": params, "metrics": metrics, "error": None})
+        except HTTPException as e:
+            rows.append({"param_value": v, "params": params, "metrics": None, "error": str(e.detail)})
+        except Exception as e:
+            rows.append({"param_value": v, "params": params, "metrics": None, "error": str(e)})
+
+    ok = [r for r in rows if r["metrics"]]
+    base_val = base.get(body.param_key)
+    summary = None
+    if ok:
+        rets = [r["metrics"]["total_return"] for r in ok]
+        sharpes = [r["metrics"]["sharpe"] for r in ok]
+        mean_r = sum(rets) / len(rets)
+        var_r = sum((x - mean_r) ** 2 for x in rets) / len(rets)
+        best = max(ok, key=lambda r: r["metrics"]["sharpe"])
+        worst = min(ok, key=lambda r: r["metrics"]["sharpe"])
+        summary = {
+            "param_key": body.param_key,
+            "base_value": base_val,
+            "n_points": len(ok),
+            "return_mean": round(mean_r, 4),
+            "return_std": round(var_r ** 0.5, 4),
+            "sharpe_mean": round(sum(sharpes) / len(sharpes), 4),
+            "sharpe_min": round(min(sharpes), 4),
+            "sharpe_max": round(max(sharpes), 4),
+            "best_value": best["param_value"],
+            "worst_value": worst["param_value"],
+            "sensitive": bool((max(sharpes) - min(sharpes)) > 0.5 and var_r ** 0.5 > 0.02),
+            "basis": "敏感=Sharpe极差>0.5 且 收益率标准差>0.02；参数敏感说明结果依赖特定取值，需结合 walk-forward 验证稳健性。",
+        }
+    return {
+        "strategy": cfg.key,
+        "strategy_name": cfg.name,
+        "symbol": body.symbol or "+".join(body.symbols or []),
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "param_key": body.param_key,
+        "rows": rows,
+        "summary": summary,
+    }
+
+
+@router.post("/walk-forward")
+async def run_walk_forward(body: WalkForwardRequest, db: AsyncSession = Depends(get_db)):
+    """时间留出 walk-forward：按交易日等分 n_splits 段，每段用前一段（或滚动历史）选参，只在留出段计成绩。"""
+    cfg = await _resolve_strategy(db, body)
+    start, end = _parse_body_dates(body)
+    try:
+        run_fn = _compile_strategy(cfg.code)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    base = _merged_params(cfg, body)
+    portfolio, bars_map, klines = await _load_bars_for_body(db, body, start, end)
+
+    if bars_map is not None:
+        all_dates = sorted({str(b["dt"]) for series in bars_map.values() for b in series})
+        date_index = {d: i for i, d in enumerate(all_dates)}
+        n_bars = len(all_dates)
+    else:
+        all_dates = [str(b["dt"]) for b in klines]
+        date_index = {d: i for i, d in enumerate(all_dates)}
+        n_bars = len(klines)
+
+    if n_bars < body.n_splits * 8:
+        raise HTTPException(400, f"区间交易日过少（{n_bars}），无法切成 {body.n_splits} 折（每折至少 8 日）")
+
+    opt_key = (body.optimize_param or "").strip()
+    opt_values = _param_values_from_schema(cfg.params_schema, opt_key, body.optimize_values) if opt_key else []
+    if opt_key and not opt_values:
+        raise HTTPException(400, f"无法为优化参数「{opt_key}」生成候选值")
+
+    fold_size = n_bars // body.n_splits
+    folds = []
+    for i in range(body.n_splits):
+        oos_start_i = i * fold_size
+        oos_end_i = n_bars if i == body.n_splits - 1 else (i + 1) * fold_size
+        # 训练段 = 该折之前的历史（首折无历史，则用本折内前一半作 warm 训练仅用于选参展示，仍只在后半计成绩）
+        if i == 0:
+            train_start_i = 0
+            train_end_i = max(8, fold_size // 2)
+            eval_start_i = train_end_i
+        else:
+            train_start_i = 0
+            train_end_i = oos_start_i
+            eval_start_i = oos_start_i
+        if eval_start_i >= oos_end_i - 4:
+            continue
+        folds.append({
+            "fold": i + 1,
+            "train_start_i": train_start_i,
+            "train_end_i": train_end_i,
+            "eval_start_i": eval_start_i,
+            "eval_end_i": oos_end_i,
+        })
+
+    def _slice_bars(sl: slice):
+        if bars_map is not None:
+            return {s: series[sl] for s, series in bars_map.items()}
+        return klines[sl]
+
+    def _slice_signals_to_range(signals: list, lo: date, hi: date) -> list:
+        out = []
+        for s in signals:
+            try:
+                d = date.fromisoformat(str(s.get("dt")))
+            except Exception:
+                continue
+            if lo <= d <= hi:
+                out.append(s)
+        return out
+
+    results = []
+    for f in folds:
+        train_bars = _slice_bars(slice(f["train_start_i"], f["train_end_i"]))
+        eval_bars = _slice_bars(slice(f["eval_start_i"], f["eval_end_i"]))
+        if bars_map is None and (len(train_bars) < 8 or len(eval_bars) < 4):
+            continue
+        if bars_map is not None:
+            min_len = min((len(v) for v in eval_bars.values()), default=0)
+            train_min = min((len(v) for v in train_bars.values()), default=0)
+            if min_len < 4 or train_min < 8:
+                continue
+
+        eval_lo = date.fromisoformat(str((eval_bars if bars_map is None else next(iter(eval_bars.values())))[0]["dt"]))
+        eval_hi = date.fromisoformat(str((eval_bars if bars_map is None else next(iter(eval_bars.values())))[-1]["dt"]))
+
+        # 选参：在训练段网格扫描 optimize_param（或直接用 base）
+        chosen = dict(base)
+        train_best_sharpe = None
+        if opt_key and opt_values:
+            best_sharpe = -float("inf")
+            for v in opt_values:
+                params = dict(base)
+                params[opt_key] = v
+                try:
+                    train_target = train_bars
+                    train_signals = _run_strategy(run_fn, train_target, params) or []
+                    if bars_map is not None:
+                        tr = _simulate_portfolio(train_bars, train_signals, float(body.initial_capital), body.commission, body.slippage, body.enforce_price_limit)["metrics"]
+                    else:
+                        tr = _simulate(train_bars, train_signals, float(body.initial_capital), body.commission, body.slippage, body.enforce_price_limit)["metrics"]
+                except Exception:
+                    continue
+                if tr["sharpe"] > best_sharpe:
+                    best_sharpe = tr["sharpe"]
+                    chosen = params
+            train_best_sharpe = round(best_sharpe, 4) if best_sharpe > -float("inf") else None
+
+        # OOS：信号在全量上生成（避免截断 warmup），再按留出区间过滤后在留出段模拟
+        # 更严谨：只在 eval 段 K 线上跑策略（无未来函数，因策略只看 bars 内历史）
+        try:
+            eval_signals = _run_strategy(run_fn, eval_bars, chosen) or []
+            if bars_map is not None:
+                oos = _simulate_portfolio(eval_bars, eval_signals, float(body.initial_capital), body.commission, body.slippage, body.enforce_price_limit)
+            else:
+                oos = _simulate(eval_bars, eval_signals, float(body.initial_capital), body.commission, body.slippage, body.enforce_price_limit)
+            m = oos["metrics"]
+            results.append({
+                "fold": f["fold"],
+                "train_range": [
+                    str((train_bars if bars_map is None else next(iter(train_bars.values())))[0]["dt"]),
+                    str((train_bars if bars_map is None else next(iter(train_bars.values())))[-1]["dt"]),
+                ],
+                "oos_range": [eval_lo.isoformat(), eval_hi.isoformat()],
+                "chosen_params": {opt_key: chosen.get(opt_key)} if opt_key else {},
+                "train_sharpe": train_best_sharpe,
+                "oos_total_return": m["total_return"],
+                "oos_sharpe": m["sharpe"],
+                "oos_max_drawdown": m["max_drawdown"],
+                "oos_trade_count": m["trade_count"],
+                "oos_win_rate": m["win_rate"],
+                "oos_bars": m["bars"],
+            })
+        except Exception as e:
+            results.append({
+                "fold": f["fold"],
+                "train_range": None,
+                "oos_range": [eval_lo.isoformat(), eval_hi.isoformat()],
+                "chosen_params": {opt_key: chosen.get(opt_key)} if opt_key else {},
+                "train_sharpe": train_best_sharpe,
+                "error": str(e),
+            })
+
+    ok = [r for r in results if "oos_total_return" in r]
+    summary = None
+    if ok:
+        rets = [r["oos_total_return"] for r in ok]
+        sharpes = [r["oos_sharpe"] for r in ok]
+        mean_r = sum(rets) / len(rets)
+        mean_s = sum(sharpes) / len(sharpes)
+        summary = {
+            "n_folds": len(ok),
+            "oos_return_mean": round(mean_r, 4),
+            "oos_return_min": round(min(rets), 4),
+            "oos_return_max": round(max(rets), 4),
+            "oos_sharpe_mean": round(mean_s, 4),
+            "oos_positive_folds": sum(1 for r in rets if r > 0),
+            "oos_win_rate_mean": round(sum(r["oos_win_rate"] for r in ok) / len(ok), 4),
+            "stable": bool(sum(1 for r in rets if r > 0) >= max(1, len(ok) // 2) and mean_s > 0),
+            "basis": "walk-forward：每折只在留出时间段计成绩；若指定 optimize_param，只用该折之前的历史选参。stable=过半折收益为正且平均 Sharpe>0。",
+        }
+
+    return {
+        "strategy": cfg.key,
+        "strategy_name": cfg.name,
+        "symbol": body.symbol or "+".join(body.symbols or []),
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "n_splits": body.n_splits,
+        "optimize_param": opt_key or None,
+        "folds": results,
+        "summary": summary,
+        "methodology": "时间顺序切分交易日，训练段选参、留出段评估，禁止用留出段数据选参；与全样本回测结果对照可识别过拟合。",
+    }

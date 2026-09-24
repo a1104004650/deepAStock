@@ -8,8 +8,19 @@ from app.db.session import get_db
 from app.core.market.quote_service import MarketService
 from app.core.market.kline_service import KlineService
 from app.core.market.macro_service import fetch_all_indicators
+from app.core.market.regime_service import MarketRegimeService
 
 router = APIRouter(prefix="/api/v1/market", tags=["行情"])
+
+
+@router.get("/regime")
+async def get_market_regime(db: AsyncSession = Depends(get_db)):
+    return await MarketRegimeService(db).get_current()
+
+
+@router.get("/regime/history")
+async def get_market_regime_history(days: int = Query(20, ge=2, le=120), db: AsyncSession = Depends(get_db)):
+    return await MarketRegimeService(db).get_history(days)
 
 _GI_UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 _GI_SINA_H = {**_GI_UA, "Referer": "https://finance.sina.com.cn"}

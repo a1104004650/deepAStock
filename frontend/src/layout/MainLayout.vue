@@ -105,6 +105,7 @@ const desktopGroups = [
     label: '行情',
     items: [
       { path: '/watchlist', label: '自选股', icon: Star },
+      { path: '/regime', label: '市场周期', icon: DataLine, isNew: true },
       { path: '/screening', label: '智能选股', icon: TrendCharts },
       { path: '/replay', label: '每日复盘', icon: Document },
       { path: '/macro', label: '宏观数据', icon: DataLine },

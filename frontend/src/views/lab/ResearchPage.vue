@@ -101,6 +101,46 @@
             </el-table-column>
           </el-table>
 
+          <!-- 朴素预测基线（Kronos 式对照契约） -->
+          <div class="report-section baseline-box">
+            <div class="report-section-header">
+              <div class="report-section-title-row">
+                <span class="reports-title">预测基线</span>
+                <span class="reports-label">naive baseline</span>
+              </div>
+              <el-button size="small" :loading="baselineLoading" @click="runBaseline">对照评估</el-button>
+            </div>
+            <div v-if="baseline" class="baseline-body">
+              <div v-if="!baseline.available" class="fs12" style="color:#909399">{{ baseline.reason || '数据不足，不生成结果' }}</div>
+              <template v-else>
+                <div class="fs12" style="color:#909399;margin-bottom:6px">
+                  {{ baseline.symbol }} · h={{ baseline.horizon }} · 评估 {{ baseline.n_eval }} 点 · 最优 <b>{{ baseline.best_baseline }}</b>
+                </div>
+                <el-table :data="baselineRows" size="small" max-height="180">
+                  <el-table-column prop="name" label="基线" width="140" />
+                  <el-table-column label="MAE" width="90" align="right">
+                    <template #default="{ row }"><span class="mono">{{ row.mae }}</span></template>
+                  </el-table-column>
+                  <el-table-column label="RMSE" width="90" align="right">
+                    <template #default="{ row }"><span class="mono">{{ row.rmse }}</span></template>
+                  </el-table-column>
+                  <el-table-column label="方向准确率" width="110" align="right">
+                    <template #default="{ row }">
+                      <span v-if="row.direction_accuracy != null">{{ (row.direction_accuracy * 100).toFixed(1) }}%</span>
+                      <span v-else style="color:#c0c4cc">-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="偏差" width="90" align="right">
+                    <template #default="{ row }"><span class="mono">{{ row.bias }}</span></template>
+                  </el-table-column>
+                </el-table>
+                <div class="fs11" style="color:#c0c4cc;margin-top:6px;line-height:1.5">{{ baseline.metrics_definition }}</div>
+                <div class="fs11" style="color:#c0c4cc;margin-top:4px;line-height:1.5">{{ baseline.caveat }}</div>
+              </template>
+            </div>
+            <div v-else class="fs12" style="color:#c0c4cc">点击「对照评估」跑 random_walk / momentum / mean_reversion / day_of_week，作为复杂模型的及格线。</div>
+          </div>
+
           <!-- 研究报告详情 -->
           <div v-if="currentTask" class="report-section">
             <div class="report-section-header">
@@ -152,6 +192,14 @@
                   <div v-if="r.content?.score" class="report-score">
                     评分: <span class="score-value">{{ r.content.score }}</span><span class="score-max">/10</span>
                   </div>
+                  <div v-if="r.stage === 'discuss' && r.content?.key_disagreements?.length" class="report-concerns">
+                    <div class="concerns-title">⚡ 交叉质询分歧</div>
+                    <div v-for="(c, i) in r.content.key_disagreements" :key="i" class="concern-item">{{ c }}</div>
+                  </div>
+                  <div v-if="r.stage === 'discuss' && r.content?.adjusted_view" class="report-concerns">
+                    <div class="concerns-title">🔄 观点调整</div>
+                    <div class="concern-item">{{ r.content.adjusted_view }}</div>
+                  </div>
                   <div v-if="r.content?.concerns?.length" class="report-concerns">
                     <div class="concerns-title">⚠ 风险关注</div>
                     <div v-for="(c, i) in r.content.concerns" :key="i" class="concern-item">{{ c }}</div>
@@ -195,6 +243,30 @@
                 </div>
               </div>
 
+              <!-- 最终决策 -->
+              <div v-if="finalReport.final_decision && finalReport.final_decision.action" class="final-decision-box">
+                <div class="section-title section-title-decision">🎯 最终决策</div>
+                <div class="decision-grid">
+                  <div class="decision-cell"><span class="decision-key">动作</span><span class="decision-val">{{ finalReport.final_decision.action }}</span></div>
+                  <div class="decision-cell"><span class="decision-key">周期</span><span class="decision-val">{{ finalReport.final_decision.horizon || '-' }}</span></div>
+                  <div class="decision-cell"><span class="decision-key">仓位</span><span class="decision-val">{{ finalReport.final_decision.position_hint || '-' }}</span></div>
+                  <div class="decision-cell"><span class="decision-key">置信度</span><span class="decision-val">{{ finalReport.final_decision.confidence != null ? Math.round(finalReport.final_decision.confidence * 100) + '%' : '-' }}</span></div>
+                </div>
+                <div v-if="finalReport.final_decision.entry_zone" class="decision-line"><b>介入条件：</b>{{ finalReport.final_decision.entry_zone }}</div>
+                <div v-if="finalReport.final_decision.stop_loss" class="decision-line decision-stop"><b>失效/止损：</b>{{ finalReport.final_decision.stop_loss }}</div>
+                <div v-if="finalReport.final_decision.rationale" class="decision-line">{{ finalReport.final_decision.rationale }}</div>
+              </div>
+
+              <!-- 数据依据 evidence -->
+              <div v-if="finalReport.evidence?.length" class="report-section-inner">
+                <div class="section-title section-title-evidence">📎 数据依据</div>
+                <div v-for="(e, i) in finalReport.evidence" :key="i" class="section-item evidence-item">
+                  <span class="evidence-point">{{ e.point || e }}</span>
+                  <span v-if="e.basis" class="evidence-basis">{{ e.basis }}</span>
+                  <span v-if="e.source" class="evidence-source">{{ e.source }}</span>
+                </div>
+              </div>
+
               <div v-if="finalReport.consensus?.length" class="report-section-inner">
                 <div class="section-title section-title-consensus">✓ 共识点</div>
                 <div v-for="(c, i) in finalReport.consensus" :key="i" class="section-item consensus">{{ c }}</div>
@@ -202,6 +274,15 @@
               <div v-if="finalReport.divergences?.length" class="report-section-inner">
                 <div class="section-title section-title-divergence">⚡ 分歧点</div>
                 <div v-for="(d, i) in finalReport.divergences" :key="i" class="section-item divergence">{{ d }}</div>
+              </div>
+              <!-- 风险反方 bear_case -->
+              <div v-if="finalReport.bear_case?.length" class="report-section-inner">
+                <div class="section-title section-title-bear">🐻 风险反方</div>
+                <div v-for="(b, i) in finalReport.bear_case" :key="i" class="section-item bear-item">
+                  <span class="bear-arg">{{ b.argument || b }}</span>
+                  <el-tag v-if="b.strength" size="small" :type="b.strength === '强' ? 'danger' : b.strength === '中' ? 'warning' : 'info'" effect="plain">{{ b.strength }}</el-tag>
+                  <span v-if="b.trigger" class="bear-trigger">触发：{{ b.trigger }}</span>
+                </div>
               </div>
               <div v-if="finalReport.risk_factors?.length" class="report-section-inner">
                 <div class="section-title section-title-risk">⚠ 风险因素</div>
@@ -363,6 +444,28 @@ const emojiList = ['📊','📈','📉','💰','🏦','💼','🎯','🔮','🧠
 
 const showCreateResearch = ref(false)
 const researchForm = ref({ symbol: '', stock_name: '' })
+
+const baselineLoading = ref(false)
+const baseline = ref(null)
+const baselineRows = ref([])
+async function runBaseline() {
+  const sym = currentTask.value?.symbol || researchForm.value.symbol
+  if (!sym) { ElMessage.warning('请先选择研究任务或填写股票代码'); return }
+  baselineLoading.value = true
+  baseline.value = null
+  baselineRows.value = []
+  try {
+    const r = await labApi.forecastBaseline({ symbol: String(sym).replace(/\D/g, '') || sym, horizon: 1 })
+    baseline.value = r
+    const m = r?.metrics || {}
+    baselineRows.value = Object.entries(m).map(([name, v]) => ({
+      name, mae: v.mae, rmse: v.rmse, direction_accuracy: v.direction_accuracy, bias: v.bias
+    }))
+    if (!r?.available) ElMessage.warning(r?.reason || '数据不足')
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.detail || e?.message || '基线评估失败')
+  } finally { baselineLoading.value = false }
+}
 
 const curlInput = ref('')
 const curlParsing = ref(false)
@@ -1063,6 +1166,9 @@ onMounted(async () => {
 .section-title-consensus { color: #67c23a; }
 .section-title-divergence { color: #e6a23c; }
 .section-title-risk { color: #f56c6c; }
+.section-title-evidence { color: #409eff; }
+.section-title-bear { color: #909399; }
+.section-title-decision { color: #303133; }
 .section-item {
   font-size: 13px;
   line-height: 2;
@@ -1077,6 +1183,55 @@ onMounted(async () => {
 .section-item.risk {
   color: #f56c6c;
 }
+.evidence-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 8px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+.evidence-point { color: #303133; font-weight: 500; }
+.evidence-basis { color: #909399; font-size: 12px; }
+.evidence-source { color: #409eff; font-size: 11px; font-family: var(--font-mono, monospace); }
+.bear-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 8px;
+  background: #f5f7fa;
+  border-left: 3px solid #909399;
+  border-radius: 0 6px 6px 0;
+  margin-bottom: 4px;
+}
+.bear-arg { color: #606266; }
+.bear-trigger { color: #c0c4cc; font-size: 11px; }
+.final-decision-box {
+  border: 1px solid var(--el-border-color);
+  border-left: 4px solid #303133;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  background: var(--el-fill-color-lighter);
+}
+.decision-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.decision-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.decision-key { font-size: 11px; color: #909399; }
+.decision-val { font-size: 15px; font-weight: 700; color: #303133; }
+.decision-line { font-size: 13px; line-height: 1.7; color: #606266; margin-top: 4px; }
+.decision-stop { color: #f56c6c; }
 .full-report-box {
   margin-top: 18px;
 }
@@ -1122,6 +1277,12 @@ onMounted(async () => {
 .curl-msg.ok { color: #67c23a; }
 .curl-msg.err { color: #f56c6c; }
 
+.baseline-box {
+  margin-bottom: 12px;
+  border: 1px dashed var(--el-border-color);
+}
+.baseline-body { margin-top: 4px; }
+
 @media (max-width: 820px) {
   .two-col {
     flex-direction: column;
@@ -1135,6 +1296,9 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
   .scores-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .decision-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }

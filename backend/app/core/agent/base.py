@@ -31,6 +31,10 @@ class AgentResult(BaseModel):
     confidence: float = 0.5
     reasoning: str = ""
     raw_output: str = ""
+    score: float | None = None
+    recommendation: str = ""
+    evidence: list = []
+    risks: list = []
 
 
 class BaseAgent:
@@ -96,6 +100,10 @@ class BaseAgent:
                 confidence=float(data.get("confidence", 0.5) or 0.5),
                 reasoning=data.get("reasoning", ""),
                 raw_output=json.dumps(data, ensure_ascii=False, default=str),
+                score=float(data["score"]) if data.get("score") is not None else None,
+                recommendation=data.get("recommendation", data.get("rating", "")),
+                evidence=data.get("evidence", []),
+                risks=data.get("risks", data.get("risk_factors", [])),
             )
         except Exception as e:
             logger.warning(f"agent {self.agent_type} predict failed: {e}")

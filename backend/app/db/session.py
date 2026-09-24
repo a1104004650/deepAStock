@@ -86,6 +86,12 @@ async def init_db():
             await conn.execute(text("ALTER TABLE lab_participants ADD COLUMN personality VARCHAR(100)"))
         except Exception:
             pass
+        # 投研最终报告扩展字段
+        for _col in ("evidence", "bear_case", "final_decision"):
+            try:
+                await conn.execute(text(f"ALTER TABLE lab_research_reports ADD COLUMN {_col} TEXT"))
+            except Exception:
+                pass
 
     # 空库写入默认订阅源（部署即自带）
     async with SessionLocal() as _db:

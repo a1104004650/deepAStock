@@ -120,7 +120,7 @@
             </el-select>
           </el-form-item>
           <el-form-item label="API 地址 (Base URL)"><el-input v-model="form.api_base" placeholder="如 https://api.deepseek.com/v1" /></el-form-item>
-          <el-form-item label="API Key"><el-input v-model="form.api_key" type="password" show-password placeholder="sk-...（Ollama 可留空）" /></el-form-item>
+          <el-form-item label="API Key"><el-input v-model="form.api_key" type="password" show-password :placeholder="editingHasKey ? '已配置；留空保持不变' : 'sk-...（Ollama 可留空）'" /></el-form-item>
           <el-form-item label="模型">
             <el-input v-model="form.model_name" placeholder="deepseek-chat">
               <template #append>
@@ -161,6 +161,7 @@ const statsTotal = computed(() => stats.value.total || 0)
 const statsDays = computed(() => stats.value.days || 30)
 const dialog = ref(false)
 const editingId = ref(null)
+const editingHasKey = ref(false)
 const form = ref(defaultForm())
 const curlText = ref('')
 const curlLoading = ref(false)
@@ -242,18 +243,20 @@ async function load() {
 
 function openCreate() {
   editingId.value = null
+  editingHasKey.value = false
   form.value = defaultForm()
   dialog.value = true
 }
 
 function openEdit(a) {
   editingId.value = a.id
+  editingHasKey.value = Boolean(a.has_api_key)
   form.value = {
     name: a.name || '',
     agent_type: a.agent_type || 'custom',
     provider: a.provider || '',
     api_base: a.api_base || '',
-    api_key: a.api_key || '',
+    api_key: '',
     model_name: a.model_name || 'deepseek-chat',
     system_prompt: a.system_prompt || '',
     temperature: a.temperature ?? 0.3

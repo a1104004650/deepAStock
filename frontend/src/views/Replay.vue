@@ -91,11 +91,11 @@
         <div class="kpi-grid">
           <div class="kpi-card">
             <div class="kpi-label">涨停家数</div>
-            <div class="kpi-val up">{{ rpt.limit_up_count ?? '-' }}<span class="kpi-unit">家</span></div>
+            <div class="kpi-val up">{{ rpt.market_summary?.limit_up_count ?? rpt.market_summary?.distribution?.limit_up ?? '-' }}<span class="kpi-unit">家</span></div>
           </div>
           <div class="kpi-card">
             <div class="kpi-label">跌停家数</div>
-            <div class="kpi-val down">{{ rpt.limit_down_count ?? '-' }}<span class="kpi-unit">家</span></div>
+            <div class="kpi-val down">{{ rpt.market_summary?.distribution?.limit_down ?? '-' }}<span class="kpi-unit">家</span></div>
           </div>
           <div class="kpi-card">
             <div class="kpi-label">上涨家数</div>
@@ -618,8 +618,8 @@ const sentimentScore = computed(() => {
   const up = Number(m?.distribution?.up_count || 0)
   const down = Number(m?.distribution?.down_count || 0)
   const total = up + down || 1
-  const limit_up = Number(rpt.value?.limit_up_count || 0)
-  const limit_down = Number(m?.distribution?.limit_down || rpt.value?.limit_down_count || 0)
+  const limit_up = Number(m?.limit_up_count || m?.distribution?.limit_up || 0)
+  const limit_down = Number(m?.distribution?.limit_down || 0)
   const raw = limit_up * 2 + (up / total) * 50 - limit_down * 3
   return Math.max(0, Math.min(100, Math.round(raw)))
 })
@@ -627,7 +627,7 @@ const sentimentScore = computed(() => {
 const profitEffect = computed(() => {
   const la = rpt.value?.limit_analysis
   const ladder = la?.ladder?.ladder || la?.ladder || {}
-  const totalLimit = Number(rpt.value?.limit_up_count || 0)
+  const totalLimit = Number(rpt.value?.market_summary?.limit_up_count || rpt.value?.market_summary?.distribution?.limit_up || 0)
   if (!totalLimit || typeof ladder !== 'object') return null
   let upCount = 0
   for (const [board, stocks] of Object.entries(ladder)) {
@@ -709,7 +709,7 @@ async function loadSectorTrend() {
   sectorTrendLoading.value = true
   try {
     const rows = (await replayApi.history()) || []
-    const dates = [...new Set((Array.isArray(rows) ? rows : []).map((r) => r.date || '').filter(Boolean))].slice(-7)
+    const dates = [...new Set((Array.isArray(rows) ? rows : []).map((r) => r.date || '').filter(Boolean))].slice(0, 7).reverse()
     sectorTrendDates.value = dates
     const byName = {}
     for (const d of dates) {

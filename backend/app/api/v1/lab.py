@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, desc, func
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 
@@ -65,6 +65,19 @@ class AnalystCreate(BaseModel):
     api_key: Optional[str] = None
     model_name: Optional[str] = None
     sort_order: Optional[int] = 0
+
+
+class AnalystUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[str] = None
+    avatar: Optional[str] = None
+    system_prompt: Optional[str] = None
+    provider: Optional[str] = None
+    api_base: Optional[str] = None
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    sort_order: Optional[int] = None
+    is_active: Optional[bool] = None
 
 class ResearchTaskCreate(BaseModel):
     symbol: str
@@ -913,7 +926,7 @@ async def create_analyst(data: AnalystCreate, db: AsyncSession = Depends(get_db)
 
 
 @router.put("/analysts/{analyst_id}")
-async def update_analyst(analyst_id: int, data: AnalystCreate, db: AsyncSession = Depends(get_db)):
+async def update_analyst(analyst_id: int, data: AnalystUpdate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(LabAnalyst).where(LabAnalyst.id == analyst_id))
     a = result.scalars().first()
     if not a:
@@ -1007,6 +1020,9 @@ async def get_research_task(task_id: int, db: AsyncSession = Depends(get_db)):
             "risk_factors": final.risk_factors,
             "consensus": final.consensus,
             "divergences": final.divergences,
+            "evidence": final.evidence or [],
+            "bear_case": final.bear_case or [],
+            "final_decision": final.final_decision or {},
             "full_report": final.full_report,
         } if final else None,
     }
@@ -1027,3 +1043,44 @@ async def delete_research(task_id: int, db: AsyncSession = Depends(get_db)):
     await db.execute(delete(LabResearchTask).where(LabResearchTask.id == task_id))
     await db.commit()
     return {"message": "已删除"}
+
+
+# ==================== 朴素预测基线（Kronos 式实验契约） ====================
+
+class ForecastBaselineRequest(BaseModel):
+    symbol: str
+    period: str = "day"
+    horizon: int = Field(1, ge=1, le=10)
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+@router.post("/forecast/baseline")
+async def forecast_baseline(data: ForecastBaselineRequest, db: AsyncSession = Depends(get_db)):
+    """日线 naive baseline：random walk / momentum / mean-reversion / day-of-week。
+
+    作为任何复杂预测模型的对照契约——模型须在同口径 MAE/RMSE 上优于本结果。
+    """
+    from datetime import date as _date
+    from app.core.lab.forecast import run_baseline_forecast
+
+    symbol = (data.symbol or "").strip().upper()
+    if not symbol:
+        raise HTTPException(status_code=400, detail="请提供 symbol")
+    start = end = None
+    if data.start_date:
+        try:
+            start = _date.fromisoformat(data.start_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="start_date 格式应为 YYYY-MM-DD")
+    if data.end_date:
+        try:
+            end = _date.fromisoformat(data.end_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="end_date 格式应为 YYYY-MM-DD")
+    try:
+        return await run_baseline_forecast(db, symbol, data.period, data.horizon, start, end)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"基线预测失败: {e}")
