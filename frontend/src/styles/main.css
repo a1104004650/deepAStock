@@ -4,6 +4,12 @@
    ============================================================ */
 
 :root {
+  --el-color-primary: #2e6bc6;
+  --el-border-radius-base: 5px;
+  --el-border-radius-small: 4px;
+  --el-bg-color-page: #eef1f5;
+  --el-fill-color-light: #f4f6f9;
+  --el-border-color: #e4e7ee;
   /* 语义色：A股 红涨绿跌（单语义；色值与全站页面内联行情色 #ef232a/#14b143 咬合，text/chart/图表共用同一对铁色） */
   --c-up: #ef232a;
   --c-down: #14b143;
@@ -19,14 +25,19 @@
   --c-text-3: #9aa3af;
   --c-border: #e4e7ee;
   --c-border-strong: #d3d9e0;
-  --c-bg: #f3f5f9;
+  --c-bg: #eef1f5;
   --c-bg-card: #ffffff;
+  --c-bg-soft: #f7f8fa;
+  --c-ink: #18212f;
+  --c-navy: #111b2d;
+  --c-navy-2: #19263b;
+  --c-focus: rgba(46,107,198,.28);
 
   /* 圆角（行情终端紧凑 4px 基） */
-  --radius-sm: 3px;
-  --radius-md: 5px;
-  --radius-lg: 10px;
-  --shadow-card: 0 1px 2px rgba(31, 35, 41, 0.05);
+  --radius-sm: 4px;
+  --radius-md: 7px;
+  --radius-lg: 12px;
+  --shadow-card: 0 1px 2px rgba(31, 35, 41, 0.04), 0 8px 22px rgba(31, 35, 41, 0.035);
 
   /* 等宽数字字体（行情数字防抖动） */
   --font-mono: 'SF Mono', Consolas, 'Roboto Mono', monospace;
@@ -49,6 +60,13 @@ html, body, #app {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
 }
 
+body { color: var(--c-ink); -webkit-font-smoothing: antialiased; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, .el-button:focus-visible, .el-input__wrapper:focus-within {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
+
 html {
   color-scheme: light;
 }
@@ -60,7 +78,7 @@ html {
 
 /* —— 页面容器 —— */
 .page {
-  padding: 8px 10px;
+  padding: 0 18px 24px;
   max-width: 1600px;
   margin: 0 auto;
 }
@@ -73,6 +91,14 @@ html {
   border: 1px solid var(--c-border);
   box-shadow: var(--shadow-card);
 }
+
+.page-title, h1, h2, h3 { color: var(--c-ink); letter-spacing: -.01em; }
+.el-card { border-color: var(--c-border); border-radius: var(--radius-md); box-shadow: var(--shadow-card); }
+.el-card__header { background: linear-gradient(180deg, #fff, var(--c-bg-soft)); }
+.el-table { --el-table-header-bg-color: #f4f6f9; --el-table-row-hover-bg-color: #f6f8fb; }
+.el-table th.el-table__cell { color: var(--c-text-2); font-weight: 600; }
+.el-button { border-radius: 5px; }
+.el-tag { border-radius: 4px; }
 
 /* —— 布局工具类（保留既有） —— */
 .flex { display: flex; }
@@ -112,6 +138,8 @@ html {
 /* —— Element Plus 卡片头加粗 —— */
 .el-card__header { font-weight: 600; padding: 8px 10px; }
 .el-card__body { padding: 8px 10px; }
+.el-card__body > .el-table { margin-left:-10px; margin-right:-10px; width:calc(100% + 20px); }
+.el-divider--horizontal { margin: 14px 0; }
 
 /* —— 逐笔新行高亮（增量追加时不整刷，新行短暂背景后淡出） —— */
 .row-hl {
@@ -121,9 +149,13 @@ html {
 
 /* —— 窄屏通用（保留既有） —— */
 @media (max-width: 820px) {
-  .page { padding: 10px 8px 12px; }
+  .page { padding: 0 10px 16px; }
   .el-dialog { max-width: 94vw; }
   .el-message-box { max-width: 90vw; }
   h2 { font-size: 16px !important; }
   html, body { overflow-x: hidden; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

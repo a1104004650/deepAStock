@@ -64,7 +64,7 @@ docker compose up -d             # 再次启动（增量秒级）
 | `SECRET_KEY` | 自动生成并持久化到 `data/.secret_key` | 固定密钥勿留默认，可用环境变量显式覆盖 |
 | `DEBUG` | false | 生产安全默认关闭 |
 | `TZ` | Asia/Shanghai | 时区 |
-| `APP_VERSION` | 1.1.5 | 显示版本 |
+| `APP_VERSION` | 1.7.1 | 显示版本 |
 | `PRIMARY_SOURCE/BACKUP_SOURCE` | sina+tencent | 行情数据源 |
 | `RSSHUB_BASE` | http://rsshub:1200 | 本地 RSSHub 实例地址（容器内）；本机直接跑后端需在「设置 → RSSHub 订阅」填宿主机映射 `http://127.0.0.1:11200` |
 | `RSSHUB_ENABLED` | true | RSSHub 轮询总开关 |

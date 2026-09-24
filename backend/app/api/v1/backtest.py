@@ -1,9 +1,11 @@
 """策略回测接口：策略存储在数据库，支持编辑参数 / 新增 / 复制 / 自己写 run(bars, params) 策略代码。"""
 import builtins
+import asyncio
 import json
 import math
 import re
 import time
+from types import SimpleNamespace
 from datetime import date, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
@@ -175,7 +177,11 @@ def _compile_strategy(code: str) -> object:
         raise ValueError(f"策略代码编译失败: {e}")
     run_fn = ns.get("run")
     if not callable(run_fn):
-        raise ValueError("策略代码必须定义 run(bars, params) 函数")
+        if any(callable(ns.get(name)) for name in ("initialize", "handle_data", "before_trading_start")):
+            exec("def run(bars, params):\n    return []\n", ns)
+            run_fn = ns["run"]
+        else:
+            raise ValueError("策略代码必须定义 run(bars, params)，或提供 initialize/handle_data 生命周期函数")
     try:
         sig = inspect.signature(run_fn)
         pos = [p for p in sig.parameters.values()
@@ -187,6 +193,40 @@ def _compile_strategy(code: str) -> object:
     except ValueError as e:
         raise ValueError(str(e))
     return run_fn
+
+
+def _run_strategy(run_fn, bars, params):
+    """兼容传统 run(bars, params) 与生命周期脚本。"""
+    ns = getattr(run_fn, "__globals__", {})
+    if not any(callable(ns.get(name)) for name in ("initialize", "handle_data", "before_trading_start")):
+        return run_fn(bars, params) or []
+    rows = bars if isinstance(bars, list) else next(iter(bars.values()), [])
+    context = SimpleNamespace(current_dt=None, current_data={}, params=dict(params), orders=[])
+    def _symbol(symbol): return str(symbol or (next(iter(bars), "") if isinstance(bars, dict) else ""))
+    def order(symbol, amount):
+        amount = int(amount)
+        context.orders.append({"dt": str(context.current_dt), "symbol": _symbol(symbol), "action": "buy" if amount > 0 else "sell", "quantity": abs(amount), "fraction": 1.0})
+    def order_value(symbol, value):
+        if isinstance(context.current_data, dict) and "open" in context.current_data:
+            data = context.current_data
+        else:
+            data = context.current_data.get(_symbol(symbol), {}) if isinstance(context.current_data, dict) else context.current_data
+        price = float(data.get("open") or data.get("close") or 0)
+        if price > 0: order(symbol, int(float(value) / price))
+    ns.update({"order": order, "order_target": order, "order_value": order_value, "record": lambda **kwargs: None})
+    if callable(ns.get("initialize")): ns["initialize"](context)
+    if isinstance(bars, dict):
+        dates = sorted({str(row["dt"]) for series in bars.values() for row in series})
+        lookup = {sym: {str(row["dt"]): row for row in series} for sym, series in bars.items()}
+    else:
+        dates = [str(row["dt"]) for row in rows]
+        lookup = {"": {str(row["dt"]): row for row in rows}}
+    for dt in dates:
+        context.current_dt = dt
+        context.current_data = ({sym: lookup[sym][dt] for sym in lookup if dt in lookup[sym]} if isinstance(bars, dict) else lookup[""][dt])
+        if callable(ns.get("before_trading_start")): ns["before_trading_start"](context)
+        if callable(ns.get("handle_data")): ns["handle_data"](context, context.current_data)
+    return context.orders
 
 
 def _to_dict(r: StrategyConfig) -> dict:
@@ -400,6 +440,9 @@ class BacktestRequest(BaseModel):
     start_date: str = Field("2024-01-01", description="起始日期 YYYY-MM-DD")
     end_date: str = Field("", description="结束日期 YYYY-MM-DD，空=今天")
     initial_capital: float = Field(100000.0, description="初始资金")
+    commission: float = Field(0.0003, ge=0, le=0.02, description="手续费率")
+    slippage: float = Field(0.001, ge=0, le=0.05, description="滑点比例")
+    enforce_price_limit: bool = Field(True, description="执行涨跌停限制")
 
 
 class StrategyTestRequest(BaseModel):
@@ -553,7 +596,7 @@ def _finish_metrics(equity_curve: list, trades: list, capital: float) -> dict:
     }
 
 
-def _simulate(bars: list, signals: list, capital: float) -> dict:
+def _simulate(bars: list, signals: list, capital: float, commission: float = 0.0003, slippage: float = 0.001, enforce_price_limit: bool = True) -> dict:
     """单只股票资金模拟：信号当日开盘价成交，buy 只允许空仓建仓，sell 按持仓比例减仓。"""
     opens = {str(b["dt"]): float(b["open"]) for b in bars}
     closes = {str(b["dt"]): float(b["close"]) for b in bars}
@@ -570,25 +613,33 @@ def _simulate(bars: list, signals: list, capital: float) -> dict:
     trades = []
     equity_curve = []
 
-    for b in bars:
+    for bar_index, b in enumerate(bars):
         dt = str(b["dt"])
         close_px = closes[dt]
         for s in sigs.get(dt, []):
             action = str(s.get("action", "")).lower()
             frac = min(max(float(s.get("fraction", 1.0)), 0.0), 1.0)
-            fill = opens[dt]
+            fill = opens[dt] * (1 + slippage if action == "buy" else 1 - slippage)
+            if enforce_price_limit and bar_index > 0:
+                prev_close = float(bars[bar_index - 1].get("close") or fill)
+                if action == "buy" and fill >= prev_close * 1.095:
+                    continue
+                if action == "sell" and fill <= prev_close * 0.905:
+                    continue
             if action == "buy" and shares <= 0 and cash > 0:
                 spend = cash * frac
                 if spend > fill:
                     shares = int(spend / fill / 100) * 100
                     if shares >= 100:
-                        cash -= shares * fill
+                        fee = shares * fill * commission
+                        cash -= shares * fill + fee
                         entry_price = fill
                         entry_date = dt
             elif action == "sell" and shares > 0:
                 n = shares * frac
                 proceeds = n * fill
-                cash += proceeds
+                fee = proceeds * commission
+                cash += proceeds - fee
                 shares -= n
                 pnl = proceeds - n * entry_price
                 trades.append({
@@ -597,7 +648,7 @@ def _simulate(bars: list, signals: list, capital: float) -> dict:
                     "exit_date": dt,
                     "exit_price": round(fill, 4),
                     "shares": round(n, 2),
-                    "pnl": round(pnl, 2),
+                    "pnl": round(pnl - fee, 2),
                     "pnl_pct": round(pnl / (n * entry_price), 4) if entry_price else 0,
                 })
                 if shares <= 0:
@@ -625,7 +676,7 @@ def _simulate(bars: list, signals: list, capital: float) -> dict:
     }
 
 
-def _simulate_portfolio(bars_map: dict, signals: list, capital: float) -> dict:
+def _simulate_portfolio(bars_map: dict, signals: list, capital: float, commission: float = 0.0003, slippage: float = 0.001) -> dict:
     """自选组合资金模拟：多只股票按日期对齐，buy 按 fraction 分配可用资金建仓，sell 按持仓比例减仓。"""
     open_map = {sym: {str(b["dt"]): float(b["open"]) for b in bars} for sym, bars in bars_map.items()}
     close_map = {sym: {str(b["dt"]): float(b["close"]) for b in bars} for sym, bars in bars_map.items()}
@@ -659,7 +710,7 @@ def _simulate_portfolio(bars_map: dict, signals: list, capital: float) -> dict:
             sym = str(s.get("symbol", ""))
             action = str(s.get("action", "")).lower()
             frac = min(max(float(s.get("fraction", 1.0)), 0.0), 1.0)
-            fill = open_map[sym][dt]
+            fill = open_map[sym][dt] * (1 + slippage if action == "buy" else 1 - slippage)
             pos = positions.get(sym)
             if action == "buy":
                 if pos is None and cash > 0:
@@ -667,12 +718,13 @@ def _simulate_portfolio(bars_map: dict, signals: list, capital: float) -> dict:
                     if spend > fill:
                         shares = int(spend / fill / 100) * 100
                         if shares >= 100:
-                            cash -= shares * fill
+                            cash -= shares * fill * (1 + commission)
                             positions[sym] = {"shares": shares, "entry_price": fill, "entry_date": dt}
             elif action == "sell" and pos:
                 n = pos["shares"] * frac
                 proceeds = n * fill
-                cash += proceeds
+                fee = proceeds * commission
+                cash += proceeds - fee
                 pos["shares"] -= n
                 pnl = proceeds - n * pos["entry_price"]
                 trades.append({
@@ -682,7 +734,7 @@ def _simulate_portfolio(bars_map: dict, signals: list, capital: float) -> dict:
                     "exit_date": dt,
                     "exit_price": round(fill, 4),
                     "shares": round(n, 2),
-                    "pnl": round(pnl, 2),
+                    "pnl": round(pnl - fee, 2),
                     "pnl_pct": round(pnl / (n * pos["entry_price"]), 4) if pos["entry_price"] else 0,
                 })
                 if pos["shares"] <= 0:
@@ -836,7 +888,7 @@ async def test_strategy(body: StrategyTestRequest):
             "volume": 10000 + i * 60,
         })
     try:
-        signals = run_fn(bars, dict(body.params)) or []
+        signals = _run_strategy(run_fn, bars, dict(body.params)) or []
         if not isinstance(signals, list):
             return {"ok": False, "error": "run() 必须返回信号列表"}
         mode = "组合模式" if isinstance(signals, list) and any(s.get("symbol") for s in signals[:50]) else "单只模式"
@@ -848,7 +900,7 @@ async def test_strategy(body: StrategyTestRequest):
     except (TypeError, AttributeError) as e:
         # 兼容组合型策略：单只 list 当作一只的 dict 再试一次
         try:
-            signals = run_fn({"TEST_A": bars, "TEST_B": bars}, dict(body.params)) or []
+            signals = _run_strategy(run_fn, {"TEST_A": bars, "TEST_B": bars}, dict(body.params)) or []
         except Exception as e2:
             return {"ok": False, "error": f"run() 执行出错: {e2}"}
         if not isinstance(signals, list):
@@ -890,19 +942,25 @@ async def run_backtest(body: BacktestRequest, db: AsyncSession = Depends(get_db)
     if portfolio:
         if len(portfolio) > 20:
             raise HTTPException(400, "自选组合最多支持 20 只股票")
-        bars_map = {}
-        for sym in portfolio:
+        async def _fetch_symbol(sym):
             try:
                 payload = await KlineService(db).get_klines(sym, "day", start, end)
+                klines = (payload or {}).get("data", []) or []
+                if not klines:
+                    raise ValueError(f"未获取到 {sym} 区间 K 线数据")
+                return sym, klines, None
             except Exception as e:
-                logger.warning(f"backtest kline fetch failed for {sym}: {e}")
-                raise HTTPException(502, f"{sym} K线获取失败: {e}")
-            klines = (payload or {}).get("data", []) or []
-            if not klines:
-                raise HTTPException(404, f"未获取到 {sym} 区间 K 线数据")
+                return sym, [], e
+
+        fetched = await asyncio.gather(*[_fetch_symbol(sym) for sym in portfolio])
+        bars_map = {}
+        for sym, klines, error in fetched:
+            if error:
+                logger.warning(f"backtest kline fetch failed for {sym}: {error}")
+                raise HTTPException(502, f"{sym} K线获取失败: {error}")
             bars_map[sym] = klines
         try:
-            signals = run_fn(bars_map, merged) or []
+            signals = _run_strategy(run_fn, bars_map, merged) or []
         except (TypeError, AttributeError) as e:
             raise HTTPException(400,
                 f"策略未兼容组合模式：run 收到的是 {{symbol: 列表}} 字典（错误: {e}）。请修改策略代码支持 dict 入参。")
@@ -910,7 +968,7 @@ async def run_backtest(body: BacktestRequest, db: AsyncSession = Depends(get_db)
             raise HTTPException(400, f"策略执行出错: {e}")
         if not isinstance(signals, list):
             raise HTTPException(400, "run() 必须返回信号列表")
-        result = _simulate_portfolio(bars_map, signals, float(body.initial_capital))
+        result = _simulate_portfolio(bars_map, signals, float(body.initial_capital), body.commission, body.slippage)
         result["symbols"] = portfolio
         result["symbol"] = "+".join(portfolio)
     else:
@@ -923,14 +981,14 @@ async def run_backtest(body: BacktestRequest, db: AsyncSession = Depends(get_db)
         if not klines:
             raise HTTPException(404, f"未获取到 {body.symbol} 区间 K 线数据")
         try:
-            signals = run_fn(klines, merged) or []
+            signals = _run_strategy(run_fn, klines, merged) or []
             if not isinstance(signals, list):
                 raise ValueError("run() 必须返回信号列表")
         except ValueError as e:
             raise HTTPException(400, str(e))
         except Exception as e:
             raise HTTPException(400, f"策略执行出错: {e}")
-        result = _simulate(klines, signals, float(body.initial_capital))
+        result = _simulate(klines, signals, float(body.initial_capital), body.commission, body.slippage, body.enforce_price_limit)
         sym = body.symbol.upper()
         if not result["trades"]:
             result.setdefault("trades", [])
@@ -943,6 +1001,7 @@ async def run_backtest(body: BacktestRequest, db: AsyncSession = Depends(get_db)
     result["strategy"] = cfg.key
     result["strategy_name"] = cfg.name
     result["params"] = merged
+    result["execution"] = {"commission": body.commission, "slippage": body.slippage, "enforce_price_limit": body.enforce_price_limit}
     result["start_date"] = start.isoformat()
     result["end_date"] = end.isoformat()
     return result

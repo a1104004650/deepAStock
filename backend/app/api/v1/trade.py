@@ -27,6 +27,14 @@ async def delete_all_trades(db: AsyncSession = Depends(get_db)):
     return {"deleted": n}
 
 
+@router.post("/reset")
+async def reset_trading_ledger(db: AsyncSession = Depends(get_db)):
+    """重置实盘导入账本：删除全部交易流水并重建为空持仓。"""
+    svc = TradeImportService(db)
+    n = await svc.delete_all(0)
+    return {"ok": True, "deleted": n, "positions": 0}
+
+
 @router.delete("/trades/{trade_id}")
 async def delete_trade(trade_id: int, db: AsyncSession = Depends(get_db)):
     svc = TradeImportService(db)

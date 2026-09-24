@@ -5,7 +5,7 @@
 - RSI（相对强弱指标）
 - 布林带（Bollinger Bands）
 - 量价背离检测
-- 5种主力行为信号：吸筹、洗盘、诱多、诱空、真拉升
+- 6种主力行为信号：吸筹、洗盘、诱多、诱空、出货、真拉升
 - T+0做T信号：基于量价关系的高抛低吸
 
 数据源：腾讯分时 API（cumulative volume/amount → per-minute delta）
@@ -160,52 +160,231 @@ def _volume_price_divergence(bars: list[dict], window: int = 5) -> list[dict]:
 # 主力行为信号检测（只在放量时分析）
 # ---------------------------------------------------------------------------
 
-def _detect_signals(bars: list[dict], pre_close: float = 0) -> list[dict]:
+def _daily_context(daily_bars: list[dict], current_price: float) -> dict:
     """
-    基于放量的行为信号检测。
-    逻辑：先找到放量点，再分析放量前后5分钟的意图。
-    只在放量时产生信号，没量不分析。
+    日K线位置分析 — 判断当前价格在日线结构中的位置。
+    返回：趋势、支撑位、阻力位、位置判断。
+    """
+    if not daily_bars or len(daily_bars) < 10:
+        return {"trend": "unknown", "near_support": False, "near_resistance": False,
+                "support": 0, "resistance": 0, "daily_chg_pct": 0, "daily_trend": "unknown",
+                "position": "unknown"}
+
+    closes = [b.get("close", 0) or b.get("price", 0) for b in daily_bars if b.get("close", 0) or b.get("price", 0)]
+    highs = [b.get("high", 0) for b in daily_bars if b.get("high", 0)]
+    lows = [b.get("low", 0) for b in daily_bars if b.get("low", 0)]
+
+    if len(closes) < 5:
+        return {"trend": "unknown", "near_support": False, "near_resistance": False,
+                "support": 0, "resistance": 0, "daily_chg_pct": 0, "daily_trend": "unknown",
+                "position": "unknown"}
+
+    # 日线趋势：20日均线方向
+    ma5 = sum(closes[-5:]) / 5
+    ma10 = sum(closes[-10:]) / 10
+    ma20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else ma10
+
+    # 趋势判断
+    if ma5 > ma10 > ma20:
+        daily_trend = "上升"
+    elif ma5 < ma10 < ma20:
+        daily_trend = "下降"
+    else:
+        daily_trend = "震荡"
+
+    # 支撑阻力：近20日高低点
+    recent_highs = highs[-20:] if len(highs) >= 20 else highs
+    recent_lows = lows[-20:] if len(lows) >= 20 else lows
+    resistance = max(recent_highs) if recent_highs else current_price
+    support = min(recent_lows) if recent_lows else current_price
+
+    # 价格位置：0=最低点，1=最高点
+    price_range = resistance - support
+    position_pct = (current_price - support) / price_range * 100 if price_range > 0 else 50
+
+    # 距离支撑/阻力的百分比
+    dist_to_support = abs(current_price - support) / current_price * 100 if current_price > 0 else 0
+    dist_to_resistance = abs(resistance - current_price) / current_price * 100 if current_price > 0 else 0
+
+    # 接近支撑/阻力（5%以内）
+    near_support = dist_to_support < 5
+    near_resistance = dist_to_resistance < 5
+
+    # 日涨跌幅（最新一根K线）
+    prev_close = closes[-2] if len(closes) >= 2 else closes[-1]
+    daily_chg_pct = (closes[-1] - prev_close) / prev_close * 100 if prev_close > 0 else 0
+
+    return {
+        "trend": daily_trend,
+        "daily_trend": daily_trend,
+        "daily_chg_pct": round(daily_chg_pct, 2),
+        "near_support": near_support,
+        "near_resistance": near_resistance,
+        "support": round(support, 2),
+        "resistance": round(resistance, 2),
+        "position_pct": round(max(0, min(100, position_pct)), 1),
+        "ma5": round(ma5, 2),
+        "ma10": round(ma10, 2),
+        "ma20": round(ma20, 2),
+    }
+
+
+def daily_behavior_summary(daily_bars: list[dict], current_price: float = 0) -> dict:
+    """根据日K位置、实体/影线和量能给出保守的主力行为摘要。
+
+    这是复盘用的收盘确认，不预测下一根K线；证据不足时明确返回观望。
+    """
+    ctx = _daily_context(daily_bars or [], current_price)
+    if not daily_bars or len(daily_bars) < 10:
+        return {"primary": "观望", "confidence": 0, "reason": "日K数量不足，无法判断主力行为",
+                "t_bias": "观望", "context": ctx}
+
+    bars = daily_bars[-20:]
+    def _num(row, key):
+        try:
+            return float(row.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    last = bars[-1]
+    close = _num(last, "close")
+    open_price = _num(last, "open")
+    high = _num(last, "high")
+    low = _num(last, "low")
+    volumes = [_num(b, "volume") for b in bars[:-1] if _num(b, "volume") > 0]
+    last_volume = _num(last, "volume")
+    avg_volume = sum(volumes[-5:]) / len(volumes[-5:]) if volumes else 0
+    volume_ratio = last_volume / avg_volume if avg_volume else 1
+    body = abs(close - open_price)
+    candle_range = max(high - low, close * 0.001)
+    lower_shadow = max(0, min(close, open_price) - low)
+    upper_shadow = max(0, high - max(close, open_price))
+    close_position = (close - low) / candle_range if candle_range else 0.5
+
+    primary = "观望"
+    confidence = 25
+    reason = "日K量价信号不充分，暂不强行判断"
+    t_bias = "观望"
+
+    if ctx.get("near_support") and close >= open_price and lower_shadow >= max(body * 1.2, candle_range * 0.25) and volume_ratio >= 1.15:
+        primary = "诱空"
+        confidence = 65
+        reason = "支撑附近下探后收回，带下影且量能放大，存在主力承接/诱空迹象"
+        t_bias = "回踩低吸，等待分时再次确认"
+    elif ctx.get("near_support") and close < open_price and volume_ratio < 1.0:
+        primary = "洗盘"
+        confidence = 55
+        reason = "支撑附近回落但量能收缩，暂偏向洗盘而非主动出货"
+        t_bias = "不追跌，等待支撑确认"
+    elif ctx.get("near_resistance") and upper_shadow >= max(body * 1.2, candle_range * 0.25) and volume_ratio >= 1.2:
+        primary = "诱多"
+        confidence = 65
+        reason = "阻力附近冲高回落，带上影且量能放大，存在主力派发/诱多迹象"
+        t_bias = "冲高减仓，避免追高"
+    elif ctx.get("near_resistance") and close < open_price and volume_ratio >= 1.25:
+        primary = "出货"
+        confidence = 68
+        reason = "高位放量收阴并靠近阻力，主动卖压证据较强"
+        t_bias = "反弹减仓，不做接飞刀"
+    elif ctx.get("daily_trend") == "上升" and close > open_price and close_position > 0.7 and volume_ratio >= 1.2:
+        primary = "真拉升"
+        confidence = 62
+        reason = "上升趋势中日K收强、收盘靠近高位且量能配合"
+        t_bias = "回踩均价低吸，不在急拉时追买"
+    elif ctx.get("daily_trend") == "下降" and close < open_price and close_position < 0.35 and volume_ratio >= 1.2:
+        primary = "出货"
+        confidence = 60
+        reason = "下降趋势中放量收弱，反弹性质暂未被确认"
+        t_bias = "以防守为主，暂不低吸"
+
+    return {
+        "primary": primary,
+        "confidence": confidence,
+        "reason": reason,
+        "t_bias": t_bias,
+        "volume_ratio": round(volume_ratio, 2),
+        "context": ctx,
+    }
+
+
+def _detect_signals(bars: list[dict], pre_close: float = 0,
+                     daily_ctx: dict = None) -> list[dict]:
+    """
+    主力行为信号检测 — 基于量价关系判断主力意图。
+
+    核心原则：信号必须回答"主力在做什么"，而不是"当前发生了什么"。
+    - 吸筹：主力在低位悄悄买入（放量不跌/VWAP下方反复吸货）
+    - 洗盘：主力在高位震荡清洗浮筹（急跌后快速收回）
+    - 诱多：主力拉高引诱散户追高后反手卖出（拉高后快速回落）
+    - 诱空：主力砸盘引诱散户恐慌抛售后反手买入（砸盘后快速收回）
+    - 出货：主力在高位大量卖出（高位放量滞涨/阴跌）
+    - 真拉升：主力真金白银往上买（放量突破关键位）
+
+    日K位置是关键判断依据：
+    - 低位放量不跌 → 吸筹概率高
+    - 高位放量滞涨 → 出货概率高
+    - 上升趋势中急跌 → 洗盘概率高
+    - 下降趋势中反弹 → 诱多概率高
     """
     signals = []
     n = len(bars)
     if n < 20:
         return signals
 
-    # --- Step 1: 找放量点 ---
-    VOL_SPIKE_RATIO = 2.0
-    WINDOW = 5
+    # --- 日内趋势 ---
+    cum_return = 0
+    if pre_close > 0 and bars:
+        last_price = bars[-1].get("price", 0)
+        if last_price > 0:
+            cum_return = (last_price - pre_close) / pre_close * 100
 
-    spike_indices = []  # list of (index, avg_vol)
+    # --- 找放量点 ---
+    VOL_SPIKE_RATIO = 2.0
+    # 只用短确认窗口，避免把未来走势大量带入当前信号
+    WINDOW = 2
+    spike_indices = []
 
     for i in range(20, n):
         d_vol = bars[i].get("d_vol", 0)
         if d_vol <= 0:
             continue
-
         start = max(0, i - 20)
         hist_vols = [bars[j]["d_vol"] for j in range(start, i) if bars[j].get("d_vol", 0) > 0]
         avg_vol = sum(hist_vols) / len(hist_vols) if hist_vols else 0
-
         if avg_vol > 0 and d_vol >= avg_vol * VOL_SPIKE_RATIO:
             if not spike_indices or (i - spike_indices[-1][0]) >= 3:
                 spike_indices.append((i, avg_vol))
 
-    # --- Step 2: 分析每个放量窗口 ---
+    if not spike_indices:
+        return signals
+
+    # --- 日K位置参数 ---
+    ctx = daily_ctx or {}
+    daily_trend = ctx.get("daily_trend", "unknown")
+    near_support = ctx.get("near_support", False)
+    near_resistance = ctx.get("near_resistance", False)
+    position_pct = ctx.get("position_pct", 50)
+
+    # --- 分析每个放量窗口 ---
     for spike_i, avg_vol in spike_indices:
+        # 未完成确认窗口的最后几根不提前下结论
+        if spike_i + WINDOW >= n:
+            continue
         window_start = max(10, spike_i - WINDOW)
         window_end = min(n - 1, spike_i + WINDOW)
 
         spike_bar = bars[spike_i]
         spike_vol = spike_bar.get("d_vol", 0)
         spike_price = spike_bar.get("price", 0)
-        spike_vwap = spike_bar.get("vwap", spike_price)
         spike_vdev = spike_bar.get("vwap_dev", 0)
-        spike_mom = spike_bar.get("price_mom", 0)
-        spike_time = spike_bar.get("time", "")
+        # 信号时间使用确认完成的时间，而不是事后才知道的放量点时间
+        confirm_bar = bars[spike_i + WINDOW]
+        spike_time = confirm_bar.get("time", spike_bar.get("time", ""))
 
         if not spike_price or spike_price <= 0:
             continue
 
+        # 放量前后的走势
         pre_prices = [bars[j].get("price", 0) for j in range(window_start, spike_i) if bars[j].get("price", 0) > 0]
         post_prices = [bars[j].get("price", 0) for j in range(spike_i + 1, window_end + 1) if bars[j].get("price", 0) > 0]
 
@@ -224,59 +403,138 @@ def _detect_signals(bars: list[dict], pre_close: float = 0) -> list[dict]:
         label = ""
         conf = 0
         desc = ""
+        vol_ratio = spike_vol / max(avg_vol, 1)
 
-        is_limit_up = chg_pct >= 9
+        # ================================================================
+        # 核心判断逻辑：日K位置 + 分时量价 → 主力行为
+        # ================================================================
 
-        # 情况1：放量急涨
         if bar_up and chg_pct > 0.3:
-            if is_limit_up:
-                sig_type = "genuine_rally"
-                label = "真拉升"
-                conf = 85 + min(int(spike_vol / max(avg_vol, 1) * 3), 10)
-                desc = f"放量涨停{chg_pct:.2f}%，主力强势拉升"
-            elif post_trend > -0.2:
-                sig_type = "genuine_rally"
-                label = "真拉升"
-                conf = 50 + min(int(abs(chg_pct) * 10), 30) + min(int(spike_vol / max(avg_vol, 1) * 5), 15)
-                desc = f"放量涨{chg_pct:.2f}%，量比{spike_vol/avg_vol:.1f}，后续走势确认拉升"
-            else:
+            # --- 放量上涨 ---
+            if post_trend < -0.3:
+                # 拉高后快速回落 → 诱多（主力拉高出货）
                 sig_type = "bull_trap"
                 label = "诱多"
-                conf = 40 + min(int(abs(chg_pct) * 8), 25) + min(int(spike_vol / max(avg_vol, 1) * 4), 12)
-                desc = f"放量涨{chg_pct:.2f}%后回落，疑似诱多出货"
+                conf = 50 + min(int(vol_ratio * 5), 20) + min(int(abs(chg_pct) * 5), 15)
+                if near_resistance:
+                    conf += 10
+                    desc = f"接近阻力位放量拉高后回落，主力诱多出货（{WINDOW}根确认）"
+                elif daily_trend == "下降":
+                    conf += 8
+                    desc = f"下降趋势中放量拉高后回落，主力诱多（{WINDOW}根确认）"
+                else:
+                    desc = f"放量涨{chg_pct:.2f}%后回落，主力拉高诱多（{WINDOW}根确认）"
+            elif post_trend > -0.1:
+                if near_support and daily_trend != "下降":
+                    # 支撑位附近放量上涨 → 吸筹后拉升
+                    sig_type = "accumulate"
+                    label = "吸筹"
+                    conf = 55 + min(int(vol_ratio * 5), 20)
+                    desc = f"支撑位附近放量上涨，主力吸筹后拉升"
+                elif daily_trend == "上升" and position_pct < 60:
+                    # 上升趋势低位放量涨 → 吸筹
+                    sig_type = "accumulate"
+                    label = "吸筹"
+                    conf = 50 + min(int(vol_ratio * 5), 18)
+                    desc = f"上升趋势中放量上涨，主力吸筹"
+                else:
+                    # 真拉升
+                    sig_type = "genuine_rally"
+                    label = "真拉升"
+                    conf = 50 + min(int(vol_ratio * 5), 20) + min(int(abs(chg_pct) * 5), 15)
+                    if daily_trend == "上升":
+                        conf += 8
+                    desc = f"放量涨{chg_pct:.2f}%，主力真金白银拉升"
+            else:
+                # 涨后小幅回落，观察
+                sig_type = "genuine_rally"
+                label = "真拉升"
+                conf = 45 + min(int(vol_ratio * 5), 15)
+                desc = f"放量涨{chg_pct:.2f}%，主力买入"
 
-        # 情况2：放量急跌
         elif not bar_up and chg_pct < -0.3:
-            if post_trend > -0.3:
-                sig_type = "shakeout"
-                label = "洗盘"
-                conf = 45 + min(int(abs(chg_pct) * 10), 28) + min(int(spike_vol / max(avg_vol, 1) * 4), 12)
-                desc = f"放量跌{abs(chg_pct):.2f}%后企稳，疑似洗盘"
+            # --- 放量下跌 ---
+            if post_trend > 0.2:
+                # 急跌后快速收回 → 诱空或洗盘
+                if daily_trend == "上升" or near_support:
+                    # 上升趋势/支撑位急跌后收回 → 诱空
+                    sig_type = "bear_trap"
+                    label = "诱空"
+                    conf = 55 + min(int(vol_ratio * 5), 20)
+                    if near_support:
+                        conf += 8
+                    desc = f"{'支撑位' if near_support else '上升趋势'}中急跌后快速收回，主力诱空洗筹"
+                else:
+                    # 震荡趋势急跌后收回 → 洗盘
+                    sig_type = "shakeout"
+                    label = "洗盘"
+                    conf = 50 + min(int(vol_ratio * 5), 18)
+                    desc = f"放量跌{abs(chg_pct):.2f}%后快速回升，主力洗盘"
+            elif post_trend > -0.3:
+                # 跌后横盘 → 洗盘（未继续杀跌）
+                if daily_trend == "上升" or near_support:
+                    sig_type = "shakeout"
+                    label = "洗盘"
+                    conf = 45 + min(int(vol_ratio * 5), 15)
+                    desc = f"放量跌后横盘未继续下跌，主力洗盘"
+                else:
+                    # 上涨后回调，主力减仓
+                    sig_type = "distribution"
+                    label = "出货"
+                    conf = 40 + min(int(vol_ratio * 5), 15)
+                    desc = f"放量跌后横盘，主力减仓"
             else:
-                sig_type = "bear_trap"
-                label = "诱空"
-                conf = 40 + min(int(abs(chg_pct) * 8), 25) + min(int(spike_vol / max(avg_vol, 1) * 4), 12)
-                desc = f"放量跌{abs(chg_pct):.2f}%后继续下跌，疑似诱空"
+                # 跌后继续跌 → 出货
+                sig_type = "distribution"
+                label = "出货"
+                conf = 50 + min(int(vol_ratio * 5), 18) + min(int(abs(chg_pct) * 5), 12)
+                if near_resistance:
+                    conf += 10
+                    desc = f"阻力位附近放量杀跌，主力出货"
+                elif daily_trend == "上升" and position_pct > 70:
+                    desc = f"高位放量下跌，主力出货"
+                else:
+                    desc = f"放量跌{abs(chg_pct):.2f}%后继续下跌，主力出货"
 
-        # 情况3：放量震荡（VWAP偏离大）
         elif abs(spike_vdev) > 0.5:
-            if is_limit_up:
-                sig_type = "genuine_rally"
-                label = "真拉升"
-                conf = 80 + min(int(spike_vol / max(avg_vol, 1) * 3), 10)
-                desc = f"涨停+VWAP上方放量，主力强势拉升"
-            elif spike_vdev < 0:
-                sig_type = "accumulate"
-                label = "吸筹"
-                conf = 40 + min(int(abs(spike_vdev) * 15), 25) + min(int(spike_vol / max(avg_vol, 1) * 4), 12)
-                desc = f"VWAP下方{abs(spike_vdev):.2f}%放量，疑似吸筹"
+            # --- VWAP偏离放量 ---
+            if spike_vdev < 0:
+                if near_support or (daily_trend == "上升" and position_pct < 50):
+                    # 低位VWAP下方放量 → 吸筹
+                    sig_type = "accumulate"
+                    label = "吸筹"
+                    conf = 50 + min(int(abs(spike_vdev) * 12), 20) + min(int(vol_ratio * 5), 15)
+                    desc = f"VWAP下方放量，主力低位吸筹"
+                elif daily_trend == "下降":
+                    # 下降趋势VWAP下方放量 → 出货
+                    sig_type = "distribution"
+                    label = "出货"
+                    conf = 45 + min(int(abs(spike_vdev) * 10), 18)
+                    desc = f"下降趋势VWAP下方放量，主力出货"
+                else:
+                    sig_type = "accumulate"
+                    label = "吸筹"
+                    conf = 40 + min(int(abs(spike_vdev) * 10), 15)
+                    desc = f"VWAP下方放量，疑似吸筹"
             else:
-                sig_type = "bull_trap"
-                label = "诱多"
-                conf = 38 + min(int(spike_vdev * 12), 22) + min(int(spike_vol / max(avg_vol, 1) * 4), 12)
-                desc = f"VWAP上方{spike_vdev:.2f}%放量，警惕出货"
+                if near_resistance or position_pct > 80:
+                    # 高位VWAP上方放量 → 出货
+                    sig_type = "distribution"
+                    label = "出货"
+                    conf = 48 + min(int(spike_vdev * 10), 18)
+                    desc = f"高位VWAP上方放量滞涨，主力出货"
+                elif daily_trend == "上升":
+                    sig_type = "genuine_rally"
+                    label = "真拉升"
+                    conf = 45 + min(int(spike_vdev * 10), 15)
+                    desc = f"VWAP上方放量，主力拉升"
+                else:
+                    sig_type = "bull_trap"
+                    label = "诱多"
+                    conf = 42 + min(int(spike_vdev * 10), 15)
+                    desc = f"VWAP上方放量，警惕诱多"
 
-        # 产生主力行为信号
+        # 产生信号
         if sig_type:
             conf = max(35, min(90, conf))
             signals.append({
@@ -293,6 +551,117 @@ def _detect_signals(bars: list[dict], pre_close: float = 0) -> list[dict]:
 # ---------------------------------------------------------------------------
 # T+0 做T信号检测（独立于主力行为信号）
 # ---------------------------------------------------------------------------
+
+def _detect_t_signals_low_lag(bars: list[dict], pre_close: float = 0,
+                              daily_ctx: dict = None) -> list[dict]:
+    """低滞后做T信号：只使用当前及已完成的局部K线，不回看未来高低点。"""
+    n = len(bars)
+    if n < 12:
+        return []
+
+    ctx = daily_ctx or {}
+    trend = ctx.get("daily_trend", "unknown")
+    near_support = bool(ctx.get("near_support"))
+    near_resistance = bool(ctx.get("near_resistance"))
+    position = float(ctx.get("position_pct", 50) or 50)
+    day_return = 0
+    if pre_close and bars[-1].get("price"):
+        day_return = (bars[-1]["price"] - pre_close) / pre_close * 100
+
+    # 局部反转只需两根确认，避免原算法的60根未来扫描。
+    MIN_SWING = 0.45
+    MIN_GAP = 0.8
+    MAX_SIGNALS = 3
+    signals = []
+    last_type = ""
+    last_price = 0.0
+
+    for i in range(2, n - 2):
+        p0 = float(bars[i - 2].get("price") or 0)
+        p1 = float(bars[i - 1].get("price") or 0)
+        p2 = float(bars[i].get("price") or 0)
+        p3 = float(bars[i + 1].get("price") or 0)
+        p4 = float(bars[i + 2].get("price") or 0)
+        if min(p0, p1, p2, p3, p4) <= 0:
+            continue
+
+        change_before = (p2 - p0) / p0 * 100
+        confirm_change = (p4 - p2) / p2 * 100
+        rsi = float(bars[i].get("rsi") or 50)
+        vwap_dev = float(bars[i].get("vwap_dev") or 0)
+        vol_ratio = float(bars[i].get("vol_ratio") or 1)
+        momentum = float(bars[i].get("price_mom") or 0)
+
+        is_low = p2 <= p1 and p2 <= p3 and change_before <= -MIN_SWING and confirm_change >= 0.25
+        is_high = p2 >= p1 and p2 >= p3 and change_before >= MIN_SWING and confirm_change <= -0.25
+        if not is_low and not is_high:
+            continue
+
+        if is_low and last_type == "t_buy":
+            continue
+        if is_high and last_type == "t_sell":
+            continue
+
+        confidence = 48
+        reasons = ["局部反转确认"]
+        if vol_ratio >= 1.35:
+            confidence += 6
+            reasons.append("量能确认")
+        if is_low:
+            if rsi <= 38:
+                confidence += 8
+                reasons.append("RSI偏低")
+            if vwap_dev <= -0.6:
+                confidence += 5
+                reasons.append("低于VWAP")
+            if near_support or (trend == "上升" and position < 55):
+                confidence += 10
+                reasons.append("日K支撑/低位")
+            if trend == "下降" and not near_support:
+                confidence -= 12
+                reasons.append("下降趋势抑制")
+            if day_return < -4 and not near_support:
+                confidence -= 8
+                reasons.append("日内弱势")
+            if confidence < 55:
+                continue
+            if last_price and last_type == "t_sell" and (last_price - p2) / last_price * 100 < MIN_GAP:
+                continue
+            label, signal_type = "T买", "t_buy"
+        else:
+            if rsi >= 62:
+                confidence += 8
+                reasons.append("RSI偏高")
+            if vwap_dev >= 0.6:
+                confidence += 5
+                reasons.append("高于VWAP")
+            if near_resistance or (trend == "下降" and position > 55):
+                confidence += 10
+                reasons.append("日K阻力/高位")
+            if trend == "上升" and not near_resistance:
+                confidence -= 12
+                reasons.append("上升趋势抑制")
+            if confidence < 55:
+                continue
+            if last_price and last_type == "t_buy" and (p2 - last_price) / last_price * 100 < MIN_GAP:
+                continue
+            label, signal_type = "T卖", "t_sell"
+
+        signals.append({
+            "time": bars[i + 2].get("time", bars[i].get("time", "")),
+            "signal": label,
+            "confidence": max(35, min(85, int(confidence))),
+            "desc": f"{'低点' if is_low else '高点'}反转后确认，" + "、".join(reasons),
+            "type": signal_type,
+            "basis": {"daily_trend": trend, "position_pct": position,
+                      "near_support": near_support, "near_resistance": near_resistance},
+        })
+        last_type = signal_type
+        last_price = p2
+        if len(signals) >= MAX_SIGNALS:
+            break
+
+    return signals
 
 def _detect_t_signals(bars: list[dict], pre_close: float = 0) -> list[dict]:
     """
@@ -314,7 +683,7 @@ def _detect_t_signals(bars: list[dict], pre_close: float = 0) -> list[dict]:
     MIN_RANGE = 2.0        # 当日振幅>=2%才做T
     MIN_GAP_PCT = 2.0      # 买-卖之间价差>=2%
     MAX_SIGNALS = 3        # 一天最多3个信号
-    CONFIRM_BARS = 3       # 确认反转需要的bar数
+    CONFIRM_BARS = 2       # 确认反转需要的bar数
     MIN_SWING = 0.8        # 最小波动幅度(%)
 
     # --- Step 1: 找日内所有显著波动 ---
@@ -494,7 +863,8 @@ def _time_diff_min(t1: str, t2: str) -> int:
 # 综合分析
 # ---------------------------------------------------------------------------
 
-def _summary(signals: list[dict], t_signals: list[dict], bars: list[dict], pre_close: float) -> dict:
+def _summary(signals: list[dict], t_signals: list[dict], bars: list[dict], pre_close: float,
+             daily_ctx: dict = None, daily_behavior: dict = None) -> dict:
     """生成分析摘要"""
     if not bars:
         return {"error": "无分时数据"}
@@ -516,7 +886,7 @@ def _summary(signals: list[dict], t_signals: list[dict], bars: list[dict], pre_c
     for s in t_signals:
         t_sig_counts[s["signal"]] = t_sig_counts.get(s["signal"], 0) + 1
 
-    intent = _judge_intent(bars, signals, vwap_dev, chg_pct)
+    intent = _judge_intent(bars, signals, vwap_dev, chg_pct, daily_ctx or {})
 
     return {
         "price": round(price, 2),
@@ -528,13 +898,15 @@ def _summary(signals: list[dict], t_signals: list[dict], bars: list[dict], pre_c
         "total_signals": len(signals),
         "t_signal_counts": t_sig_counts,
         "total_t_signals": len(t_signals),
+        "daily_behavior": daily_behavior or {},
     }
 
 
-def _judge_intent(bars: list[dict], signals: list[dict], vwap_dev: float, chg_pct: float) -> dict:
+def _judge_intent(bars: list[dict], signals: list[dict], vwap_dev: float, chg_pct: float,
+                  daily_ctx: dict = None) -> dict:
     """基于放量信号判断主力意图"""
     scores = {
-        "吸筹": 0, "洗盘": 0, "诱多": 0, "诱空": 0, "真拉升": 0
+        "吸筹": 0, "洗盘": 0, "诱多": 0, "诱空": 0, "出货": 0, "真拉升": 0
     }
 
     for s in signals:
@@ -542,7 +914,7 @@ def _judge_intent(bars: list[dict], signals: list[dict], vwap_dev: float, chg_pc
         if sig_name in scores:
             scores[sig_name] += s["confidence"]
 
-    if signals:
+    if signals and max(scores.values()) > 0:
         best = max(scores, key=scores.get)
         best_score = scores[best]
         total = sum(scores.values()) or 1
@@ -555,29 +927,58 @@ def _judge_intent(bars: list[dict], signals: list[dict], vwap_dev: float, chg_pc
             "all_scores": {k: round(v / total * 100, 1) for k, v in scores.items()},
         }
 
-    if vwap_dev < -0.5 and chg_pct < -1:
-        return {"primary": "洗盘", "score": 20, "confidence": 40, "all_scores": {"洗盘": 40, "吸筹": 30, "诱多": 0, "诱空": 20, "真拉升": 10}}
-    elif vwap_dev > 0.5 and chg_pct > 1:
-        return {"primary": "真拉升", "score": 20, "confidence": 40, "all_scores": {"洗盘": 0, "吸筹": 0, "诱多": 20, "诱空": 0, "真拉升": 40}}
-    elif vwap_dev < -0.5:
-        return {"primary": "吸筹", "score": 15, "confidence": 35, "all_scores": {"洗盘": 15, "吸筹": 35, "诱多": 0, "诱空": 20, "真拉升": 10}}
-    elif vwap_dev > 0.5:
-        return {"primary": "诱多", "score": 15, "confidence": 35, "all_scores": {"洗盘": 0, "吸筹": 0, "诱多": 35, "诱空": 0, "真拉升": 20}}
+    # 无信号时的fallback判断（基于量价关系推断主力行为）
+    ctx = daily_ctx or {}
+    near_support = ctx.get("near_support", False)
+    near_resistance = ctx.get("near_resistance", False)
+    daily_trend = ctx.get("daily_trend", "unknown")
 
-    return {"primary": "观望", "score": 0, "confidence": 0, "all_scores": {"吸筹": 0, "洗盘": 0, "诱多": 0, "诱空": 0, "真拉升": 0}}
+    if vwap_dev < -0.5 and chg_pct < -1:
+        if chg_pct < -3:
+            primary = "洗盘" if near_support or daily_trend == "上升" else "出货"
+            return {"primary": primary, "score": 20, "confidence": 40,
+                    "all_scores": {"吸筹": 0, "洗盘": 35 if primary == "洗盘" else 10,
+                                    "诱多": 0, "诱空": 10, "出货": 40 if primary == "出货" else 10,
+                                    "真拉升": 0}}
+        return {"primary": "洗盘", "score": 20, "confidence": 35, "all_scores": {"吸筹": 15, "洗盘": 35, "诱多": 0, "诱空": 15, "出货": 10, "真拉升": 0}}
+    elif vwap_dev > 0.5 and chg_pct > 1:
+        primary = "出货" if near_resistance or daily_trend == "下降" else "真拉升"
+        return {"primary": primary, "score": 20, "confidence": 40,
+                "all_scores": {"吸筹": 0, "洗盘": 0, "诱多": 15 if primary == "诱多" else 5,
+                                "诱空": 0, "出货": 40 if primary == "出货" else 5,
+                                "真拉升": 40 if primary == "真拉升" else 0}}
+    elif vwap_dev < -0.5:
+        if chg_pct < -2:
+            primary = "洗盘" if near_support or daily_trend == "上升" else "出货"
+            return {"primary": primary, "score": 15, "confidence": 35,
+                    "all_scores": {"吸筹": 5, "洗盘": 30 if primary == "洗盘" else 10,
+                                    "诱多": 0, "诱空": 10, "出货": 35 if primary == "出货" else 5,
+                                    "真拉升": 0}}
+        return {"primary": "吸筹", "score": 15, "confidence": 30, "all_scores": {"吸筹": 30, "洗盘": 10, "诱多": 0, "诱空": 15, "出货": 5, "真拉升": 0}}
+    elif vwap_dev > 0.5:
+        primary = "出货" if near_resistance else "诱多"
+        return {"primary": primary, "score": 15, "confidence": 35,
+                "all_scores": {"吸筹": 0, "洗盘": 0, "诱多": 35 if primary == "诱多" else 10,
+                                "诱空": 0, "出货": 35 if primary == "出货" else 10,
+                                "真拉升": 15 if primary == "诱多" else 0}}
+
+    return {"primary": "观望", "score": 0, "confidence": 0,
+            "all_scores": {"吸筹": 0, "洗盘": 0, "诱多": 0, "诱空": 0, "出货": 0, "真拉升": 0}}
 
 
 # ---------------------------------------------------------------------------
 # 入口函数
 # ---------------------------------------------------------------------------
 
-def analyze_intraday(rows: list[dict], pre_close: float = 0) -> dict:
+def analyze_intraday(rows: list[dict], pre_close: float = 0,
+                     daily_bars: list[dict] = None) -> dict:
     """
     分时主力行为分析入口
 
     参数:
         rows: 分时数据 [{time, price, volume, amount, avg}, ...]
         pre_close: 昨收价
+        daily_bars: 近期日K数据（用于位置分析），可选
 
     返回:
         {
@@ -585,10 +986,11 @@ def analyze_intraday(rows: list[dict], pre_close: float = 0) -> dict:
             "signals": [...],    # 主力行为信号
             "t_signals": [...],  # T+0做T信号
             "summary": {...},    # 分析摘要
+            "daily_context": {...},  # 日K位置分析
         }
     """
     if not rows:
-        return {"bars": [], "signals": [], "t_signals": [], "summary": {"error": "无数据"}}
+        return {"bars": [], "signals": [], "t_signals": [], "summary": {"error": "无数据"}, "daily_context": {}}
 
     # Step 1: 计算逐分钟增量
     bars = _deltas(rows)
@@ -614,18 +1016,25 @@ def analyze_intraday(rows: list[dict], pre_close: float = 0) -> dict:
     # Step 8: 量价背离
     bars = _volume_price_divergence(bars, window=5)
 
-    # Step 9: 检测主力行为信号
-    signals = _detect_signals(bars, pre_close)
+    # Step 9: 日K位置分析
+    current_price = bars[-1].get("price", pre_close) if bars else pre_close
+    daily_ctx = _daily_context(daily_bars or [], current_price)
+    daily_behavior = daily_behavior_summary(daily_bars or [], current_price)
 
-    # Step 10: 检测T+0做T信号（独立检测，不依赖主力行为信号）
-    t_signals = _detect_t_signals(bars, pre_close)
+    # Step 10: 检测主力行为信号（传入日K上下文）
+    signals = _detect_signals(bars, pre_close, daily_ctx)
 
-    # Step 11: 摘要
-    summary = _summary(signals, t_signals, bars, pre_close)
+    # Step 11: 低滞后做T信号（日K趋势/位置参与过滤）
+    t_signals = _detect_t_signals_low_lag(bars, pre_close, daily_ctx)
+
+    # Step 12: 摘要
+    summary = _summary(signals, t_signals, bars, pre_close, daily_ctx, daily_behavior)
 
     return {
         "bars": bars,
         "signals": signals,
         "t_signals": t_signals,
         "summary": summary,
+        "daily_context": daily_ctx,
+        "daily_behavior": daily_behavior,
     }

@@ -375,16 +375,20 @@ class TradeImportService:
                 a["sell_qty"] += t.quantity
         await self.db.flush()
 
+        symbols = list(agg)
+        rt_map = {}
+        if symbols:
+            try:
+                rt = await self.dsm.get_realtime(symbols)
+                rt_map = rt if isinstance(rt, dict) else {}
+            except Exception as e:
+                logger.warning(f"batch realtime refresh failed: {e}")
         for sym, a in agg.items():
             remaining = a["buy_qty"] - a["sell_qty"]
             if remaining <= 0:
                 continue
             avg_cost = a["cost"] / a["buy_qty"] if a["buy_qty"] else 0
-            try:
-                rt = await self.dsm.get_realtime([sym])
-                price = float(rt.get(sym, {}).get("price", avg_cost))
-            except Exception:
-                price = avg_cost
+            price = float(rt_map.get(sym, {}).get("price", avg_cost) or avg_cost)
             total_cost = avg_cost * remaining
             market_value = price * remaining
             r = market_value - total_cost

@@ -8,6 +8,7 @@ from app.core.market.quote_service import MarketService
 from app.core.datasource.manager import DataSourceManager
 from app.core.agent.base import AgentContext
 from app.core.agent.executor import AgentExecutor
+from app.core.market.intraday_analyzer import daily_behavior_summary
 from app.models.market import ReplayReport, LimitUp
 from app.utils.logger import logger
 
@@ -196,6 +197,12 @@ class ReplayEngine:
             p["performance"] = pattern["performance"]
             p["suggestion"] = pattern["suggestion"]
             p["pattern_tags"] = pattern.get("tags", [])
+            behavior = daily_behavior_summary(klines, float(info.get("price") or (klines[-1].get("close", 0) if klines else 0)))
+            p["main_force"] = behavior.get("primary", "观望")
+            p["main_force_confidence"] = behavior.get("confidence", 0)
+            p["main_force_reason"] = behavior.get("reason", "")
+            p["t_bias"] = behavior.get("t_bias", "观望")
+            p["daily_context"] = behavior.get("context", {})
         return pool
 
     @staticmethod
@@ -310,6 +317,8 @@ class ReplayEngine:
         )).scalars().all()
         result = []
         prev_limit_up = 0
+        prev_first_symbols = set()
+        prev_multi_symbols = set()
         for r in reversed(rows):
             ms = r.market_summary or {}
             la = r.limit_analysis or {}
@@ -319,21 +328,49 @@ class ReplayEngine:
             dist = ms.get("distribution") or {}
             limit_down = dist.get("limit_down", 0) or dist.get("limit_down_count", 0)
             multi_board = 0
+            first_symbols = set()
+            multi_symbols = set()
+            max_board = 0
             for k, v in ladder.items():
-                if int(k) >= 2:
+                board = int(k)
+                max_board = max(max_board, board)
+                for stock in v if isinstance(v, list) else []:
+                    symbol = stock.get("symbol")
+                    if symbol:
+                        if board == 1:
+                            first_symbols.add(symbol)
+                        elif board >= 2:
+                            multi_symbols.add(symbol)
+                if board >= 2:
                     multi_board += len(v)
             consecutive_rate = round(multi_board / total_limit * 100, 1) if total_limit > 0 else 0
-            broken = max(0, prev_limit_up - multi_board - (total_limit - multi_board)) if prev_limit_up > 0 else 0
-            broken_rate = round(broken / prev_limit_up * 100, 1) if prev_limit_up > 0 else 0
+            promoted = len(prev_first_symbols & multi_symbols)
+            promotion_rate = round(promoted / len(prev_first_symbols) * 100, 1) if prev_first_symbols else 0
+            broken = len(prev_multi_symbols - multi_symbols) if prev_multi_symbols else 0
+            broken_rate = round(broken / len(prev_multi_symbols) * 100, 1) if prev_multi_symbols else 0
+            sector_flow = r.sector_flow or []
+            top_sectors = sorted(
+                [s for s in sector_flow if s.get("sector_name")],
+                key=lambda s: (float(s.get("limit_up_count") or 0), float(s.get("net_inflow") or 0)),
+                reverse=True,
+            )[:5]
             result.append({
                 "date": r.date.isoformat(),
                 "limit_up": total_limit,
                 "limit_down": limit_down,
                 "multi_board": multi_board,
+                "first_board": len(first_symbols),
+                "max_board": max_board,
+                "promoted": promoted,
+                "promotion_rate": promotion_rate,
+                "broken": broken,
                 "consecutive_rate": consecutive_rate,
                 "broken_rate": broken_rate,
+                "top_sectors": [{"name": s.get("sector_name"), "limit_up": s.get("limit_up_count", 0), "net_inflow": s.get("net_inflow", 0)} for s in top_sectors],
             })
             prev_limit_up = total_limit
+            prev_first_symbols = first_symbols
+            prev_multi_symbols = multi_symbols
         return result
 
     @staticmethod

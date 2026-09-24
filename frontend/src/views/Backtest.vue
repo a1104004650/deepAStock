@@ -2,7 +2,7 @@
   <MainLayout>
     <div class="page">
       <div class="flex between" style="align-items:center;margin-bottom:10px">
-        <h2 style="font-size:18px">策略回测</h2>
+         <div><h2 style="font-size:18px">策略回测</h2><span class="fs12" style="color:#909399">Python脚本驱动 · 日线事件回测 · 不使用未来数据</span></div>
         <el-button size="small" @click="openManager">策略管理（编辑 / 新增 / 自己写）</el-button>
       </div>
 
@@ -121,6 +121,14 @@
               <el-form-item label="初始资金">
                 <el-input-number v-model="form.initial_capital" :min="10000" :step="50000" style="width:100%" />
               </el-form-item>
+              <el-form-item label="交易成本">
+                <div class="execution-fields">
+                  <el-input-number v-model="execution.commission" :min="0" :max="0.02" :step="0.0001" :precision="4" controls-position="right" />
+                  <el-input-number v-model="execution.slippage" :min="0" :max="0.05" :step="0.0005" :precision="4" controls-position="right" />
+                </div>
+                <div class="fs11" style="color:#909399">手续费率 / 滑点比例</div>
+              </el-form-item>
+              <el-form-item label="交易规则"><el-switch v-model="execution.enforce_price_limit" active-text="执行涨跌停限制" /></el-form-item>
               <el-button type="primary" :loading="running" style="width:100%" @click="run">
                 {{ running ? '回测中…' : '开始回测' }}
               </el-button>
@@ -240,9 +248,9 @@
               </div>
               <el-button size="small" @click="addSchema">+ 添加参数</el-button>
 
-              <el-divider content-position="left">策略代码（run(bars, params)）</el-divider>
+               <el-divider content-position="left">Python策略代码（run(bars, params)）</el-divider>
               <div style="color:#909399" class="fs12 mb8">
-                环境提供 sma / ema 辅助函数。返回信号列表 [{"dt":"YYYY-MM-DD","action":"buy"|"sell","fraction":1}]；
+                 这是 Python 脚本策略，不是表达式配置。环境提供 sma / ema 辅助函数。返回信号列表 [{"dt":"YYYY-MM-DD","action":"buy"|"sell","fraction":1}]；
                 buy 在 dt 当日开盘建仓（fraction=资金占比），sell 当日开盘减仓（fraction=持仓占比），信号 dt 必须是 bars 中的交易日。
               </div>
               <textarea
@@ -300,6 +308,7 @@ const form = reactive({
   strategy: '',
   initial_capital: 100000
 })
+const execution = reactive({ commission: 0.0003, slippage: 0.001, enforce_price_limit: true })
 const range = ref([new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10), new Date().toISOString().slice(0, 10)])
 const strategies = ref([])
 const paramsInputs = reactive({})
@@ -478,7 +487,8 @@ async function run() {
       params: { ...paramsInputs },
       start_date: range.value[0],
       end_date: range.value[1],
-      initial_capital: form.initial_capital
+       initial_capital: form.initial_capital,
+       ...execution
     })
     // 获取沪深300基准
     benchmarkData.value = []
@@ -623,6 +633,7 @@ onBeforeUnmount(() => {
   background: #fafbfc;
   margin-bottom: 4px;
 }
+.execution-fields { display:flex; gap:6px; width:100%; }.execution-fields .el-input-number { width:50%; }
 .strategy-layout { display: flex; gap: 12px; align-items: flex-start; }
 .strategy-list { width: 260px; flex-shrink: 0; }
 .strategy-item {

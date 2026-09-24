@@ -1,10 +1,9 @@
 <template>
   <MainLayout>
     <div class="research-page">
-      <div class="page-header">
-        <h2 class="page-title">AI投研团队</h2>
-        <p class="page-subtitle">多角色AI分析师协作研究，独立分析 → 交叉质询 → 综合报告</p>
-      </div>
+      <PageHeader eyebrow="AI RESEARCH / TEAM WORKFLOW" title="AI投研团队" subtitle="独立分析 → 交叉质询 → 综合报告">
+        <template #actions><el-tag size="small" type="success">{{ analysts.filter(a => a.is_active).length }} 位分析师在线</el-tag></template>
+      </PageHeader>
 
       <div class="two-col">
         <!-- 左侧：分析师管理 -->
@@ -342,6 +341,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import MainLayout from '../../layout/MainLayout.vue'
+import PageHeader from '../../components/PageHeader.vue'
 import { labApi } from '../../api'
 
 const analysts = ref([])

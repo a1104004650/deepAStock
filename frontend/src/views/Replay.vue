@@ -2,26 +2,20 @@
   <MainLayout>
     <div class="page">
       <!-- 顶栏：标题 + 刷新 + 历史日期 + 触发生成 -->
-      <div class="flex gap" style="align-items:center;margin-bottom:10px;flex-wrap:wrap">
-        <h2 style="font-size:18px">每日复盘 <span class="fs12" style="color:#7d8390">· A股游资橙红主题</span></h2>
-        <el-button size="small" type="primary" :loading="loading" @click="load">刷新</el-button>
-        <el-select v-if="historyDates.length" v-model="viewDate" size="small" style="width:170px;margin-left:8px"
-          placeholder="历史复盘日期" @change="(d) => viewReport(d)">
-          <el-option v-for="d in historyDates" :key="d" :label="d" :value="d" />
-        </el-select>
-        <el-tag v-if="rpt?.date" size="small" type="info" style="margin-left:8px">查看 {{ rpt.date }}</el-tag>
-        <el-select v-model="triggerDate" size="small" style="width:150px;margin-left:8px">
-          <el-option v-for="i in 30" :key="i" :label="dateStr(i) + (i === 0 ? '（今日）' : '')" :value="dateStr(i)" />
-        </el-select>
-        <el-button size="small" :loading="triggering" @click="trigger"
-          :type="status === 'pending' ? 'danger' : 'warning'">
-          生成复盘
-        </el-button>
-        <el-tag v-if="status === 'pending'" size="small" type="warning">今日尚未生成，交易日 18:00 自动复盘</el-tag>
-        <el-tag v-if="status === 'empty'" size="small" type="info">暂无复盘记录</el-tag>
-        <div style="flex:1"></div>
-        <el-button v-if="rpt?.report_md" size="small" @click="mdDialog = true">查看复盘原文 (Markdown)</el-button>
-      </div>
+      <PageHeader eyebrow="RESEARCH / DAILY REVIEW" title="每日复盘" subtitle="市场情绪、涨停梯队、板块资金和次日选股池">
+        <template #badge><el-tag v-if="rpt?.date" size="small" type="info">{{ rpt.date }}</el-tag></template>
+        <template #actions>
+          <el-button size="small" type="primary" :loading="loading" @click="load">刷新</el-button>
+          <el-select v-if="historyDates.length" v-model="viewDate" size="small" style="width:150px" placeholder="历史日期" @change="(d) => viewReport(d)">
+            <el-option v-for="d in historyDates" :key="d" :label="d" :value="d" />
+          </el-select>
+          <el-select v-model="triggerDate" size="small" style="width:135px">
+            <el-option v-for="i in 30" :key="i" :label="dateStr(i) + (i === 0 ? '（今日）' : '')" :value="dateStr(i)" />
+          </el-select>
+          <el-button size="small" :loading="triggering" @click="trigger" :type="status === 'pending' ? 'danger' : 'warning'">生成复盘</el-button>
+          <el-button v-if="rpt?.report_md" size="small" @click="mdDialog = true">查看原文</el-button>
+        </template>
+      </PageHeader>
 
       <el-alert
         v-if="status === 'pending'"
@@ -119,11 +113,56 @@
             <div class="kpi-label">情绪温度</div>
             <div class="kpi-val" style="color:#f7b32b">{{ sentimentScore }}<span class="kpi-unit">/100</span></div>
           </div>
+          <div class="kpi-card accent">
+            <div class="kpi-label">赚钱效应</div>
+            <div class="kpi-val" style="color:#e6a23c">{{ profitEffect != null ? profitEffect + '%' : '-' }}</div>
+          </div>
         </div>
+
+        <!-- 连板梯队主工作区：复盘先看高度、宽度和风险，不先看指数 -->
+        <section class="ladder-command mt8">
+          <div class="ladder-command-head">
+            <div>
+              <div class="section-kicker">LIMIT-UP STRUCTURE / CORE SIGNAL</div>
+              <div class="ladder-command-title">连板梯队</div>
+              <div class="ladder-command-sub">先看最高板能否承载情绪，再看中位梯队是否扩散；数据不足时不强行给出晋级结论。</div>
+            </div>
+            <el-tag :type="ladderTone.type" effect="dark" size="large">{{ ladderTone.label }}</el-tag>
+          </div>
+          <div class="ladder-stat-grid">
+            <div class="ladder-stat hot"><span>最高高度</span><strong>{{ maxBoard || '-' }}<small>板</small></strong><em>{{ ladderStats.maxName || '暂无高度板' }}</em></div>
+            <div class="ladder-stat"><span>连板家数</span><strong>{{ ladderStats.multiCount }}</strong><em>2板及以上</em></div>
+            <div class="ladder-stat"><span>首板家数</span><strong>{{ ladderStats.firstCount }}</strong><em>情绪扩散宽度</em></div>
+            <div class="ladder-stat risk"><span>跌停家数</span><strong>{{ rpt.market_summary?.distribution?.limit_down ?? '-' }}</strong><em>负反馈观察</em></div>
+          </div>
+          <div v-if="ladderStats.leaders.length" class="ladder-leader-strip">
+            <span class="strip-label">高度板观察</span>
+            <button v-for="s in ladderStats.leaders" :key="s.symbol" type="button" class="leader-chip" @click="goStock(s.symbol, s.name)">
+              <b>{{ s.name || s.symbol }}</b><span>{{ s.consecutive_days || maxBoard }}板</span>
+            </button>
+          </div>
+          <el-empty v-else description="暂无连板数据，可能尚未收盘或数据源受限" :image-size="45" />
+        </section>
+
+        <section v-if="recentLadderDays.length" class="recent-ladder-card mt8">
+          <div class="section-headline">
+            <div><div class="section-kicker">5-DAY EMOTION TRACK</div><div class="fs14 bold">近五日短线情绪</div></div>
+            <span class="fs11" style="color:#7d8390">晋级率看接力，断板率看风险，板块看扩散</span>
+          </div>
+          <div class="recent-days">
+            <div v-for="day in recentLadderDays" :key="day.date" class="recent-day" :class="{ today: day.date === rpt?.date }">
+              <div class="recent-date">{{ day.date?.slice(5) }}</div>
+              <div class="recent-height"><b>{{ day.max_board || '-' }}</b><span>最高板</span></div>
+              <div class="recent-line"><span>涨停</span><strong class="up">{{ day.limit_up ?? '-' }}</strong><span>连板</span><strong>{{ day.multi_board ?? '-' }}</strong></div>
+              <div class="recent-line"><span>晋级</span><strong :class="day.promotion_rate >= 30 ? 'up' : 'down'">{{ day.promotion_rate ?? 0 }}%</strong><span>断板</span><strong class="down">{{ day.broken ?? 0 }}</strong></div>
+              <div v-if="day.top_sectors?.length" class="recent-sector">{{ day.top_sectors[0].name }}</div>
+            </div>
+          </div>
+        </section>
 
         <!-- 涨停跌停趋势（近一周） -->
         <div v-if="trendData.length" class="card mt8">
-          <div class="fs14 bold">涨停/跌停趋势 <span class="fs12" style="color:#7d8390">（近一周）</span></div>
+          <div class="fs14 bold">涨停/跌停趋势 <span class="fs12" style="color:#7d8390">（近一周 · 含情绪温度/赚钱效应）</span></div>
           <div ref="trendEl" style="width:100%;height:220px" class="mt8"></div>
         </div>
 
@@ -148,20 +187,36 @@
             </div>
           </div>
 
-          <!-- 大盘概况（复盘不看上证指数K线形态，已移除K线栏位） -->
+          <!-- 市场概况统计 -->
           <div class="card">
-            <div class="fs14 bold">大盘概况</div>
-            <el-table :data="arr(rpt.market_summary?.indices) || []" size="small" class="mt8">
-              <el-table-column prop="name" label="指数" />
-              <el-table-column prop="price" label="点位" align="right" />
-              <el-table-column label="涨跌幅" align="right">
-                <template #default="{ row }">
-                  <span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">{{ row.change_pct >= 0 ? '+' : '' }}{{ row.change_pct }}%</span>
-                </template>
-              </el-table-column>
-            </el-table>
-            <div class="fs12 mt8" style="color:#7d8390">
-              涨停 {{ arr(rpt.market_summary?.distribution) && (rpt.market_summary?.distribution) ? (rpt.market_summary?.distribution.up_count ?? '-') : '-' }} / 跌停 {{ arr(rpt.market_summary?.distribution) && (rpt.market_summary?.distribution) ? (rpt.market_summary?.distribution.down_count ?? '-') : '-' }}
+            <div class="fs14 bold">市场概况</div>
+            <div class="mt8">
+              <div class="flex gap" style="flex-wrap:wrap;align-items:center;margin-bottom:10px">
+                <span class="fs12 up">上涨 {{ rpt.market_summary?.distribution?.up_count ?? '-' }}家</span>
+                <span class="fs12 down">下跌 {{ rpt.market_summary?.distribution?.down_count ?? '-' }}家</span>
+                <span class="fs12" style="color:#909399">平盘 {{ rpt.market_summary?.distribution?.flat_count ?? '-' }}家</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div class="stat-item">
+                  <div class="stat-value" style="font-size:20px;color:#f56c6c">{{ rpt.market_summary?.distribution?.limit_up ?? '0' }}</div>
+                  <div class="stat-label">涨停</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value" style="font-size:20px;color:#67c23a">{{ rpt.market_summary?.distribution?.limit_down ?? '0' }}</div>
+                  <div class="stat-label">跌停</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value mono" style="font-size:16px">{{ fmtMoney(rpt.market_summary?.distribution?.amount) }}</div>
+                  <div class="stat-label">总成交额</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value" style="font-size:16px">{{ sentimentScore }}</div>
+                  <div class="stat-label">市场情绪</div>
+                </div>
+              </div>
+              <div class="fs12 mt8" style="color:#7d8390">
+                涨跌比 {{ (rpt.market_summary?.distribution?.up_count ?? 0) + (rpt.market_summary?.distribution?.down_count ?? 0) > 0 ? ((rpt.market_summary?.distribution?.up_count ?? 0) / ((rpt.market_summary?.distribution?.up_count ?? 0) + (rpt.market_summary?.distribution?.down_count ?? 0)) * 100).toFixed(1) : '-' }}% 上涨
+              </div>
             </div>
             <div class="fs12 mt8" v-if="arr(rpt.market_summary?.news).length">
               <span class="bold">要闻：</span>{{ rpt.market_summary.news[0].title }}
@@ -348,6 +403,14 @@
                 </el-tag>
               </template>
             </el-table-column>
+            <el-table-column label="日K主力意图" min-width="150">
+              <template #default="{ row }">
+                <el-tag size="small" :type="mainForceTag(row.main_force)" effect="plain">
+                  {{ row.main_force || '观望' }}{{ row.main_force_confidence ? ` ${row.main_force_confidence}%` : '' }}
+                </el-tag>
+                <div class="fs11 replay-force-reason">{{ row.main_force_reason || row.t_bias || '证据不足' }}</div>
+              </template>
+            </el-table-column>
           </el-table>
           <el-empty v-if="!arr(rpt.stock_pool).length" description="暂无选股池" :image-size="50" />
         </div>
@@ -411,10 +474,11 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import MainLayout from '../layout/MainLayout.vue'
-import HQChartKline from '../components/HQChartKline.vue'
+import PageHeader from '../components/PageHeader.vue'
 import { replayApi, marketApi, tradeApi } from '../api'
 import { useSymbolStore } from '../stores/symbol'
 import * as echarts from 'echarts'
+import { fmtMoney, fmtLarge as fmtBig, fmtAmt as fmtAmount } from '../utils/format'
 
 const router = useRouter()
 const symbolStore = useSymbolStore()
@@ -432,6 +496,7 @@ const trendData = ref([])
 const trendEl = ref(null)
 let trendChart = null
 const arr = (v) => (Array.isArray(v) ? v : [])
+const recentLadderDays = computed(() => [...trendData.value].slice(-5))
 
 const distEl = ref(null)
 const sectorEl = ref(null)
@@ -524,31 +589,63 @@ const sortedLadder = computed(() => {
 })
 const maxBoard = computed(() => {
   const keys = Object.keys(sortedLadder.value)
-  return keys.length ? Math.max(...keys.map(Number)) : 0
+  const nums = keys.map(k => parseInt(k, 10)).filter(n => !isNaN(n))
+  return nums.length ? Math.max(...nums) : 0
+})
+const ladderStats = computed(() => {
+  const entries = Object.entries(sortedLadder.value)
+  const stocks = entries.flatMap(([, rows]) => Array.isArray(rows) ? rows : [])
+  const firstCount = Number((sortedLadder.value['1'] || []).length)
+  const multiCount = stocks.filter((s) => Number(s.consecutive_days || s.board || 1) >= 2).length
+  const leaders = (sortedLadder.value[String(maxBoard.value)] || []).slice(0, 6)
+  return {
+    firstCount,
+    multiCount,
+    maxName: leaders[0]?.name || leaders[0]?.symbol || '',
+    leaders,
+  }
+})
+const ladderTone = computed(() => {
+  const down = Number(rpt.value?.market_summary?.distribution?.limit_down || 0)
+  if (!maxBoard.value) return { label: '等待数据', type: 'info' }
+  if (maxBoard.value >= 5 && down <= 8) return { label: '高位强势', type: 'danger' }
+  if (maxBoard.value >= 3 && down <= 15) return { label: '结构分化', type: 'warning' }
+  return { label: '弱势观察', type: 'info' }
 })
 
 const sentimentScore = computed(() => {
   const m = rpt.value?.market_summary
   const up = Number(m?.distribution?.up_count || 0)
   const down = Number(m?.distribution?.down_count || 0)
-  const lc = Number(rpt.value?.limit_up_count || 0)
-  const base = up + down
-  if (!base) return 50
-  return Math.round(30 + (up / base) * 40 + Math.min(lc, 30) * 1)
+  const total = up + down || 1
+  const limit_up = Number(rpt.value?.limit_up_count || 0)
+  const limit_down = Number(m?.distribution?.limit_down || rpt.value?.limit_down_count || 0)
+  const raw = limit_up * 2 + (up / total) * 50 - limit_down * 3
+  return Math.max(0, Math.min(100, Math.round(raw)))
+})
+
+const profitEffect = computed(() => {
+  const la = rpt.value?.limit_analysis
+  const ladder = la?.ladder?.ladder || la?.ladder || {}
+  const totalLimit = Number(rpt.value?.limit_up_count || 0)
+  if (!totalLimit || typeof ladder !== 'object') return null
+  let upCount = 0
+  for (const [board, stocks] of Object.entries(ladder)) {
+    if (!Array.isArray(stocks)) continue
+    for (const s of stocks) {
+      if ((s.change_pct || 0) > 0) upCount++
+    }
+  }
+  return totalLimit > 0 ? Math.round(upCount / totalLimit * 100) : null
 })
 
 function tagType(at) {
   return at === 'research' ? 'primary' : at === 'short_term' ? 'danger' : 'success'
 }
-function arr1(v) { return Array.isArray(v) ? v : [] }
-function fmtBig(v) {
-  if (v == null) return '-'
-  const n = Number(v)
-  if (Math.abs(n) >= 1e8) return (n / 1e8).toFixed(2) + '亿'
-  if (Math.abs(n) >= 1e4) return (n / 1e4).toFixed(2) + '万'
-  return n.toFixed(0)
+function mainForceTag(value) {
+  return value === '真拉升' ? 'danger' : value === '吸筹' || value === '诱空' ? 'warning' : value === '洗盘' ? 'info' : value === '出货' || value === '诱多' ? 'success' : 'info'
 }
-
+function arr1(v) { return Array.isArray(v) ? v : [] }
 function goStock(symbol, name) {
   if (!symbol) return
   symbolStore.select(symbol, { name: name || symbol })
@@ -569,10 +666,6 @@ const myPnl = ref(null)
 const viewDay = computed(() => viewDate.value || rpt.value?.date || '')
 const myTradesOfDay = computed(() =>
   myTrades.value.filter((t) => (t.trade_date || t.date || '').slice(0, 10) === viewDay.value))
-
-function fmtAmount(v) {
-  return v == null ? '-' : Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
 
 async function loadMyTrades() {
   myTradesLoading.value = true
@@ -712,6 +805,20 @@ function renderTrend() {
   if (!trendEl.value || !trendData.value.length) return
   if (!trendChart) trendChart = echarts.init(trendEl.value)
   const dates = trendData.value.map(d => d.date.slice(5))
+  const sentimentLine = trendData.value.map(d => {
+    const up = Number(d.up_count || 0)
+    const down = Number(d.down_count || 0)
+    const total = up + down || 1
+    const lu = Number(d.limit_up || 0)
+    const ld = Number(d.limit_down || 0)
+    const raw = lu * 2 + (up / total) * 50 - ld * 3
+    return Math.max(0, Math.min(100, Math.round(raw)))
+  })
+  const profitLine = trendData.value.map(d => {
+    const lu = Number(d.limit_up || 0)
+    const mb = Number(d.multi_board || 0)
+    return lu > 0 ? Math.round(mb / lu * 100) : null
+  })
   trendChart.setOption({
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis', backgroundColor: '#1c2028', borderColor: '#2a2f3a', textStyle: { color: '#d8dce6', fontSize: 12 } },
@@ -727,6 +834,8 @@ function renderTrend() {
       { name: '跌停数', type: 'bar', barWidth: 16, yAxisIndex: 0, data: trendData.value.map(d => d.limit_down), itemStyle: { color: '#14b143', borderRadius: [3, 3, 0, 0] } },
       { name: '连板率', type: 'line', yAxisIndex: 1, data: trendData.value.map(d => d.consecutive_rate), smooth: true, symbol: 'circle', symbolSize: 6, lineStyle: { color: '#f7b32b', width: 2 }, itemStyle: { color: '#f7b32b' } },
       { name: '断板率', type: 'line', yAxisIndex: 1, data: trendData.value.map(d => d.broken_rate), smooth: true, symbol: 'diamond', symbolSize: 6, lineStyle: { color: '#409eff', width: 2, type: 'dashed' }, itemStyle: { color: '#409eff' } },
+      { name: '情绪温度', type: 'line', yAxisIndex: 1, data: sentimentLine, smooth: true, symbol: 'triangle', symbolSize: 6, lineStyle: { color: '#e6a23c', width: 2 }, itemStyle: { color: '#e6a23c' } },
+      { name: '赚钱效应', type: 'line', yAxisIndex: 1, data: profitLine, smooth: true, symbol: 'rect', symbolSize: 6, lineStyle: { color: '#9b59b6', width: 2, type: 'dotted' }, itemStyle: { color: '#9b59b6' } },
     ]
   }, true)
 }
@@ -824,7 +933,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .page { }
-.kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 10px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 10px; }
 .kpi-card {
   background: #171a21; border: 1px solid #2a2f3a; border-radius: 6px; padding: 10px 12px;
   text-align: center;
@@ -845,6 +954,32 @@ onBeforeUnmount(() => {
 .mr8 { margin-right: 8px; }
 .fs12 { font-size: 12px; }
 .fs14 { font-size: 14px; }
+.replay-force-reason { color: #8b93a1; line-height: 1.45; margin-top: 3px; white-space: normal; }
+.section-kicker { color:#f7b32b; font:600 10px var(--font-mono); letter-spacing:.1em; margin-bottom:3px; }
+.ladder-command { background:linear-gradient(110deg,#171a21,#202832); border:1px solid #343d4c; border-radius:8px; padding:16px; color:#d8dce6; }
+.ladder-command-head, .section-headline { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.ladder-command-title { color:#fff; font-size:22px; font-weight:750; letter-spacing:-.03em; }
+.ladder-command-sub { color:#8993a3; font-size:12px; margin-top:3px; }
+.ladder-stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:16px; }
+.ladder-stat { background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.08); border-radius:6px; padding:10px 12px; }
+.ladder-stat span, .ladder-stat em { display:block; color:#8993a3; font-size:11px; font-style:normal; }
+.ladder-stat strong { display:block; color:#fff; font:700 25px var(--font-mono); margin:4px 0; }
+.ladder-stat strong small { font:normal 11px inherit; margin-left:3px; color:#8993a3; }
+.ladder-stat.hot strong { color:#f7b32b; }.ladder-stat.risk strong { color:#14b143; }
+.ladder-leader-strip { display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin-top:14px; padding-top:11px; border-top:1px solid rgba(255,255,255,.08); }
+.strip-label { color:#8993a3; font-size:11px; margin-right:3px; }
+.leader-chip { border:1px solid rgba(247,179,43,.35); background:rgba(247,179,43,.08); color:#f7b32b; border-radius:5px; padding:5px 8px; cursor:pointer; }
+.leader-chip:hover { background:rgba(247,179,43,.17); }
+.leader-chip span { color:#c8a96a; font:11px var(--font-mono); margin-left:6px; }
+.recent-ladder-card { background:#fff; border:1px solid #2a2f3a; border-radius:8px; padding:14px; }
+.recent-days { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:10px; }
+.recent-day { border:1px solid #e2e6ec; border-radius:6px; padding:9px; background:#fafbfc; }
+.recent-day.today { border-color:#f7b32b; box-shadow:inset 0 2px 0 #f7b32b; }
+.recent-date { color:#7d8390; font:11px var(--font-mono); margin-bottom:5px; }
+.recent-height { display:flex; align-items:baseline; gap:5px; }.recent-height b { color:#202733; font:700 21px var(--font-mono); }.recent-height span { color:#9099a7; font-size:10px; }
+.recent-line { display:flex; align-items:center; justify-content:space-between; color:#9099a7; font-size:10px; margin-top:5px; }.recent-line strong { color:#303744; font:600 11px var(--font-mono); }
+.recent-sector { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:8px; padding-top:6px; border-top:1px solid #e7eaf0; color:#2e6bc6; font-size:11px; }
+@media (max-width:820px) { .ladder-command-head { align-items:flex-start; flex-direction:column; }.ladder-stat-grid { grid-template-columns:repeat(2,1fr); }.recent-days { grid-template-columns:repeat(5, minmax(110px,1fr)); overflow-x:auto; padding-bottom:4px; }.recent-day { min-width:110px; } }
 .fs11 { font-size: 11px; }
 .bold { font-weight: 600; }
 .flex { display: flex; }
@@ -892,7 +1027,7 @@ onBeforeUnmount(() => {
   .page { padding: 8px; }
   .card { padding: 10px; }
   .split-grid { grid-template-columns: 1fr; }
-  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  .kpi-grid { grid-template-columns: repeat(4, 1fr); }
 }
 @media (max-width: 480px) {
   .card { padding: 8px; }

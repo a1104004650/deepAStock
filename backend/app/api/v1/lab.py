@@ -1,7 +1,7 @@
 """实验室 API"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, desc
+from sqlalchemy import select, delete, desc, func
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
@@ -616,17 +616,18 @@ async def get_competition_stats(comp_id: int, db: AsyncSession = Depends(get_db)
     worst = min(participants, key=lambda p: p.total_return) if participants else None
 
     # 交易统计
-    trade_count = 0
-    buy_count = 0
-    sell_count = 0
-    for p in participants:
-        tr = await db.execute(
-            select(LabCompTrade).where(LabCompTrade.participant_id == p.id)
+    participant_ids = [p.id for p in participants]
+    trade_count = buy_count = sell_count = 0
+    if participant_ids:
+        trade_stats = await db.execute(
+            select(LabCompTrade.action, func.count(LabCompTrade.id))
+            .where(LabCompTrade.participant_id.in_(participant_ids))
+            .group_by(LabCompTrade.action)
         )
-        trades = tr.scalars().all()
-        trade_count += len(trades)
-        buy_count += sum(1 for t in trades if t.action == "buy")
-        sell_count += sum(1 for t in trades if t.action == "sell")
+        for action, count in trade_stats.all():
+            if action == "buy": buy_count = count
+            if action == "sell": sell_count = count
+            trade_count += count
 
     return {
         "competition": {
@@ -668,6 +669,24 @@ async def get_trades(participant_id: int, db: AsyncSession = Depends(get_db)):
         "confidence": t.confidence,
         "created_at": t.created_at.isoformat() if t.created_at else None,
     } for t in trades]
+
+
+@router.get("/competitions/{comp_id}/trades")
+async def get_competition_trades(comp_id: int, limit: int = 500, db: AsyncSession = Depends(get_db)):
+    """一次返回比赛交易流水，避免前端按选手逐个请求。"""
+    result = await db.execute(
+        select(LabCompTrade, LabParticipant.name, LabParticipant.avatar)
+        .join(LabParticipant, LabParticipant.id == LabCompTrade.participant_id)
+        .where(LabParticipant.competition_id == comp_id)
+        .order_by(desc(LabCompTrade.created_at)).limit(max(1, min(limit, 1000)))
+    )
+    return [{
+        "id": t.id, "participant_id": t.participant_id, "participant_name": name,
+        "participant_avatar": avatar, "symbol": t.symbol, "name": t.name,
+        "action": t.action, "quantity": t.quantity, "price": t.price,
+        "amount": t.amount, "fee": t.fee, "reason": t.reason,
+        "confidence": t.confidence, "created_at": t.created_at.isoformat() if t.created_at else None,
+    } for t, name, avatar in result.all()]
 
 
 @router.get("/participants/{participant_id}/positions")
@@ -748,7 +767,6 @@ async def get_leaderboard(comp_id: int, db: AsyncSession = Depends(get_db)):
         "rank": i + 1,
         "id": p.id, "name": p.name, "avatar": p.avatar,
         "provider": p.provider, "model_name": p.model_name,
-        "api_base": p.api_base, "system_prompt": p.system_prompt,
         "current_capital": p.current_capital,
         "total_return": p.total_return,
         "total_trades": p.total_trades,
@@ -768,28 +786,34 @@ async def get_equity_curve(comp_id: int, db: AsyncSession = Depends(get_db)):
     )
     participants = result.scalars().all()
 
+    participant_ids = [p.id for p in participants]
+    all_trades = []
+    all_positions = []
+    if participant_ids:
+        trade_result = await db.execute(
+            select(LabCompTrade).where(LabCompTrade.participant_id.in_(participant_ids)).order_by(LabCompTrade.created_at)
+        )
+        all_trades = trade_result.scalars().all()
+        position_result = await db.execute(
+            select(LabCompPosition).where(LabCompPosition.participant_id.in_(participant_ids), LabCompPosition.quantity > 0)
+        )
+        all_positions = position_result.scalars().all()
+    trades_by_participant = {}
+    positions_by_participant = {}
+    for trade in all_trades:
+        trades_by_participant.setdefault(trade.participant_id, []).append(trade)
+    for position in all_positions:
+        positions_by_participant.setdefault(position.participant_id, []).append(position)
+
     curves = []
     for p in participants:
-        # 获取该参赛者的所有交易记录,按时间排序
-        tr = await db.execute(
-            select(LabCompTrade)
-            .where(LabCompTrade.participant_id == p.id)
-            .order_by(LabCompTrade.created_at)
-        )
-        trades = tr.scalars().all()
+        trades = trades_by_participant.get(p.id, [])
 
         # 构建收益曲线: 从初始资金开始,每笔交易后计算总资产
         equity = [{"time": p.created_at.isoformat() if p.created_at else "", "value": p.initial_capital}]
         running_capital = p.initial_capital
 
-        # 获取持仓
-        pos_r = await db.execute(
-            select(LabCompPosition).where(
-                LabCompPosition.participant_id == p.id,
-                LabCompPosition.quantity > 0
-            )
-        )
-        positions = {pos.symbol: pos for pos in pos_r.scalars().all()}
+        positions = {pos.symbol: pos for pos in positions_by_participant.get(p.id, [])}
 
         for t in trades:
             if t.action == "buy":
