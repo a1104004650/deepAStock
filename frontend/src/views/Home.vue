@@ -1,7 +1,7 @@
 <template>
   <MainLayout>
     <div class="page">
-      <PageHeader eyebrow="MARKET TERMINAL / A-SHARE" title="大盘看板" :subtitle="`${todayStr} · 30秒自动刷新行情 · 公开行情仅供研究参考`">
+      <PageHeader eyebrow="MARKET TERMINAL / A-SHARE" title="大盘看板" :subtitle="`${todayStr} · 行情 30 秒轮询 · 非交易时段展示最近可用快照`">
         <template #badge><el-tag size="small" type="info">盘中监测</el-tag></template>
         <template #actions>
           <el-button size="small" type="primary" :loading="loading" @click="load">刷新行情</el-button>
@@ -9,96 +9,64 @@
         </template>
       </PageHeader>
 
-      <div class="funnel-top">
-        <div class="overview-bar">
-          <template v-for="mc in mainIdxDefs" :key="mc.code">
-            <span class="ov-item">
-              <span class="ov-name">{{ mc.name }}</span>
-              <span class="mono bold" :class="ixCls(mc.code)">{{ fmtPrice(ixOf(mc.code)?.price) }}</span>
-              <span class="mono fs12" :class="ixCls(mc.code)">{{ candidatePct(ixOf(mc.code)?.change_pct) }}</span>
-            </span>
-            <span class="ov-sep" />
-          </template>
-          <span class="ov-item">
-            <span class="ov-name">情绪</span>
-            <el-tag :type="emotion.tagType" size="small" :title="emotion.basis || ''">{{ emotion.label }}</el-tag>
-            <el-link
-              v-if="regime?.stage?.label"
-              type="primary" :underline="false" class="fs11"
-              style="margin-left:4px"
-              @click="$router.push('/regime')"
-            >周期 →</el-link>
-          </span>
-          <span class="ov-sep" />
-          <span class="ov-item">
-            <span class="ov-name">涨停</span>
-            <span class="mono bold up">{{ distribution.limit_up ?? '0' }}</span>
-          </span>
-          <span class="ov-item">
-            <span class="ov-name">跌停</span>
-            <span class="mono bold down">{{ distribution.limit_down ?? '0' }}</span>
-          </span>
-          <span class="ov-sep" />
-          <span class="ov-item">
-            <span class="ov-name">成交</span>
-            <span class="mono bold">{{ fmtMoney(distribution.amount) }}</span>
-          </span>
+      <section class="terminal-deck" aria-label="盘中作战台">
+        <div class="market-pulse">
+          <div class="deck-eyebrow">MARKET PULSE <span>{{ dataStaleness.label }}</span></div>
+          <div class="pulse-stage" :title="emotion.basis">{{ emotion.label }}</div>
+          <div class="pulse-note">{{ breadthState.label }} · 数据覆盖 {{ regime?.confidence == null ? '-' : Math.round(regime.confidence * 100) + '%' }}</div>
+          <div class="pulse-counts">
+            <div><span>上涨</span><strong class="up">{{ breadthState.upText }}</strong></div>
+            <div><span>下跌</span><strong class="down">{{ breadthState.downText }}</strong></div>
+            <div><span>涨停 / 跌停</span><strong>{{ distribution.total ? `${distribution.limit_up ?? '-'} / ${distribution.limit_down ?? '-'}` : '- / -' }}</strong></div>
+          </div>
+          <div v-if="distribution.total" class="breadth-meter" role="img" :aria-label="`上涨 ${breadthState.upText}，下跌 ${breadthState.downText}`">
+            <span :style="{ width: marketUpShare + '%' }"></span>
+          </div>
+          <div class="pulse-footer"><span>成交 {{ distribution.total ? fmtMoney(distribution.amount) : '-' }}</span><el-link type="primary" :underline="false" @click="$router.push('/regime')">周期口径 →</el-link></div>
+          <div class="pulse-source">宽度: 腾讯全市场快照 · 周期: 四分项规则 · 并非预测概率</div>
         </div>
+        <div class="desk-index">
+          <div class="desk-panel-head"><span>主要指数</span><span>点位 / 涨跌幅</span></div>
+          <div v-for="mc in mainIdxDefs" :key="mc.code" class="desk-index-row">
+            <div><b>{{ mc.name }}</b><small class="mono">{{ mc.code }}</small></div>
+            <strong class="mono" :class="ixCls(mc.code)">{{ fmtPrice(ixOf(mc.code)?.price) }}</strong>
+            <span class="mono" :class="ixCls(mc.code)">{{ candidatePct(ixOf(mc.code)?.change_pct) }}</span>
+          </div>
+          <div class="desk-inline-meta">连板高度 <b>{{ maxBoard || '-' }}</b> · 连板率 <b>{{ marketStats.consecutive_rate ?? '-' }}%</b></div>
+          <div class="desk-inline-meta">指数涨跌不能替代全市场宽度判断</div>
+        </div>
+        <div class="desk-sector">
+          <div class="desk-panel-head"><span>资金分支</span><span>东方财富 f62 · 数据源分类</span></div>
+          <button v-for="s in focusSectors" :key="s.symbol || s.sector_name" type="button" class="sector-lead" :disabled="!s.leader_symbol" @click="goStock(s.leader_symbol, s.leader)">
+            <span><b>{{ s.sector_name }}</b><small>{{ s.leader || '无领涨股代码' }}</small></span>
+            <span class="mono" :class="Number(s.change_pct) >= 0 ? 'up' : 'down'">{{ candidatePct(s.change_pct) }}</span>
+            <span class="mono" :class="Number(s.net_inflow) >= 0 ? 'up' : 'down'">{{ s.net_inflow == null ? '-' : `${signed(s.net_inflow)}亿` }}</span>
+          </button>
+          <div v-if="!focusSectors.length" class="desk-empty">板块净额接口暂不可用，不能推断主线。</div>
+          <div class="desk-inline-meta">仅展示行业流入榜样本；点击领涨股进入研究</div>
+        </div>
+      </section>
 
-        <div class="card funnel-card">
-          <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:6px">
-            <div class="flex gap" style="align-items:center;flex-wrap:wrap">
-              <span class="fs14 bold">决策漏斗</span>
-              <el-tag size="small" :type="breadthState.tagType">{{ breadthState.label }}</el-tag>
-              <span class="fs12" :class="breadthState.level === 'unknown' ? 'unk' : breadthState.level === 'risk' ? 'down' : 'up'">
-                上涨 {{ breadthState.upText }} / 下跌 {{ breadthState.downText }}
-              </span>
-              <el-divider direction="vertical" />
-              <span class="fs12" style="color:#909399">数据时效</span>
-              <el-tag size="small" :type="dataStaleness.tagType">{{ dataStaleness.label }}</el-tag>
-            </div>
-            <span class="fs11" style="color:#c0c4cc">筛选来自人气/异动/板块公开行情，仅供研究参考，不构成交易指令</span>
-          </div>
-          <div class="flex gap mt8" style="align-items:center;flex-wrap:wrap">
-            <el-radio-group v-model="candSource" size="small">
-              <el-radio-button value="hot">人气TOP15</el-radio-button>
-              <el-radio-button value="rise">急拉</el-radio-button>
-              <el-radio-button value="fall">急跌</el-radio-button>
-            </el-radio-group>
-            <el-divider direction="vertical" />
-            <el-checkbox v-model="candNoST" size="small">排除 ST/退市风险</el-checkbox>
-            <el-checkbox v-model="candNoMonitored" size="small">排除重点监控</el-checkbox>
-            <el-checkbox v-model="candUpOnly" size="small">仅收红</el-checkbox>
-            <el-divider direction="vertical" />
-            <el-select v-model="candSector" size="small" clearable placeholder="全部监控板块" style="width:150px">
-              <el-option v-for="s in sectorOptions" :key="s.value" :value="s.value" :label="s.label" />
-            </el-select>
-            <span class="fs12" style="color:#909399">共 {{ candPool.length }} 只 · 命中 {{ candItems.length }} 只</span>
-          </div>
-          <div v-if="candItems.length" class="cand-grid mt8">
-            <div v-for="c in candItems" :key="c.symbol" class="hot-card cand-card" @click="goStock(c.symbol, c.name)">
-              <div class="flex between" style="align-items:center;gap:4px">
-                <span class="fs13 bold">{{ c.rank }}. {{ c.name }}</span>
-                <el-tag size="small" :type="Number(c.change_pct) >= 0 ? 'danger' : 'success'">
-                  {{ Number(c.change_pct) >= 0 ? '+' : '' }}{{ c.change_pct }}%
-                </el-tag>
-              </div>
-              <div class="mono fs15" style="color:#303133">{{ c.price }}</div>
-              <div class="fs11" style="color:#909399">热度 {{ c.heat }} · 换手 {{ c.hsl }}% · 量比 {{ c.lb }}</div>
-              <div class="reason-row"><el-tag v-for="(t, i) in c.tags" :key="i" size="small" effect="plain" type="info">{{ t }}</el-tag></div>
-              <div class="fs11 cand-why" :title="c.why">{{ c.why }}</div>
-            </div>
-          </div>
-          <el-empty v-else :description="candEmptyText" :image-size="46" />
-          <div class="fs11" style="color:#c0c4cc;margin-top:6px">
-            候选入选条件：板块资金流/板块监控命中 + 涨速榜上榜 + 热度达标（三项数据均来自本页行情接口）。
-            点击候选进入个股详情研究；模拟交易请到 <el-link type="primary" :underline="false" @click="goSimulation">模拟交易</el-link>，实盘记录到 <el-link type="primary" :underline="false" @click="goTrade">实盘导入</el-link>，历史验证到 <el-link type="primary" :underline="false" @click="goReplay">每日复盘</el-link>。
-          </div>
+      <section class="opportunity-board" aria-label="盘中异动观察">
+        <div class="board-head"><div><div class="deck-eyebrow">OPPORTUNITY TAPE / OBSERVATIONS</div><h2>盘中异动观察</h2><p>榜单观察，不自动生成买入指令。筛选板块只识别已知领涨股。</p></div><span class="board-count mono">{{ candItems.length }} <small>/ {{ candPool.length }} 只</small></span></div>
+        <div class="board-controls">
+          <el-radio-group v-model="candSource" size="small" aria-label="榜单类型"><el-radio-button value="hot">人气</el-radio-button><el-radio-button value="rise">急拉</el-radio-button><el-radio-button value="fall">急跌</el-radio-button></el-radio-group>
+          <el-checkbox v-model="candNoST" size="small">排除 ST</el-checkbox><el-checkbox v-model="candNoMonitored" size="small">排除监控</el-checkbox><el-checkbox v-model="candUpOnly" size="small">仅收红</el-checkbox>
+          <el-select v-model="candSector" size="small" clearable placeholder="仅板块领涨股" class="board-sector"><el-option v-for="s in sectorOptions" :key="s.value" :value="s.value" :label="s.label" /></el-select>
         </div>
-      </div>
+        <div class="board-table-wrap"><table class="board-table"><thead><tr><th>序 / 标的</th><th>现价</th><th>涨跌</th><th>涨速 / 热度</th><th>量比 / 换手</th><th>入选依据</th></tr></thead><tbody>
+          <tr v-for="c in candItems" :key="c.symbol" tabindex="0" role="link" :aria-label="`查看 ${c.name} 个股详情`" @click="goStock(c.symbol, c.name)" @keydown.enter="goStock(c.symbol, c.name)" @keydown.space.prevent="goStock(c.symbol, c.name)">
+            <td><b class="mono board-rank">{{ String(c.rank).padStart(2, '0') }}</b><span class="board-stock"><strong>{{ c.name }}</strong><small class="mono">{{ c.symbol }}</small></span></td><td class="mono">{{ c.price ?? '-' }}</td><td class="mono" :class="Number(c.change_pct) >= 0 ? 'up' : 'down'">{{ candidatePct(c.change_pct) }}</td><td class="mono">{{ candSource === 'hot' ? `热度 ${c.heat ?? '-'}` : `涨速 ${c.speed ?? '-'}%/分` }}</td><td class="mono">{{ c.lb ?? '-' }} / {{ c.hsl == null ? '-' : `${c.hsl}%` }}</td><td class="board-reason">{{ c.why }}</td>
+          </tr>
+        </tbody></table><div v-if="!candItems.length" class="desk-empty">{{ candEmptyText }}；可调整筛选或稍后刷新数据。</div></div>
+        <div class="board-foot">榜单源: 人气或分钟涨速，板块只用于额外标注 · <el-link type="primary" :underline="false" @click="goReplay">看盘后复盘 →</el-link></div>
+      </section>
 
       <!-- 三大指数整行展示：每个面板独立周期（分时/日K/60/30/15/5分），分时与K线均带成交量 -->
-      <el-row :gutter="10">
+      <nav class="desk-nav" aria-label="看盘工作区">
+        <button type="button" @click="scrollToDesk('market-indices')">指数走势</button><button type="button" @click="scrollToDesk('market-breadth', 'sentiment')">市场宽度</button><button type="button" @click="scrollToDesk('market-movers', 'hot')">盘中异动</button><button type="button" @click="scrollToDesk('market-sectors', 'sectors')">板块强弱</button>
+      </nav>
+      <el-row id="market-indices" :gutter="10">
         <el-col v-for="mc in mainIdxDefs" :key="mc.code" :xs="24" :sm="8">
           <div class="card ix-panel">
             <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
@@ -132,11 +100,11 @@
         </el-col>
       </el-row>
 
-      <div class="ai-comment" v-if="indexComment">💡 指数点评：{{ indexComment }}</div>
+      <div class="ai-comment" v-if="indexComment">规则观察（仅指数涨跌）：{{ indexComment }}</div>
 
       <!-- 市场状态：左侧涨跌区间分布 + 右侧沪深两市大盘资金流向 -->
-      <el-collapse v-model="openSections" class="funnel-collapse mt8">
-      <el-collapse-item name="sentiment" title="📊 市场情绪 · 涨跌分布">
+      <el-collapse id="market-breadth" v-model="openSections" class="funnel-collapse mt8">
+      <el-collapse-item name="sentiment" title="市场宽度 · 涨跌分布与周期状态">
       <el-row :gutter="10">
         <el-col :xs="24" :sm="12">
           <div class="card" style="height:100%">
@@ -174,7 +142,7 @@
                 <div class="stat-label">连板股</div>
               </div>
               <div class="stat-item">
-                <div class="stat-value" :class="marketStats.limit_ratio > 3 ? 'profit' : marketStats.limit_ratio != null && marketStats.limit_ratio < 1 ? 'danger' : ''">{{ marketStats.limit_ratio ?? '∞' }}</div>
+                 <div class="stat-value" :class="marketStats.limit_ratio > 3 ? 'profit' : marketStats.limit_ratio != null && marketStats.limit_ratio < 1 ? 'danger' : ''">{{ marketStats.limit_ratio ?? (distribution.total && distribution.limit_up > 0 && distribution.limit_down === 0 ? '∞' : '-') }}</div>
                 <div class="stat-label" title="涨停家数 ÷ 跌停家数">涨跌停比</div>
               </div>
               <div class="stat-item">
@@ -227,7 +195,7 @@
         </el-col>
       </el-row>
       </el-collapse-item>
-      <el-collapse-item name="hot" title="🔥 人气排行 · 实时异动">
+      <el-collapse-item id="market-movers" name="hot" title="盘中异动 · 人气与涨速">
 
       <!-- 实时股价异动：快速拉升 / 快速下挫（与人气股票TOP10同风格） -->
       <el-row :gutter="10" class="mt8">
@@ -278,7 +246,7 @@
 
       <!-- 板块监控：自选板块ETF + 概念/行业实时行情 -->
       <el-collapse v-model="openSections" class="funnel-collapse mt8">
-      <el-collapse-item name="sectors" title="📈 板块监控">
+      <el-collapse-item id="market-sectors" name="sectors" title="板块强弱 · 领涨观察">
       <el-row :gutter="10" class="mt8">
         <el-col :span="24">
           <div class="card">
@@ -303,7 +271,7 @@
             <!-- 板块轮动视图 -->
             <template v-if="sectorTabMode === 'rotation'">
               <div v-if="sectorSpeedList.length" class="mt8">
-                <div class="fs12 mb8" style="color:#909399">板块涨速排名（东方财富实时板块涨幅排序）</div>
+                 <div class="fs12 mb8" style="color:#909399">新浪 FLJK 板块涨幅排序 · 成交额不是净流入</div>
                 <div v-for="(s, i) in sectorSpeedList" :key="s.sector_name" class="speed-row">
                   <span class="speed-rank mono" :class="i < 3 ? 'speed-top' : ''">{{ i + 1 }}</span>
                   <span class="speed-name">{{ s.sector_name }}</span>
@@ -311,7 +279,7 @@
                     <div class="speed-bar" :style="{ width: s.barPct + '%', background: s.change_pct >= 0 ? '#ef232a' : '#14b143' }"></div>
                   </div>
                   <span class="mono fs12 speed-pct" :class="s.change_pct >= 0 ? 'up' : 'down'">{{ s.change_pct >= 0 ? '+' : '' }}{{ (s.change_pct || 0).toFixed(2) }}%</span>
-                  <span class="fs11 speed-flow" :class="s.net_inflow >= 0 ? 'up' : 'down'">{{ signed(s.net_inflow) }}亿</span>
+                   <span class="fs11 speed-flow" style="color:var(--c-text-2)">{{ s.turnover == null ? '-' : `成交 ${fmtMoney(s.turnover)}` }}</span>
                   <span v-if="s.leader" class="fs11 speed-leader">
                     <el-link v-if="s.leader_symbol" type="primary" :underline="false" style="font-size:11px" @click="goStock(s.leader_symbol, s.leader)">{{ s.leader }}</el-link>
                     <span v-else style="color:#909399">{{ s.leader }}</span>
@@ -532,7 +500,7 @@
         <el-col :xs="24" :sm="12">
           <div class="card col-card">
             <div class="flex between" style="align-items:center">
-              <span class="fs14 bold">ETF 资金流 <span class="fs12 mono" style="color:#909399">（截至 {{ etfFlowDate }}）</span></span>
+               <span class="fs14 bold">ETF 资金流 <span class="fs12 mono" style="color:#909399">（现有榜单样本重排 · 截至 {{ etfFlowDate }}）</span></span>
               <el-radio-group v-model="etfDim" size="small">
                 <el-radio-button value="net_1d">今日</el-radio-button>
                 <el-radio-button value="net_5d">5日</el-radio-button>
@@ -729,6 +697,12 @@ const ladder = ref({})
 const distribution = ref({})
 const marketStats = ref({})
 const flowRank = ref({ industries: { in: [], out: [] }, concepts: { in: [], out: [] } })
+const focusSectors = computed(() => (flowRank.value.industries?.in || []).slice(0, 5).map(s => ({ ...s, sector_name: s.name, symbol: s.code })))
+const marketUpShare = computed(() => {
+  const up = Number(distribution.value.up_count || 0)
+  const down = Number(distribution.value.down_count || 0)
+  return up + down ? Math.round(up / (up + down) * 100) : 0
+})
 const etfFlow = ref({ in_top: [], out_top: [], all: [] })
 const etfDim = ref('net_1d')
 
@@ -869,8 +843,12 @@ function signed(v) {
   const n = Number(v) || 0
   return (n > 0 ? '+' : n < 0 ? '-' : '') + Math.abs(n).toFixed(2)
 }
-const etfIn = computed(() => etfFlow.value.in_top || [])
-const etfOut = computed(() => etfFlow.value.out_top || [])
+const etfRows = computed(() => [...new Map([...(etfFlow.value.in_top || []), ...(etfFlow.value.out_top || [])]
+  .map(r => [r.symbol || r.code || r.name, r])).values()])
+const etfIn = computed(() => etfRows.value.filter(r => Number(r[etfDim.value]) > 0)
+  .sort((a, b) => Number(b[etfDim.value]) - Number(a[etfDim.value])).slice(0, 5))
+const etfOut = computed(() => etfRows.value.filter(r => Number(r[etfDim.value]) < 0)
+  .sort((a, b) => Number(a[etfDim.value]) - Number(b[etfDim.value])).slice(0, 5))
 const etfFlowDate = computed(() => (etfFlow.value.in_top || []).find((r) => r.flow_date)?.flow_date || '')
 const maxBoard = computed(() => {
   const keys = Object.keys(ladder.value.ladder || {})
@@ -947,6 +925,13 @@ function savePanelsState() {
   try {
     localStorage.setItem(HOME_PANELS_KEY, JSON.stringify(openSections.value))
   } catch {}
+}
+function openSection(name) {
+  if (!openSections.value.includes(name)) openSections.value = [...openSections.value, name]
+}
+function scrollToDesk(id, section) {
+  if (section) openSection(section)
+  nextTick(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 
 const savedFilters = loadFilterState()
@@ -1073,6 +1058,9 @@ const distBuckets = computed(() => {
   }))
 })
 const emotion = computed(() => {
+  if (!regime.value?.data_available && breadthState.value.level === 'unknown') {
+    return { label: '数据不足', tagType: 'info', basis: '周期与有效市场宽度均不可用' }
+  }
   const up = distribution.value.up_count || 0
   const down = distribution.value.down_count || 0
   const limUp = distribution.value.limit_up || 0
@@ -1142,7 +1130,7 @@ const stateComment = computed(() => {
       parts.push(`较前值 ${d >= 0 ? '+' : ''}${d.toFixed(1)}`)
     }
     if (regimeTrend.value) parts.push(regimeTrend.value)
-    if (regime.value.confidence != null) parts.push(`置信度 ${Math.round(regime.value.confidence * 100)}%`)
+    if (regime.value.confidence != null) parts.push(`分项覆盖 ${Math.round(regime.value.confidence * 100)}%（非预测概率）`)
     parts.push('口径=宽度/涨停结构/接力/轮动四分项加权，缺项降置信度，不伪装中性')
   }
   const up = distribution.value.up_count || 0
@@ -1167,12 +1155,8 @@ const flowComment = computed(() => {
   const main = last.main_net || 0
   const superNet = last.super_net || 0
   const parts = []
-  const abs = Math.abs(main)
-  if (main < 0 && abs > 1e10) parts.push(`两市主力大幅净流出 ${(abs / 1e8).toFixed(0)}亿，机构减仓迹象明显`)
-  else if (main > 0 && abs > 1e10) parts.push(`两市主力净流入 ${(abs / 1e8).toFixed(0)}亿，资金积极进场`)
-  else if (main < 0) parts.push(`主力净流出 ${(abs / 1e8).toFixed(1)}亿，观望为主`)
-  else parts.push(`主力净流入 ${(abs / 1e8).toFixed(1)}亿，情绪回暖`)
-  parts.push(superNet < 0 ? '超大单（机构）在卖出，注意权重股拖累' : '超大单（机构）净买入，权重托底')
+  parts.push(`数据源大单分类净额 ${main >= 0 ? '+' : ''}${(main / 1e8).toFixed(1)}亿`)
+  parts.push(`超大单分类 ${superNet >= 0 ? '+' : ''}${(superNet / 1e8).toFixed(1)}亿；分类不等于机构身份`)
   return parts.join('；')
 })
 const indexComment = computed(() => {
@@ -1180,9 +1164,9 @@ const indexComment = computed(() => {
   if (!rows.length) return ''
   const up = rows.filter((r) => Number(r.change_pct) >= 0)
   const down = rows.filter((r) => Number(r.change_pct) < 0)
-  if (down.length === 0) return '三大指数全线翻红，权重与题材共振，做多动能充足'
-  if (up.length === 0) return '三大指数集体下挫，谨防破位风险，多看少动'
-  return `指数分化（${up.length}红/${down.length}绿），结构性行情，优先关注走强分支`
+  if (down.length === 0) return '三大指数全线翻红；板块和个股是否同步需另看市场宽度'
+  if (up.length === 0) return '三大指数集体下跌；结合涨跌家数观察风险扩散'
+  return `指数分化（${up.length}红/${down.length}绿），对照板块强弱观察结构差异`
 })
 const hotComment = computed(() => {
   const rows = hotStocks.value || []
@@ -1233,12 +1217,13 @@ const breadthState = computed(() => {
 })
 
 const dataStaleness = computed(() => {
-  const age = Math.max(0, Date.now() - Math.max(hotLoadedAt.value, moversLoadedAt.value, distributionLoadedAt.value, lastTickAt.value))
-  if (hotLoadedAt.value === 0 && moversLoadedAt.value === 0 && distributionLoadedAt.value === 0) {
+  const stamps = [hotLoadedAt.value, moversLoadedAt.value, distributionLoadedAt.value]
+  if (stamps.some(v => !v)) {
     return { label: '行情未就绪', tagType: 'info' }
   }
-  if (age < 90 * 1000) return { label: '实时（1分内）', tagType: 'success' }
-  if (age < 5 * 60 * 1000) return { label: '近期（5分内）', tagType: 'warning' }
+  const age = Math.max(0, lastTickAt.value - Math.min(...stamps))
+  if (age < 90 * 1000) return { label: '接口最近拉取 · 源有缓存', tagType: 'success' }
+  if (age < 5 * 60 * 1000) return { label: '接口近5分拉取 · 源有缓存', tagType: 'warning' }
   return { label: '已过期，请刷新', tagType: 'danger' }
 })
 const moversComment = computed(() => {
@@ -1279,7 +1264,7 @@ async function loadIndices() {
 async function loadIndexIntraday(code) {
   try {
     const rows = await marketApi.intraday({ symbol: code })
-    if (Array.isArray(rows)) indexIntradays[code] = rows
+    if (Array.isArray(rows) && (indexPeriods[code] || 'mf') === 'mf') indexIntradays[code] = rows
   } catch {
     indexIntradays[code] = indexIntradays[code] || []
   }
@@ -1288,7 +1273,7 @@ async function loadIndexKline(code, period) {
   const key = `${code}:${period}`
   try {
     const r = await marketApi.kline({ symbol: code, period })
-    indexKlines[key] = r?.data || []
+    if (indexPeriods[code] === period) indexKlines[key] = r?.data || []
   } catch {
     indexKlines[key] = indexKlines[key] || []
   }
@@ -1319,7 +1304,7 @@ async function loadRssNews() {
 async function loadDistribution() {
   try {
     distribution.value = (await marketApi.distribution()) || {}
-    distributionLoadedAt.value = Date.now()
+    if (distribution.value.total) distributionLoadedAt.value = Date.now()
   } catch { /* 保留旧数据 */ }
 }
 async function loadLadder() {
@@ -1370,28 +1355,26 @@ async function load() {
 }
 
 async function refreshAll() {
+  if (loading.value) return
   lastTickAt.value = Date.now()
   await Promise.all([
     loadIndices(),
     ...mainIdxDefs.map((m) => loadPanel(m.code)),
     loadSectorFlowTop(),
     loadEtf(),
-    loadNews(),
-    loadRssNews(),
     loadDistribution(),
     loadLadder(),
     loadSectorMonitor(),
     loadHotStocks(),
     loadPriceMovers(),
     loadMarketFlow(),
-    loadCalendar(),
-    loadRegulatory(),
     loadMarketStats(),
     loadRegime()
   ])
 }
 
 watch([candSource, candNoST, candNoMonitored, candUpOnly, candSector], saveFilterState)
+watch(sectorTabMode, (mode) => { if (mode === 'rotation' && !sectorSpeedRaw.value.length) loadSectorSpeed() })
 watch(openSections, savePanelsState, { deep: true })
 
 onMounted(() => {
@@ -1405,6 +1388,38 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.terminal-deck { display:grid; grid-template-columns:minmax(265px,1.05fr) minmax(245px,.9fr) minmax(290px,1fr); gap:10px; margin:8px 0 12px; }
+.market-pulse { color:#e8eef7; background:linear-gradient(125deg,#132338,#1b344c); border:1px solid #2c4761; border-radius:8px; padding:18px; min-height:278px; display:flex; flex-direction:column; }
+.deck-eyebrow { font:700 10px var(--font-mono); letter-spacing:.15em; color:var(--c-primary); text-transform:uppercase; }
+.market-pulse .deck-eyebrow { color:#9fb9ce; display:flex; justify-content:space-between; gap:8px; }
+.market-pulse .deck-eyebrow span { font:500 10px var(--font-mono); letter-spacing:0; }
+.pulse-stage { font-size:26px; font-weight:750; letter-spacing:-.04em; margin:13px 0 4px; line-height:1.2; }
+.pulse-note { color:#c4d4e3; font-size:12px; }
+.pulse-counts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:auto; padding:16px 0 10px; }
+.pulse-counts div { display:flex; flex-direction:column; gap:4px; border-right:1px solid #40566d; }
+.pulse-counts div:last-child { border:0; }
+.pulse-counts span { color:#a9c0d0; font-size:11px; }
+.pulse-counts strong { color:#fff; font:700 20px var(--font-mono); }
+.pulse-counts strong.up { color:#ff7479; }.pulse-counts strong.down { color:#60d69b; }
+.breadth-meter { height:6px; background:var(--c-down); border-radius:4px; overflow:hidden; }
+.breadth-meter span { display:block; height:100%; background:var(--c-up); }
+.pulse-footer { display:flex; justify-content:space-between; align-items:center; margin-top:11px; font-size:12px; }
+.pulse-source { color:#abc0d2; font-size:10px; margin-top:8px; }
+.desk-index, .desk-sector { padding:14px; background:#fff; border:1px solid var(--c-border); border-radius:8px; min-width:0; }
+.desk-panel-head { display:flex; align-items:baseline; justify-content:space-between; color:var(--c-ink); font-weight:700; font-size:14px; gap:8px; border-bottom:1px solid var(--c-border); padding-bottom:10px; }
+.desk-panel-head span:last-child { color:var(--c-text-2); font-size:10px; font-weight:400; }
+.desk-index-row { display:grid; grid-template-columns:minmax(92px,1fr) auto 74px; align-items:center; gap:10px; border-bottom:1px solid #eef1f5; min-height:56px; }
+.desk-index-row div { display:flex; flex-direction:column; }.desk-index-row b { font-size:13px; }.desk-index-row small,.sector-lead small { font-size:10px; color:var(--c-text-2); }.desk-index-row strong { font-size:17px; }.desk-index-row > span { font-size:12px; text-align:right; }
+.desk-inline-meta { font-size:11px; color:var(--c-text-2); padding-top:10px; }.desk-inline-meta b { color:var(--c-ink); }
+.sector-lead { display:grid; grid-template-columns:minmax(80px,1fr) 62px 86px; width:100%; align-items:center; gap:8px; min-height:41px; border:0; border-bottom:1px solid #eef1f5; background:transparent; text-align:left; cursor:pointer; padding:4px 0; color:var(--c-ink); }
+.sector-lead:hover:not(:disabled) { background:var(--c-bg-soft); }.sector-lead:disabled { cursor:default; }.sector-lead span:first-child { min-width:0; display:flex; flex-direction:column; }.sector-lead b,.sector-lead small { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }.sector-lead .mono { font-size:11px; text-align:right; }
+.desk-empty { padding:24px 12px; color:var(--c-text-2); font-size:12px; text-align:center; }
+.opportunity-board { background:#fff; border:1px solid var(--c-border); border-radius:8px; margin-bottom:12px; overflow:hidden; }
+.board-head { display:flex; justify-content:space-between; align-items:end; gap:10px; padding:16px 18px 12px; }.board-head h2 { margin:4px 0; font-size:21px; }.board-head p { color:var(--c-text-2); font-size:12px; }.board-count { color:var(--c-ink); font-size:26px; font-weight:700; }.board-count small { font-size:11px; color:var(--c-text-2); font-weight:400; }
+.board-controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:9px 18px; background:var(--c-bg-soft); border-top:1px solid var(--c-border); border-bottom:1px solid var(--c-border); }.board-sector { width:150px; }
+.board-table-wrap { overflow-x:auto; }.board-table { width:100%; border-collapse:collapse; min-width:760px; font-size:12px; }.board-table th { text-align:left; color:var(--c-text-2); background:#f7f8fa; font-weight:600; padding:8px 12px; }.board-table td { padding:9px 12px; border-top:1px solid var(--c-border); white-space:nowrap; }.board-table tbody tr { cursor:pointer; }.board-table tbody tr:hover,.board-table tbody tr:focus-visible { background:#edf3fb; outline:2px solid var(--c-focus); }.board-table td:first-child { display:flex; gap:12px; align-items:center; }.board-rank { color:var(--c-text-2); font-size:11px; }.board-stock { display:flex; flex-direction:column; }.board-stock small { color:var(--c-text-2); font-size:10px; }.board-reason { max-width:290px; overflow:hidden; text-overflow:ellipsis; color:var(--c-text-2); }.board-foot { padding:9px 18px; border-top:1px solid var(--c-border); font-size:11px; color:var(--c-text-2); }
+@media(max-width:1190px) { .terminal-deck { grid-template-columns:repeat(2,minmax(0,1fr)); }.desk-sector { grid-column:1/-1; } }
+@media(max-width:690px) { .terminal-deck { grid-template-columns:1fr; }.desk-sector { grid-column:auto; }.board-head { align-items:start; }.board-head h2 { font-size:18px; }.market-pulse { min-height:250px; } }
 .regime-mini {
   display: flex;
   flex-wrap: wrap;
@@ -1649,7 +1664,8 @@ onUnmounted(() => {
   align-items: flex-end;
   gap: 4px;
   height: 180px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 .dist-col {
   display: flex;
@@ -1658,13 +1674,16 @@ onUnmounted(() => {
   justify-content: flex-end;
   gap: 2px;
   min-width: 36px;
-  flex: 1;
+  flex: 1 0 36px;
   height: 100%;
   cursor: default;
 }
 .dist-num { font-size: 10px; line-height: 1; }
 .dist-bar { width: 70%; border-radius: 2px 2px 0 0; min-height: 2px; opacity: .85; }
-.dist-label { font-size: 9px; color: var(--c-text-3); white-space: nowrap; }
+.dist-label { font-size: 10px; color: var(--c-text-2); white-space: nowrap; }
+.desk-nav { display:flex; gap:6px; overflow-x:auto; padding:8px 0; white-space:nowrap; }
+.desk-nav button { color:var(--c-primary); background:#fff; border:1px solid var(--c-border); padding:7px 12px; border-radius:4px; cursor:pointer; font-size:12px; }
+.desk-nav button:hover, .desk-nav button:focus-visible { background:#edf3fb; border-color:var(--c-primary); }
 .cal-scroll { flex: 1; min-height: 0; overflow: auto; }
 .cal-row { display: flex; align-items: center; gap: 4px; padding: 3px 0; border-bottom: 1px dashed var(--c-border); }
 .cal-date { color: var(--c-text-3); font-size: 10px; flex-shrink: 0; width: 38px; }

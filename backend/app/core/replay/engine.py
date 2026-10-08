@@ -27,32 +27,28 @@ class ReplayEngine:
 
     async def resolve_target(self, target_date: date = None) -> date:
         """复盘目标日解析：
-        1) 显式指定历史日期 → 直接用（不做时间门禁）；
+        1) 仅允许当前交易日盘后生成，历史记录只能查看，不能用现价重建；
         2) 未指定（默认今日）→ 17:00(上海)后才允许按“当日”复盘，盘中/午前调用抛 ReplayGateError；
-        3) 非交易日（周末/节假日）→ 自动回退至最近一个交易日（如周日→上周五）。
+        3) 非交易日（周末/节假日）拒绝新建，历史仅可读取已存档报告。
         """
         now = datetime.now(SHANGHAI)
         t = target_date or now.date()
-        if not target_date and now.hour < 17:
+        if now.weekday() >= 5:
+            raise ReplayGateError("非交易日不生成新复盘，请查看最近交易日的已存档报告")
+        if t != now.date():
+            raise ReplayGateError("历史日期无法用当前实时行情重建；请查看已存档的历史复盘")
+        if now.hour < 17:
             raise ReplayGateError(
                 f"今日复盘需在 17:00(北京时间)后生成，当前 {now.strftime('%H:%M')}，"
                 "可先选择历史交易日进行复盘")
-        for _ in range(10):
-            if t.weekday() < 5:
-                # 日期有真实K线才算交易日（排除法定节假日）
-                if t == now.date() and not target_date:
-                    return t
-                try:
-                    dsm = DataSourceManager(self.db)
-                    k = await dsm.get_klines("SH000001", "day", start=t - timedelta(days=1), end=t)
-                    if k and str((k[-1].get("dt") or ""))[:10] >= t.isoformat():
-                        return t
-                except Exception as e:
-                    logger.warning(f"trading-day check {t} failed, assume trading day: {e}")
-                    return t
+        try:
+            dsm = DataSourceManager(self.db)
+            k = await dsm.get_klines("SH000001", "day", start=t - timedelta(days=1), end=t)
+            if k and str((k[-1].get("dt") or ""))[:10] == t.isoformat():
                 return t
-            t -= timedelta(days=1)
-        raise ReplayGateError("未能解析出最近交易日，请手动选择历史日期")
+        except Exception as e:
+            logger.warning(f"trading-day check {t} failed: {e}")
+        raise ReplayGateError(f"{t} 无法验证为已收盘交易日，暂停生成复盘")
 
     async def run(self, target_date: date = None) -> dict:
         auto = target_date is None
@@ -153,19 +149,6 @@ class ReplayEngine:
                     "reason": item.get("reason") or "涨停强势",
                     "source": "涨停梯队",
                 })
-        # 板块资金龙头
-        for s in sector_flow[:5]:
-            if len(pool) >= 12:
-                break
-            leader = s.get("leader_symbol")
-            name = s.get("sector_name", "")
-            if not leader:
-                continue
-            if leader not in seen:
-                seen.add(leader)
-                pool.append({"symbol": leader, "name": name + "龙头",
-                             "consecutive_days": 0, "sector": name,
-                             "reason": f"板块净流入 {float(s.get('net_inflow', 0))/1e8:.1f}亿", "source": "板块资金"})
         return pool
 
     async def _enrich_stock_pool(self, pool: list[dict]) -> list[dict]:
@@ -267,9 +250,10 @@ class ReplayEngine:
         lines.append(f"- 涨跌家数: {summary.get('distribution', {}).get('up_count', 0)}↑ / {summary.get('distribution', {}).get('down_count', 0)}↓")
         lines.append(f"- 涨停: {summary.get('limit_up_count', 0)}")
         lines.append("")
-        lines.append("## 板块资金流")
+        lines.append("## 板块净流入（东方财富 f62 数据源分类估算，非机构交易证明）")
         for s in sector_flow[:10]:
-            lines.append(f"- {s.get('sector_name')}: 净流入 {float(s.get('net_inflow', 0)):.0f}")
+            value = s.get("net_inflow") if s.get("source") == "eastmoney" else None
+            lines.append(f"- {s.get('sector_name')}: 净流入 {float(value):.0f}" if value is not None else f"- {s.get('sector_name')}: 净流入数据不可用")
         lines.append("")
         lines.append("## 涨停梯队")
         for k, v in ladder.get("ladder", {}).items():
@@ -291,7 +275,7 @@ class ReplayEngine:
         def _is_trading_weekday(d) -> bool:
             return d.weekday() < 5
 
-        today = date.today()
+        today = datetime.now(SHANGHAI).date()
         if not rep:
             return {"status": "empty", "date": today.isoformat(),
                     "message": "尚无复盘报告，交易日 18:00 将自动生成，也可手动点击底部按钮生成"}
@@ -299,7 +283,7 @@ class ReplayEngine:
         if rep.date.isoformat() != today.isoformat() and _is_trading_weekday(today):
             # 新交易日刚开始（今日尚未生成），不展示旧复盘，提示可重新生成
             return {"status": "pending", "date": today.isoformat(), "latest_date": rep.date.isoformat(),
-                    "message": f"今日({today.isoformat()})复盘尚未生成，交易日 18:00 自动复盘，也可现在手动生成",
+                    "message": f"今日({today.isoformat()})复盘尚未生成，交易日 18:00 自动复盘；手动生成须在 17:00 后",
                     "data": self._serialize(rep)}
         return {"status": "ready", "date": rep.date.isoformat(), "data": self._serialize(rep)}
 
@@ -352,7 +336,7 @@ class ReplayEngine:
             broken_rate = round(broken / len(prev_multi_symbols) * 100, 1) if prev_multi_symbols else 0
             sector_flow = r.sector_flow or []
             top_sectors = sorted(
-                [s for s in sector_flow if s.get("sector_name")],
+                [s for s in sector_flow if s.get("sector_name") and s.get("source") == "eastmoney"],
                 key=lambda s: (float(s.get("limit_up_count") or 0), float(s.get("net_inflow") or 0)),
                 reverse=True,
             )[:5]
@@ -375,7 +359,7 @@ class ReplayEngine:
                 "consecutive_rate": consecutive_rate,
                 "broken_rate": broken_rate,
                 "has_previous": index > 0,
-                "top_sectors": [{"name": s.get("sector_name"), "limit_up": s.get("limit_up_count", 0), "net_inflow": s.get("net_inflow", 0)} for s in top_sectors],
+                "top_sectors": [{"name": s.get("sector_name"), "limit_up": s.get("limit_up_count", 0), "net_inflow": s.get("net_inflow")} for s in top_sectors],
             })
             prev_first_symbols = first_symbols
             prev_multi_symbols = multi_symbols

@@ -31,7 +31,7 @@ def _score_snapshot(snapshot: dict) -> dict:
         "breadth": total > 0,
         "limit_structure": total > 0 or limit_up > 0 or limit_down > 0,
         "continuity": promotion_rate is not None and broken_rate is not None,
-        "rotation": bool(sector_count),
+        "rotation": bool(sector_count) and positive_sectors is not None,
     }
 
     breadth_score = _clamp(50 + (up_ratio - 50) * 2.2) if available["breadth"] else None
@@ -136,7 +136,8 @@ class MarketRegimeService:
         limit_up = int(distribution.get("limit_up") or ladder_total)
         limit_down = int(distribution.get("limit_down") or 0)
         valid_sectors = [s for s in sector_flow if s.get("sector_name")]
-        positive_sectors = sum(1 for s in valid_sectors if float(s.get("net_inflow") or 0) > 0)
+        signed_sectors = [s for s in valid_sectors if s.get("net_inflow") is not None]
+        positive_sectors = sum(1 for s in signed_sectors if float(s["net_inflow"]) > 0)
 
         snapshot = {
             "total": total,
@@ -148,11 +149,11 @@ class MarketRegimeService:
             "promotion_rate": promotion_rate,
             "broken_rate": broken_rate,
             "positive_sectors": positive_sectors,
-            "sector_count": len(valid_sectors),
+            "sector_count": len(signed_sectors),
         }
         scored = _score_snapshot(snapshot)
         stage = _stage(scored["score"], previous_score)
-        leaders = sorted(valid_sectors, key=lambda s: float(s.get("net_inflow") or 0), reverse=True)[:5]
+        leaders = sorted(signed_sectors, key=lambda s: float(s.get("net_inflow") or 0), reverse=True)[:5]
 
         signals = []
         if total:
@@ -168,7 +169,7 @@ class MarketRegimeService:
 
         return {
             "as_of": shanghai_now().isoformat(),
-            "trade_date": date.today().isoformat(),
+            "trade_date": shanghai_now().date().isoformat(),
             "stage": stage,
             "score": scored["score"],
             "confidence": scored["confidence"],
@@ -178,12 +179,12 @@ class MarketRegimeService:
                 "breadth": {**scored["parts"]["breadth"], "up_count": distribution.get("up_count", 0), "down_count": distribution.get("down_count", 0), "flat_count": distribution.get("flat_count", 0), "total": total, "up_ratio": snapshot["up_ratio"]},
                 "limit_structure": {**scored["parts"]["limit_structure"], "limit_up": limit_up, "limit_down": limit_down, "first_board": len(first), "multi_board": len(multi), "max_board": max_board, "consecutive_rate": snapshot["consecutive_rate"]},
                 "continuity": {**scored["parts"]["continuity"], "promotion_rate": promotion_rate, "broken_rate": broken_rate, "basis": "首板晋级率=昨日首板今日进入连板；断板率=昨日连板今日未留在连板集合（跨日代理，非盘中炸板率）"},
-                "rotation": {**scored["parts"]["rotation"], "positive_sectors": positive_sectors, "sector_count": len(valid_sectors), "leaders": [{"name": s.get("sector_name"), "change_pct": s.get("change_pct"), "net_inflow": s.get("net_inflow"), "limit_up": s.get("limit_up_count", 0)} for s in leaders]},
+                "rotation": {**scored["parts"]["rotation"], "positive_sectors": positive_sectors, "sector_count": len(signed_sectors), "leaders": [{"name": s.get("sector_name"), "change_pct": s.get("change_pct"), "net_inflow": s.get("net_inflow"), "limit_up": s.get("limit_up_count", 0)} for s in leaders], "basis": "东方财富 f62 板块主力净额排名前12样本中净额为正的占比；不是全市场板块占比，也无法识别机构身份"},
             },
             "signals": signals,
             "data_available": scored["score"] is not None,
             "components_available": scored["available"],
-            "methodology": "四分项加权：市场宽度35%、涨停结构30%、接力连续性20%、板块轮动15%；缺失分项不按0分处理，而是降低可信度并按可用权重重算。",
+            "methodology": "四分项加权：市场宽度35%、涨停结构30%、接力连续性20%、板块净流入样本占比15%；样本按净额绝对值取前12，缺失分项不按0分处理；覆盖率不是预测概率。",
         }
 
     @staticmethod

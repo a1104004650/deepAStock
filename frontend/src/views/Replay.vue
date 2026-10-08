@@ -2,17 +2,14 @@
   <MainLayout>
     <div class="page">
       <!-- 顶栏：标题 + 刷新 + 历史日期 + 触发生成 -->
-      <PageHeader eyebrow="RESEARCH / DAILY REVIEW" title="每日复盘" subtitle="市场情绪、涨停梯队、板块资金和次日选股池">
+      <PageHeader eyebrow="RESEARCH / DAILY REVIEW" title="每日复盘" subtitle="收盘快照 · 梯队结构 · 板块强弱 · 次日观察">
         <template #badge><el-tag v-if="rpt?.date" size="small" type="info">{{ rpt.date }}</el-tag></template>
         <template #actions>
           <el-button size="small" type="primary" :loading="loading" @click="load">刷新</el-button>
           <el-select v-if="historyDates.length" v-model="viewDate" size="small" style="width:150px" placeholder="历史日期" @change="(d) => viewReport(d)">
             <el-option v-for="d in historyDates" :key="d" :label="d" :value="d" />
           </el-select>
-          <el-select v-model="triggerDate" size="small" style="width:135px">
-            <el-option v-for="i in 30" :key="i" :label="dateStr(i) + (i === 0 ? '（今日）' : '')" :value="dateStr(i)" />
-          </el-select>
-          <el-button size="small" :loading="triggering" @click="trigger" :type="status === 'pending' ? 'danger' : 'warning'">生成复盘</el-button>
+          <el-button size="small" :loading="triggering" @click="trigger" :type="status === 'pending' ? 'danger' : 'warning'">生成今日收盘复盘</el-button>
           <el-button v-if="rpt?.report_md" size="small" @click="mdDialog = true">查看原文</el-button>
         </template>
       </PageHeader>
@@ -23,7 +20,7 @@
         :closable="false"
         show-icon
         class="mt8"
-        :title="report?.message || '今日复盘尚未生成，交易日 18:00 将自动生成，也可点击「生成复盘」立即生成'"
+         :title="report?.message || '今日复盘尚未生成，交易日 18:00 自动生成；手动生成也须在 17:00 后'"
       />
 
       <el-alert
@@ -41,10 +38,10 @@
         :closable="false"
         show-icon
         class="mt8"
-        title="市场数据以东方财富当日收盘为准；同一交易日多次生成只保留最新一份复盘"
+          :title="`报告日 ${rpt.date} · 公开行情归档；仅有 source=eastmoney 的板块行可按 f62 净流入解读，其他旧存档口径不明；历史日期不以实时行情重建`"
       />
       <el-alert
-        v-if="rpt && rpt.sector_flow?.length === undefined"
+        v-if="rpt && !arr(rpt.sector_flow).length"
         type="info"
         :closable="false"
         show-icon
@@ -52,75 +49,30 @@
         title="板块资金流数据在休息时段可能为空"
       />
 
-      <!-- 我的交易复盘（实盘导入，按复盘日对齐；无市场报告也可查看） -->
-      <div class="card mt8">
-        <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
-          <span class="fs14 bold">我的交易复盘 <span class="fs12" style="color:#7d8390">（{{ viewDay || '今日' }} 实盘交易）</span></span>
-          <div class="flex gap" style="align-items:center">
-            <span v-if="myPnl" class="fs12" style="color:#7d8390">
-              持仓 {{ myPnl.position_count ?? 0 }} · 浮动盈亏
-              <span class="mono" :class="(myPnl.total_return || 0) >= 0 ? 'up' : 'down'">{{ fmtAmount(myPnl.total_return) }}</span>
-            </span>
-            <el-button size="small" :loading="myTradesLoading" @click="loadMyTrades">刷新</el-button>
-            <el-button size="small" @click="router.push('/trade')">去导入</el-button>
-          </div>
-        </div>
-        <el-table v-if="myTradesOfDay.length" :data="myTradesOfDay" size="small" class="mt8"
-          @row-click="(row) => goStock(row.symbol, row.name)">
-          <el-table-column prop="trade_date" label="日期" width="110" />
-          <el-table-column prop="symbol" label="代码" width="110" />
-          <el-table-column prop="name" label="名称" min-width="110" />
-          <el-table-column label="方向" width="80">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.action === 'buy' ? 'danger' : 'success'">{{ row.action === 'buy' ? '买入' : '卖出' }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="quantity" label="数量" align="right" />
-          <el-table-column prop="price" label="价格" align="right" />
-          <el-table-column label="金额" align="right">
-            <template #default="{ row }">{{ fmtAmount(row.amount) }}</template>
-          </el-table-column>
-          <el-table-column prop="fee" label="费用" align="right" />
-        </el-table>
-        <el-empty v-else :description="myTrades.length ? '当日无实盘交易，可切换上方历史日期查看' : '尚未导入实盘交易，点击「去导入」录入交割单'"
-          :image-size="50" />
-      </div>
+       <nav v-if="rpt" class="review-nav" aria-label="复盘工作区"><a href="#replay-verdict">市场结论</a><a href="#replay-ladder">连板梯队</a><a href="#replay-pool">次日观察</a><a href="#replay-sector">板块证据</a><a href="#replay-trades">我的交易</a></nav>
 
       <template v-if="rpt">
-        <!-- 情绪 KPI 条 -->
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">涨停家数</div>
-            <div class="kpi-val up">{{ rpt.market_summary?.limit_up_count ?? rpt.market_summary?.distribution?.limit_up ?? '-' }}<span class="kpi-unit">家</span></div>
+        <section id="replay-verdict" class="verdict-hero">
+          <div class="hero-top"><span>收盘研究 / DAILY BRIEF</span><span>ARCHIVE NO. {{ rpt.date?.replaceAll('-', '') }}</span></div>
+          <div class="hero-main">
+            <div class="hero-copy">
+              <div class="hero-date">{{ rpt.date }} <span>报告日 · 收盘存档</span></div>
+              <h2>{{ ladderTone.label }}<span>，先看梯队再看宽度。</span></h2>
+              <p>最高 {{ maxBoard || '暂无' }} 板 · 连板 {{ ladderStats.multiCount }} 家。上涨占比 {{ sentimentScore == null ? '暂无' : sentimentScore + '%' }}，仅为上涨家数占涨跌家数比例，不代表盈利概率。</p>
+               <div class="hero-source">数据口径：公开源市场宽度 / 已标来源的板块净额 · 旧记录来源不明时不推断 · 非机构交易证明</div>
+            </div>
+            <div class="hero-meter"><span>市场宽度 / ADVANCERS</span><strong :class="sentimentScore != null && sentimentScore >= 50 ? 'up' : 'down'">{{ sentimentScore == null ? '-' : sentimentScore + '%' }}</strong><small>上涨 {{ rpt.market_summary?.distribution?.up_count ?? '-' }} / 下跌 {{ rpt.market_summary?.distribution?.down_count ?? '-' }}</small></div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-label">跌停家数</div>
-            <div class="kpi-val down">{{ rpt.market_summary?.distribution?.limit_down ?? '-' }}<span class="kpi-unit">家</span></div>
+          <div class="hero-tape">
+            <div><span>涨停</span><b class="up">{{ rpt.market_summary?.limit_up_count ?? rpt.market_summary?.distribution?.limit_up ?? '-' }}</b><small>家</small></div>
+            <div><span>跌停</span><b class="down">{{ rpt.market_summary?.distribution?.limit_down ?? '-' }}</b><small>家</small></div>
+            <div><span>最高连板</span><b>{{ maxBoard || '-' }}</b><small>板</small></div>
+            <div><span>连板占比</span><b>{{ profitEffect == null ? '-' : profitEffect + '%' }}</b><small>连板 / 涨停</small></div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-label">上涨家数</div>
-            <div class="kpi-val up">{{ rpt.market_summary?.distribution?.up_count ?? '-' }}<span class="kpi-unit">家</span></div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">下跌家数</div>
-            <div class="kpi-val down">{{ rpt.market_summary?.distribution?.down_count ?? '-' }}<span class="kpi-unit">家</span></div>
-          </div>
-          <div class="kpi-card accent">
-            <div class="kpi-label">最高连板</div>
-            <div class="kpi-val" style="color:#f7b32b">{{ maxBoard || '-' }}<span class="kpi-unit">板</span></div>
-          </div>
-          <div class="kpi-card accent">
-            <div class="kpi-label">情绪温度</div>
-            <div class="kpi-val" style="color:#f7b32b">{{ sentimentScore }}<span class="kpi-unit">/100</span></div>
-          </div>
-          <div class="kpi-card accent">
-            <div class="kpi-label">赚钱效应</div>
-            <div class="kpi-val" style="color:#e6a23c">{{ profitEffect != null ? profitEffect + '%' : '-' }}</div>
-          </div>
-        </div>
+        </section>
 
         <!-- 连板梯队主工作区：复盘先看高度、宽度和风险，不先看指数 -->
-        <section class="ladder-command mt8">
+         <section id="replay-ladder" class="ladder-command mt8">
           <div class="ladder-command-head">
             <div>
               <div class="section-kicker">LIMIT-UP STRUCTURE / CORE SIGNAL</div>
@@ -144,6 +96,53 @@
           <el-empty v-else description="暂无连板数据，可能尚未收盘或数据源受限" :image-size="45" />
         </section>
 
+        <section id="replay-pool" class="pool-panel">
+          <div class="editorial-head"><div><span class="eyebrow">02 / NEXT SESSION</span><h3>次日观察池 <small>{{ arr(rpt.stock_pool).length }} 只</small></h3><p>基于报告日形态的观察清单，不构成交易建议。</p></div><span class="section-aside">关注封单、竞价与量能确认</span></div>
+          <div class="table-scroll">
+          <el-table :data="arr(rpt.stock_pool)" size="small" @row-click="(row) => goStock(row.symbol, row.name)">
+            <el-table-column prop="symbol" label="代码" width="95" />
+            <el-table-column prop="name" label="名称" width="90" />
+            <el-table-column label="涨幅" width="75" align="right"><template #default="{ row }"><span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">{{ row.change_pct == null ? '-' : (row.change_pct >= 0 ? '+' : '') + row.change_pct + '%' }}</span></template></el-table-column>
+            <el-table-column label="价格" width="70" align="right"><template #default="{ row }">{{ row.price || '-' }}</template></el-table-column>
+            <el-table-column label="表现" min-width="150"><template #default="{ row }"><div>{{ row.performance || row.reason || '-' }}</div><div v-if="row.pattern_tags?.length" class="mt4"><el-tag v-for="t in row.pattern_tags" :key="t" size="small" type="danger" effect="plain" class="mr8">{{ t }}</el-tag></div></template></el-table-column>
+            <el-table-column label="观察要点" min-width="170"><template #default="{ row }">{{ row.suggestion || '关注' }}</template></el-table-column>
+            <el-table-column label="日K量价形态" min-width="160"><template #default="{ row }"><el-tag size="small" :type="mainForceTag(row.main_force)" effect="plain">{{ row.main_force || '证据不足' }}</el-tag><div class="fs11 replay-force-reason">{{ row.main_force_reason || row.t_bias || '证据不足' }}</div></template></el-table-column>
+          </el-table>
+          </div>
+          <el-empty v-if="!arr(rpt.stock_pool).length" description="暂无观察标的" :image-size="50" />
+        </section>
+
+        <section id="replay-sector" class="sector-panel">
+          <div class="editorial-head"><div><span class="eyebrow">03 / SECTOR EVIDENCE</span><h3>板块证据 <small>资金与涨跌表现</small></h3><p>净流入为东方财富 f62 数据源分类估算，不代表机构真实交易。</p></div><el-button size="small" :loading="sectorTrendLoading" @click="loadSectorTrend">加载7日累计</el-button></div>
+           <div class="table-scroll">
+           <el-table :data="verifiedSectors" size="small" :default-sort="{ prop: 'net_inflow', order: 'descending' }">
+            <el-table-column prop="sector_name" label="板块" min-width="110" fixed><template #default="{ row }"><div>{{ row.sector_name || row.name }}</div><div class="fs11 muted">{{ row.kind }}</div></template></el-table-column>
+             <el-table-column prop="net_inflow" label="净流入 f62" align="right" width="120" sortable><template #default="{ row }"><span v-if="row.source === 'eastmoney' && row.net_inflow != null" class="mono" :class="row.net_inflow >= 0 ? 'up' : 'down'">{{ fmtBig(row.net_inflow) }}</span><span v-else title="旧报告未记录资金数据来源，无法验证口径">不可核验</span></template></el-table-column>
+            <el-table-column label="涨幅" align="right" width="80"><template #default="{ row }"><span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">{{ row.change_pct == null ? '-' : (row.change_pct >= 0 ? '+' : '') + row.change_pct + '%' }}</span></template></el-table-column>
+            <el-table-column prop="limit_up_count" label="今涨停" align="right" width="80" />
+            <el-table-column prop="limit_down_count" label="今跌停" align="right" width="80" />
+            <el-table-column v-if="sectorTrendDates.length" label="7日涨停" align="right" width="85"><template #default="{ row }">{{ row._trend?.sum_up ?? '-' }}</template></el-table-column>
+            <el-table-column v-if="sectorTrendDates.length" label="7日跌停" align="right" width="85"><template #default="{ row }">{{ row._trend?.sum_down ?? '-' }}</template></el-table-column>
+            <el-table-column label="领涨" min-width="95"><template #default="{ row }"><el-link v-if="row.leader_symbol" type="primary" :underline="false" @click="goStock(row.leader_symbol, row.leader)">{{ row.leader || '-' }}</el-link><span v-else>-</span></template></el-table-column>
+            <el-table-column label="人气票" min-width="95"><template #default="{ row }"><el-link v-if="row.hot_pick?.symbol" type="primary" :underline="false" @click="goStock(row.hot_pick.symbol, row.hot_pick.name)">{{ row.hot_pick.name }}</el-link><span v-else>-</span></template></el-table-column>
+          </el-table>
+          </div>
+           <el-empty v-if="!verifiedSectors.length" description="该报告没有可核验来源的板块净额快照" :image-size="50" />
+        </section>
+
+        <section id="replay-trades" class="card trade-panel">
+          <div class="editorial-head"><div><span class="eyebrow">04 / PERSONAL LEDGER</span><h3>我的交易复盘 <small>{{ viewDay || '今日' }} 实盘交易</small></h3><p v-if="myPnl">当前持仓（非复盘日）{{ myPnl.position_count ?? 0 }} · 当前浮动盈亏 <span class="mono" :class="(myPnl.total_return || 0) >= 0 ? 'up' : 'down'">{{ fmtAmount(myPnl.total_return) }}</span></p></div><div class="trade-actions"><el-button size="small" :loading="myTradesLoading" @click="loadMyTrades">刷新</el-button><el-button size="small" @click="router.push('/trade')">去导入</el-button></div></div>
+          <div class="table-scroll"><el-table v-if="myTradesOfDay.length" :data="myTradesOfDay" size="small" @row-click="(row) => goStock(row.symbol, row.name)">
+            <el-table-column prop="trade_date" label="日期" width="110" /><el-table-column prop="symbol" label="代码" width="110" /><el-table-column prop="name" label="名称" min-width="110" />
+            <el-table-column label="方向" width="80"><template #default="{ row }"><el-tag size="small" :type="row.action === 'buy' ? 'danger' : 'success'">{{ row.action === 'buy' ? '买入' : '卖出' }}</el-tag></template></el-table-column>
+            <el-table-column prop="quantity" label="数量" align="right" /><el-table-column prop="price" label="价格" align="right" /><el-table-column label="金额" align="right"><template #default="{ row }">{{ fmtAmount(row.amount) }}</template></el-table-column><el-table-column prop="fee" label="费用" align="right" />
+          </el-table></div>
+          <el-empty v-if="!myTradesOfDay.length" :description="myTrades.length ? '当日无实盘交易，可切换上方历史日期查看' : '尚未导入实盘交易，点击「去导入」录入交割单'" :image-size="50" />
+        </section>
+
+        <details class="archive-details" @toggle="onArchiveToggle">
+          <summary><span>更多数据与研究附录</span><small>近五日 · 图表 · 梯队明细 · 龙虎榜 · 投资日历 · AI 复盘</small></summary>
+          <div v-if="archiveOpen">
         <section v-if="recentLadderDays.length" class="recent-ladder-card mt8">
           <div class="section-headline">
             <div><div class="section-kicker">5-DAY EMOTION TRACK</div><div class="fs14 bold">近五日短线情绪</div></div>
@@ -162,7 +161,7 @@
 
         <!-- 涨停跌停趋势（近一周） -->
         <div v-if="trendData.length" class="card mt8">
-          <div class="fs14 bold">涨停/跌停趋势 <span class="fs12" style="color:#7d8390">（近一周 · 含情绪温度/赚钱效应）</span></div>
+           <div class="fs14 bold">涨跌停与市场宽度 <span class="fs12" style="color:#7d8390">（已存档报告 · 截至所选日期）</span></div>
           <div ref="trendEl" style="width:100%;height:220px" class="mt8"></div>
         </div>
 
@@ -180,7 +179,7 @@
               </el-table-column>
             </el-table>
             <div class="fs12 mt8" style="color:#7d8390">
-              涨停 {{ arr(rpt.market_summary?.distribution) && (rpt.market_summary?.distribution) ? (rpt.market_summary?.distribution.up_count ?? '-') : '-' }} / 跌停 {{ arr(rpt.market_summary?.distribution) && (rpt.market_summary?.distribution) ? (rpt.market_summary?.distribution.down_count ?? '-') : '-' }}
+               涨停 {{ rpt.market_summary?.distribution?.limit_up ?? '-' }} / 跌停 {{ rpt.market_summary?.distribution?.limit_down ?? '-' }}
             </div>
             <div class="fs12 mt8" v-if="arr(rpt.market_summary?.news).length">
               <span class="bold">要闻：</span>{{ rpt.market_summary.news[0].title }}
@@ -211,7 +210,7 @@
                 </div>
                 <div class="stat-item">
                   <div class="stat-value" style="font-size:16px">{{ sentimentScore }}</div>
-                  <div class="stat-label">市场情绪</div>
+                   <div class="stat-label">上涨占比 %</div>
                 </div>
               </div>
               <div class="fs12 mt8" style="color:#7d8390">
@@ -230,24 +229,25 @@
             <div class="card">
               <div class="fs14 bold">涨跌分布</div>
               <div ref="distEl" style="height:200px" class="mt8"></div>
-              <div class="fs12 mt4" style="color:#7d8390">上涨 vs 下跌 vs 平盘（含涨停/跌停标记）</div>
+               <div class="fs12 mt4" style="color:#7d8390">上涨 / 下跌 / 平盘 · 报告日市场宽度</div>
             </div>
           </el-col>
           <el-col :xs="24" :sm="12">
             <div class="card">
-              <div class="fs14 bold">板块资金流 TOP10 <span class="fs12" style="color:#7d8390">（主力净流入）</span></div>
-              <div ref="sectorEl" style="height:200px" class="mt8"></div>
+               <div class="fs14 bold">板块净流入 TOP10 <span class="fs12" style="color:#7d8390">（东方财富 f62 分类估算）</span></div>
+               <div v-if="arr(rpt.sector_flow).some(s => s.source === 'eastmoney' && s.net_inflow != null)" ref="sectorEl" style="height:200px" class="mt8"></div>
+               <el-empty v-else description="净流入来源无法核验（旧存档可能只有成交额）" :image-size="40" />
             </div>
           </el-col>
         </el-row>
 
         <!-- 涨停梯队 连板高度图 + 梯队 -->
-        <div class="card mt8">
+         <div class="card mt8">
           <div class="fs14 bold">涨停梯队 <span class="fs12" style="color:#7d8390">（连板高度柱状图）</span></div>
           <div ref="ladderEl" style="height:200px" class="mt8"></div>
         </div>
 
-        <div class="card mt8">
+         <div class="card mt8">
           <div class="fs14 bold">涨停梯队明细</div>
           <div class="ladder-scroller mt8">
             <div v-for="(stocks, board) in sortedLadder" :key="board" class="ladder-group">
@@ -255,7 +255,7 @@
                 <el-tag size="small" :type="Number(board) >= 3 ? 'danger' : Number(board) >= 2 ? 'warning' : 'info'">
                   连板{{ board }}· {{ arr(stocks).length }}只
                 </el-tag>
-                <span v-if="Number(board) === maxBoard" class="fs11" style="color:#f7b32b;margin-left:4px">🔥最高板</span>
+                <span v-if="Number(board) === maxBoard" class="fs11" style="color:#a87822;margin-left:4px">最高板</span>
               </div>
               <div class="ladder-stocks">
                 <el-link v-for="s in arr(stocks)" :key="s.symbol" type="primary" :underline="false"
@@ -267,70 +267,6 @@
             </div>
             <el-empty v-if="!Object.keys(sortedLadder || {}).length" description="当日无涨停梯队（数据源受限）" :image-size="40" />
           </div>
-        </div>
-
-        <!-- 板块资金流 · 涨停/跌停排行（合并） -->
-        <div class="card mt8">
-          <div class="flex between" style="align-items:center">
-            <span class="fs14 bold">板块资金流 · 涨停/跌停排行</span>
-            <el-button size="small" :loading="sectorTrendLoading" @click="loadSectorTrend">加载7日累计</el-button>
-          </div>
-          <el-table :data="mergedSectors" size="small" class="mt8" :default-sort="{ prop: 'net_inflow', order: 'descending' }">
-            <el-table-column prop="sector_name" label="板块" min-width="110" fixed>
-              <template #default="{ row }">
-                <div>{{ row.sector_name || row.name }}</div>
-                <div class="fs11" style="color:#7d8390">{{ row.kind }}</div>
-              </template>
-            </el-table-column>
-            <el-table-column label="主力净" align="right" width="90">
-              <template #default="{ row }">
-                <span class="mono" :class="(row.net_inflow||0) >= 0 ? 'up' : 'down'">{{ fmtBig(row.net_inflow) }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="净占比" align="right" width="70">
-              <template #default="{ row }">{{ row.net_ratio == null ? '-' : row.net_ratio + '%' }}</template>
-            </el-table-column>
-            <el-table-column label="涨幅" align="right" width="66">
-              <template #default="{ row }">
-                <span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">{{ row.change_pct == null ? '-' : ((row.change_pct >= 0 ? '+' : '') + row.change_pct + '%') }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="今涨停" align="right" width="64">
-              <template #default="{ row }">
-                <span class="mono up">{{ row.limit_up_count ?? '-' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="今跌停" align="right" width="64">
-              <template #default="{ row }">
-                <span class="mono down">{{ row.limit_down_count ?? '-' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="sectorTrendDates.length" label="7日涨停" align="right" width="72" fixed="right">
-              <template #default="{ row }">
-                <span class="mono up">{{ row._trend?.sum_up ?? '-' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="sectorTrendDates.length" label="7日跌停" align="right" width="72" fixed="right">
-              <template #default="{ row }">
-                <span class="mono down">{{ row._trend?.sum_down ?? '-' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="领涨" min-width="80">
-              <template #default="{ row }">
-                <el-link v-if="row.leader_symbol" type="primary" :underline="false" @click="goStock(row.leader_symbol, row.leader)">
-                  {{ row.leader || '-' }}
-                </el-link>
-                <span v-else>-</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="人气票" width="70">
-              <template #default="{ row }">
-                <el-link v-if="row.hot_pick?.symbol" type="primary" :underline="false" @click="goStock(row.hot_pick.symbol, row.hot_pick.name)">{{ row.hot_pick.name }}</el-link>
-                <span v-else>-</span>
-              </template>
-            </el-table-column>
-          </el-table>
-          <el-empty v-if="!arr(rpt.sector_flow).length" description="当日板块资金数据为空（休市或网络受限）" :image-size="50" />
         </div>
 
         <!-- 龙虎榜 + 席位游资聚合 -->
@@ -372,53 +308,10 @@
           </el-table>
         </div>
 
-        <!-- 次日选股池 -->
-        <div class="card mt8">
-          <div class="fs14 bold">次日选股池（{{ arr(rpt.stock_pool).length }}）</div>
-          <el-table :data="arr(rpt.stock_pool)" size="small" class="mt8" @row-click="(row) => goStock(row.symbol, row.name)">
-            <el-table-column prop="symbol" label="代码" width="95" />
-            <el-table-column prop="name" label="名称" width="90" />
-            <el-table-column label="涨幅" width="75" align="right">
-              <template #default="{ row }">
-                <span class="mono" :class="(row.change_pct||0) >= 0 ? 'up' : 'down'">
-                  {{ (row.change_pct||0) >= 0 ? '+' : '' }}{{ row.change_pct || '-' }}%
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column label="价格" width="70" align="right">
-              <template #default="{ row }">{{ row.price || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="表现" min-width="100">
-              <template #default="{ row }">
-                <div>{{ row.performance || row.reason || '-' }}</div>
-                <div v-if="row.pattern_tags && row.pattern_tags.length" style="margin-top:2px">
-                  <el-tag v-for="t in row.pattern_tags" :key="t" size="small" type="danger" effect="plain" style="margin-right:3px;font-size:10px">{{ t }}</el-tag>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column label="建议" min-width="120">
-              <template #default="{ row }">
-                <el-tag size="small" :type="(row.suggestion||'').includes('风险') ? 'danger' : (row.suggestion||'').includes('关注') ? 'warning' : 'info'">
-                  {{ row.suggestion || '关注' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="日K主力意图" min-width="150">
-              <template #default="{ row }">
-                <el-tag size="small" :type="mainForceTag(row.main_force)" effect="plain">
-                  {{ row.main_force || '观望' }}{{ row.main_force_confidence ? ` ${row.main_force_confidence}%` : '' }}
-                </el-tag>
-                <div class="fs11 replay-force-reason">{{ row.main_force_reason || row.t_bias || '证据不足' }}</div>
-              </template>
-            </el-table-column>
-          </el-table>
-          <el-empty v-if="!arr(rpt.stock_pool).length" description="暂无选股池" :image-size="50" />
-        </div>
-
         <!-- 投资日历（未来45天 解禁 / 分红除权） -->
         <div class="card mt8">
           <div class="flex between" style="align-items:center">
-            <span class="fs14 bold">投资日历 <span class="fs12" style="color:#7d8390">（未来45天 解禁 / 分红除权）</span></span>
+             <span class="fs14 bold">当前投资日历 <span class="fs12" style="color:#7d8390">（未来45天，非复盘日历史事件）</span></span>
             <el-button size="small" :loading="calLoading" @click="loadCalendar">刷新</el-button>
           </div>
           <div class="split-grid mt8">
@@ -448,20 +341,27 @@
         </div>
 
         <!-- Agent 复盘 -->
-        <div v-if="arr(rpt.agent_reviews).length" class="card mt8">
-          <div class="fs14 bold">AI 复盘（{{ arr(rpt.agent_reviews).length }} 个 Agent）</div>
+         <div v-if="Object.keys(rpt.agent_reviews || {}).length" class="card mt8">
+           <div class="fs14 bold">AI 复盘（{{ Object.keys(rpt.agent_reviews || {}).length }} 个 Agent）</div>
           <el-row :gutter="10" class="mt8">
             <el-col v-for="(rv, at) in rpt.agent_reviews" :key="at" :xs="24" :sm="8">
-              <div class="card" style="background:#1d2229">
+               <div class="card">
                 <el-tag size="small" :type="tagType(at)">{{ at }}</el-tag>
                 <div class="fs12 mt8" style="line-height:1.9;white-space:pre-wrap">{{ rv.summary || rv.raw_output || '(' + JSON.stringify(rv).slice(0, 400) + ')' }}</div>
               </div>
             </el-col>
           </el-row>
         </div>
+          </div>
+        </details>
       </template>
 
       <el-empty v-else :description="(status === 'empty' && report?.message) || '暂无复盘报告，点击「生成复盘」手动触发（默认交易日 18:00 自动生成）'" />
+      <section v-if="!rpt" class="card trade-panel">
+        <div class="editorial-head"><div><span class="eyebrow">PERSONAL LEDGER</span><h3>我的交易复盘</h3><p>暂无市场报告时仍可查看已导入交易。</p></div><div class="trade-actions"><el-button size="small" :loading="myTradesLoading" @click="loadMyTrades">刷新</el-button><el-button size="small" @click="router.push('/trade')">去导入</el-button></div></div>
+        <div class="table-scroll"><el-table v-if="myTradesOfDay.length" :data="myTradesOfDay" size="small" @row-click="(row) => goStock(row.symbol, row.name)"><el-table-column prop="trade_date" label="日期" width="110" /><el-table-column prop="symbol" label="代码" width="110" /><el-table-column prop="name" label="名称" min-width="110" /><el-table-column prop="action" label="方向" width="80" /><el-table-column prop="quantity" label="数量" align="right" /><el-table-column prop="price" label="价格" align="right" /><el-table-column label="金额" align="right"><template #default="{ row }">{{ fmtAmount(row.amount) }}</template></el-table-column><el-table-column prop="fee" label="费用" align="right" /></el-table></div>
+        <el-empty v-if="!myTradesOfDay.length" description="该日无实盘交易，可从交易页导入交割单" :image-size="50" />
+      </section>
 
       <el-dialog v-model="mdDialog" title="复盘报告原文" width="700">
         <pre class="md">{{ report?.report_md }}</pre>
@@ -485,10 +385,14 @@ const symbolStore = useSymbolStore()
 const loading = ref(false)
 const triggering = ref(false)
 const report = ref(null)
-const triggerDate = ref('')
 const viewDate = ref('')
 const historyDates = ref([])
 const mdDialog = ref(false)
+const archiveOpen = ref(false)
+function onArchiveToggle(event) {
+  archiveOpen.value = event.target.open
+  if (archiveOpen.value) nextTick(renderCharts)
+}
 const calendar = ref({ date: '', unlocks: [], dividends: [] })
 const calLoading = ref(false)
 const seats = ref([])
@@ -496,7 +400,7 @@ const trendData = ref([])
 const trendEl = ref(null)
 let trendChart = null
 const arr = (v) => (Array.isArray(v) ? v : [])
-const recentLadderDays = computed(() => [...trendData.value].slice(-5))
+const recentLadderDays = computed(() => trendData.value.filter(d => d.date <= (rpt.value?.date || '')).slice(-5))
 
 const distEl = ref(null)
 const sectorEl = ref(null)
@@ -592,6 +496,7 @@ const maxBoard = computed(() => {
   const nums = keys.map(k => parseInt(k, 10)).filter(n => !isNaN(n))
   return nums.length ? Math.max(...nums) : 0
 })
+const verifiedSectors = computed(() => mergedSectors.value.filter(s => s.source === 'eastmoney' && s.net_inflow != null))
 const ladderStats = computed(() => {
   const entries = Object.entries(sortedLadder.value)
   const stocks = entries.flatMap(([, rows]) => Array.isArray(rows) ? rows : [])
@@ -614,29 +519,15 @@ const ladderTone = computed(() => {
 })
 
 const sentimentScore = computed(() => {
-  const m = rpt.value?.market_summary
-  const up = Number(m?.distribution?.up_count || 0)
-  const down = Number(m?.distribution?.down_count || 0)
-  const total = up + down || 1
-  const limit_up = Number(m?.limit_up_count || m?.distribution?.limit_up || 0)
-  const limit_down = Number(m?.distribution?.limit_down || 0)
-  const raw = limit_up * 2 + (up / total) * 50 - limit_down * 3
-  return Math.max(0, Math.min(100, Math.round(raw)))
+  const d = rpt.value?.market_summary?.distribution || {}
+  const up = Number(d.up_count || 0)
+  const down = Number(d.down_count || 0)
+  return up + down ? Math.round(up / (up + down) * 100) : null
 })
 
 const profitEffect = computed(() => {
-  const la = rpt.value?.limit_analysis
-  const ladder = la?.ladder?.ladder || la?.ladder || {}
-  const totalLimit = Number(rpt.value?.market_summary?.limit_up_count || rpt.value?.market_summary?.distribution?.limit_up || 0)
-  if (!totalLimit || typeof ladder !== 'object') return null
-  let upCount = 0
-  for (const [board, stocks] of Object.entries(ladder)) {
-    if (!Array.isArray(stocks)) continue
-    for (const s of stocks) {
-      if ((s.change_pct || 0) > 0) upCount++
-    }
-  }
-  return totalLimit > 0 ? Math.round(upCount / totalLimit * 100) : null
+  const totalLimit = Number(rpt.value?.market_summary?.limit_up_count ?? rpt.value?.market_summary?.distribution?.limit_up ?? 0)
+  return totalLimit ? Math.round(ladderStats.value.multiCount / totalLimit * 100) : null
 })
 
 function tagType(at) {
@@ -663,7 +554,7 @@ const myTrades = ref([])
 const myTradesLoading = ref(false)
 const myPnl = ref(null)
 
-const viewDay = computed(() => viewDate.value || rpt.value?.date || '')
+const viewDay = computed(() => rpt.value?.date || viewDate.value || report.value?.date || dateStr(0))
 const myTradesOfDay = computed(() =>
   myTrades.value.filter((t) => (t.trade_date || t.date || '').slice(0, 10) === viewDay.value))
 
@@ -689,7 +580,7 @@ async function loadKline() {
     kline.value = (Array.isArray(d) ? d : []).map((x) => ({
       dt: x.dt || x.date,
       open: x.open, close: x.close, low: x.low, high: x.high, volume: x.volume,
-    })).filter((x) => x.dt).slice(-130)
+    })).filter((x) => x.dt && x.dt.slice(0, 10) <= (rpt.value?.date || dateStr(0))).slice(-130)
   } catch {
     kline.value = []
   }
@@ -709,7 +600,7 @@ async function loadSectorTrend() {
   sectorTrendLoading.value = true
   try {
     const rows = (await replayApi.history()) || []
-    const dates = [...new Set((Array.isArray(rows) ? rows : []).map((r) => r.date || '').filter(Boolean))].slice(0, 7).reverse()
+    const dates = [...new Set((Array.isArray(rows) ? rows : []).map((r) => r.date || '').filter(d => d && d <= (rpt.value?.date || '')))].slice(0, 7).reverse()
     sectorTrendDates.value = dates
     const byName = {}
     for (const d of dates) {
@@ -769,6 +660,8 @@ async function viewReport(d) {
       report.value = { status: 'ready', date: d, data }
       viewDate.value = d
       await loadSeats()
+      loadSectorTrend()
+      loadKline()
       await nextTick()
       renderCharts()
     } else {
@@ -784,17 +677,17 @@ async function viewReport(d) {
 async function trigger() {
   triggering.value = true
   try {
-    const resp = await replayApi.trigger({ date: triggerDate.value || undefined })
+    const resp = await replayApi.trigger({ date: dateStr(0) })
     await loadHistory()
     if (resp?.status === 'success' && resp?.date) await viewReport(resp.date)
-    else await load()
+    else report.value = { ...report.value, status: 'gated', message: resp?.message || '收盘数据尚未就绪' }
   } finally {
     triggering.value = false
   }
 }
 
 function renderCharts() {
-  if (!rpt.value) return
+  if (!rpt.value || !archiveOpen.value) return
   renderDist()
   renderSector()
   renderLadder()
@@ -802,19 +695,17 @@ function renderCharts() {
 }
 
 function renderTrend() {
-  if (!trendEl.value || !trendData.value.length) return
+  if (!trendEl.value || !trendData.value.length || !archiveOpen.value) return
   if (!trendChart) trendChart = echarts.init(trendEl.value)
-  const dates = trendData.value.map(d => d.date.slice(5))
-  const sentimentLine = trendData.value.map(d => {
+  const rows = trendData.value.filter(d => d.date <= (rpt.value?.date || ''))
+  if (!rows.length) return
+  const dates = rows.map(d => d.date.slice(5))
+  const sentimentLine = rows.map(d => {
     const up = Number(d.up_count || 0)
     const down = Number(d.down_count || 0)
-    const total = up + down || 1
-    const lu = Number(d.limit_up || 0)
-    const ld = Number(d.limit_down || 0)
-    const raw = lu * 2 + (up / total) * 50 - ld * 3
-    return Math.max(0, Math.min(100, Math.round(raw)))
+    return up + down ? Math.round(up / (up + down) * 100) : null
   })
-  const profitLine = trendData.value.map(d => {
+  const profitLine = rows.map(d => {
     const lu = Number(d.limit_up || 0)
     const mb = Number(d.multi_board || 0)
     return lu > 0 ? Math.round(mb / lu * 100) : null
@@ -830,12 +721,12 @@ function renderTrend() {
       { type: 'value', name: '%', splitLine: { show: false }, axisLabel: { color: '#8b93a1', fontSize: 11 }, axisLine: { show: false } }
     ],
     series: [
-      { name: '涨停数', type: 'bar', barWidth: 16, yAxisIndex: 0, data: trendData.value.map(d => d.limit_up), itemStyle: { color: '#ef232a', borderRadius: [3, 3, 0, 0] } },
-      { name: '跌停数', type: 'bar', barWidth: 16, yAxisIndex: 0, data: trendData.value.map(d => d.limit_down), itemStyle: { color: '#14b143', borderRadius: [3, 3, 0, 0] } },
-      { name: '连板率', type: 'line', yAxisIndex: 1, data: trendData.value.map(d => d.consecutive_rate), smooth: true, symbol: 'circle', symbolSize: 6, lineStyle: { color: '#f7b32b', width: 2 }, itemStyle: { color: '#f7b32b' } },
-      { name: '断板率', type: 'line', yAxisIndex: 1, data: trendData.value.map(d => d.broken_rate), smooth: true, symbol: 'diamond', symbolSize: 6, lineStyle: { color: '#409eff', width: 2, type: 'dashed' }, itemStyle: { color: '#409eff' } },
-      { name: '情绪温度', type: 'line', yAxisIndex: 1, data: sentimentLine, smooth: true, symbol: 'triangle', symbolSize: 6, lineStyle: { color: '#e6a23c', width: 2 }, itemStyle: { color: '#e6a23c' } },
-      { name: '赚钱效应', type: 'line', yAxisIndex: 1, data: profitLine, smooth: true, symbol: 'rect', symbolSize: 6, lineStyle: { color: '#9b59b6', width: 2, type: 'dotted' }, itemStyle: { color: '#9b59b6' } },
+       { name: '涨停数', type: 'bar', barWidth: 16, yAxisIndex: 0, data: rows.map(d => d.limit_up), itemStyle: { color: '#ef232a' } },
+       { name: '跌停数', type: 'bar', barWidth: 16, yAxisIndex: 0, data: rows.map(d => d.limit_down), itemStyle: { color: '#14b143' } },
+       { name: '连板率', type: 'line', yAxisIndex: 1, data: rows.map(d => d.consecutive_rate), lineStyle: { color: '#c47d14' } },
+       { name: '断板率', type: 'line', yAxisIndex: 1, data: rows.map(d => d.broken_rate), lineStyle: { color: '#2e6bc6', type: 'dashed' } },
+       { name: '上涨占比', type: 'line', yAxisIndex: 1, data: sentimentLine, lineStyle: { color: '#ef232a' } },
+       { name: '连板占比', type: 'line', yAxisIndex: 1, data: profitLine, lineStyle: { color: '#8c61ac', type: 'dotted' } },
     ]
   }, true)
 }
@@ -845,41 +736,42 @@ function renderDist() {
   const m = rpt.value?.market_summary?.distribution || {}
   const up = Number(m.up_count || 0)
   const down = Number(m.down_count || 0)
+  const flat = Number(m.flat_count || 0)
   if (!distChart) distChart = echarts.init(distEl.value)
-  const total = up + down || 1
   distChart.setOption({
     backgroundColor: 'transparent',
     series: [{
       type: 'pie', radius: ['52%', '78%'], center: ['38%', '55%'],
-      label: { color: '#c8ccd4', fontSize: 11 },
+       label: { color: '#57606f', fontSize: 11 },
       data: [
         { value: up, name: '上涨 ' + up, itemStyle: { color: '#ef232a' } },
-        { value: down, name: '下跌 ' + down, itemStyle: { color: '#14b143' } },
+         { value: down, name: '下跌 ' + down, itemStyle: { color: '#14b143' } },
+         { value: flat, name: '平盘 ' + flat, itemStyle: { color: '#9aa3af' } },
       ],
       labelLine: { lineStyle: { color: '#4d5461' } },
     }],
-    legend: { orient: 'vertical', right: 8, top: 'center', textStyle: { color: '#c8ccd4', fontSize: 12 } },
+     legend: { orient: 'vertical', right: 8, top: 'center', textStyle: { color: '#57606f', fontSize: 12 } },
     tooltip: { trigger: 'item' },
   }, true)
 }
 
 function renderSector() {
   if (!sectorEl.value) return
-  const rows = [...arr1(rpt.value?.sector_flow)].sort((a, b) => Math.abs(b.net_inflow || 0) - Math.abs(a.net_inflow || 0)).slice(0, 10)
+  const rows = [...arr1(rpt.value?.sector_flow)].filter(r => r.source === 'eastmoney' && r.net_inflow != null).sort((a, b) => Math.abs(b.net_inflow) - Math.abs(a.net_inflow)).slice(0, 10)
   if (!rows.length) return
   if (!sectorChart) sectorChart = echarts.init(sectorEl.value)
   const names = rows.map((r) => r.sector_name || r.name || '').reverse()
-  const vals = rows.map((r) => (r.net_inflow || 0) / 1e8).reverse()
+  const vals = rows.map((r) => r.net_inflow / 1e8).reverse()
   sectorChart.setOption({
     backgroundColor: 'transparent',
     grid: { left: 8, right: 40, top: 8, bottom: 8, containLabel: true },
     xAxis: { type: 'value', axisLabel: { color: '#7d8390', fontSize: 10, formatter: (v) => v.toFixed(1) + '亿' }, splitLine: { lineStyle: { color: '#2c3240' } } },
-    yAxis: { type: 'category', data: names, axisLabel: { color: '#c8ccd4', fontSize: 10 } },
+     yAxis: { type: 'category', data: names, axisLabel: { color: '#57606f', fontSize: 10 } },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     series: [{
       type: 'bar', data: vals, barWidth: '55%',
-      itemStyle: { color: (p) => (vals[p.dataIndex] >= 0 ? '#ef232a' : '#14b143'), borderRadius: 2 },
-      label: { show: true, position: 'right', color: '#c8ccd4', fontSize: 10, formatter: (p) => p.value.toFixed(1) + '亿' },
+       itemStyle: { color: p => p.value >= 0 ? '#ef232a' : '#14b143', borderRadius: 2 },
+       label: { show: true, position: p => p.value >= 0 ? 'right' : 'left', color: '#57606f', fontSize: 10, formatter: (p) => p.value.toFixed(1) + '亿' },
     }],
   }, true)
 }
@@ -916,7 +808,6 @@ function resizeCharts() {
 watch(rpt, () => { if (rpt.value) { nextTick(renderCharts) } }, { deep: false })
 
 onMounted(() => {
-  triggerDate.value = dateStr(0)
   load()
   loadCalendar()
   loadMyTrades()
@@ -932,23 +823,50 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.page { }
-.kpi-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 10px; }
-.kpi-card {
-  background: #171a21; border: 1px solid #2a2f3a; border-radius: 6px; padding: 10px 12px;
-  text-align: center;
-}
-.kpi-card.accent { background: linear-gradient(135deg, #2a1c10, #3a2813); border-color: #f7b32b55; }
-.kpi-label { font-size: 12px; color: #8b93a1; }
-.kpi-val { font-size: 22px; font-weight: 700; line-height: 1.4; font-family: Consolas, 'Microsoft YaHei', monospace; }
-.kpi-unit { font-size: 11px; color: #8b93a1; font-weight: 400; margin-left: 2px; }
+.page { max-width: 1440px; margin: 0 auto; padding: 12px 24px 56px; }
+.verdict-hero { margin-top: 14px; background: #fff; border: 1px solid #e7e1d9; border-top: 4px solid #c33a37; box-shadow: 0 12px 36px rgba(31,41,55,.055); padding: 22px 28px 0; color: #222b35; }
+.hero-top { display: flex; justify-content: space-between; gap: 12px; color: #946a62; font: 600 11px var(--font-mono, monospace); letter-spacing: .12em; }
+.hero-main { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 28px; padding: 24px 0 26px; align-items: center; }
+.hero-date { color: #b83232; font: 700 17px var(--font-mono, monospace); }
+.hero-date span { font: 500 12px sans-serif; color: #737c87; margin-left: 10px; }
+.hero-copy h2 { font-size: clamp(27px, 3vw, 40px); line-height: 1.25; letter-spacing: -.04em; margin: 14px 0 10px; }
+.hero-copy h2 span { font-weight: 450; }
+.hero-copy p { font-size: 15px; line-height: 1.7; margin: 0; color: #46515f; }
+.hero-source { font-size: 12px; color: #6c7582; border-left: 2px solid #c33a37; padding-left: 10px; margin-top: 19px; line-height: 1.6; }
+.hero-meter { border-left: 1px solid #eee5df; padding-left: 24px; display: flex; flex-direction: column; gap: 8px; }
+.hero-meter span { font-size: 11px; letter-spacing: .08em; color: #647080; }
+.hero-meter strong { font: 700 46px var(--font-mono, monospace); line-height: 1; }
+.hero-meter small { color: #606b77; font-size: 12px; }
+.hero-tape { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid #eae6e1; }
+.hero-tape > div { padding: 15px 12px 17px; display: flex; align-items: baseline; gap: 7px; border-right: 1px solid #eae6e1; }
+.hero-tape > div:first-child { padding-left: 0; }
+.hero-tape > div:last-child { border-right: 0; }
+.hero-tape span { font-size: 12px; color: #626d78; margin-right: auto; }
+.hero-tape b { font: 700 25px var(--font-mono, monospace); }
+.hero-tape small { font-size: 11px; color: #77808b; }
+.editorial-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.eyebrow { color: #aa3936; font: 700 11px var(--font-mono, monospace); letter-spacing: .13em; }
+.editorial-head h3 { font-size: 24px; letter-spacing: -.03em; margin: 6px 0; color: #232d37; }
+.editorial-head h3 small { color: #77808b; font-size: 13px; font-weight: 500; letter-spacing: 0; }
+.editorial-head p, .section-aside { color: #687481; font-size: 12px; margin: 0; line-height: 1.6; }
+.pool-panel, .sector-panel, .trade-panel { background: #fff; border: 1px solid #e2e6ea; padding: 22px 24px; margin-top: 16px; }
+.pool-panel { border-top: 3px solid #bc3e3c; }
+.sector-panel { border-top: 3px solid #d0a15b; }
+.trade-panel { border-top: 3px solid #778394; }
+.table-scroll { overflow-x: auto; }
+.table-scroll :deep(.el-table) { min-width: 740px; }
+.trade-actions { display: flex; white-space: nowrap; }
+.muted { color: #75808b; }
+.archive-details { margin-top: 18px; border: 1px solid #dfe3e8; background: #f8f9fa; padding: 0 18px 18px; }
+.archive-details summary { cursor: pointer; min-height: 58px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; color: #33404e; }
+.archive-details summary::before { content: '+'; font: 700 24px var(--font-mono, monospace); color: #ac3a38; }
+.archive-details[open] summary::before { content: '-'; }
+.archive-details summary small { color: #687481; font-size: 12px; font-weight: 400; }
+.archive-details summary:focus-visible, .review-nav a:focus-visible, .leader-chip:focus-visible { outline: 2px solid #b32e2b; outline-offset: 2px; }
 .up { color: #ef232a; }
 .down { color: #14b143; }
 .mono { font-family: Consolas, monospace; }
-.card {
-  background: #1c2028; border: 1px solid #2a2f3a; border-radius: 8px;
-  padding: 12px; color: #d8dce6;
-}
+.card { background: var(--c-bg-card); border: 1px solid var(--c-border); border-radius: 6px; padding: 12px; color: var(--c-ink); }
 .mt8 { margin-top: 8px; }
 .mt4 { margin-top: 4px; }
 .mr8 { margin-right: 8px; }
@@ -956,9 +874,9 @@ onBeforeUnmount(() => {
 .fs14 { font-size: 14px; }
 .replay-force-reason { color: #8b93a1; line-height: 1.45; margin-top: 3px; white-space: normal; }
 .section-kicker { color:#f7b32b; font:600 10px var(--font-mono); letter-spacing:.1em; margin-bottom:3px; }
-.ladder-command { background:linear-gradient(110deg,#171a21,#202832); border:1px solid #343d4c; border-radius:8px; padding:16px; color:#d8dce6; }
+.ladder-command { background:linear-gradient(110deg,#192535,#26384a); border:1px solid #343d4c; border-radius:4px; padding:24px 28px; color:#d8dce6; }
 .ladder-command-head, .section-headline { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.ladder-command-title { color:#fff; font-size:22px; font-weight:750; letter-spacing:-.03em; }
+.ladder-command-title { color:#fff; font-size:26px; font-weight:750; letter-spacing:-.03em; }
 .ladder-command-sub { color:#8993a3; font-size:12px; margin-top:3px; }
 .ladder-stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:16px; }
 .ladder-stat { background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.08); border-radius:6px; padding:10px 12px; }
@@ -971,8 +889,8 @@ onBeforeUnmount(() => {
 .leader-chip { border:1px solid rgba(247,179,43,.35); background:rgba(247,179,43,.08); color:#f7b32b; border-radius:5px; padding:5px 8px; cursor:pointer; }
 .leader-chip:hover { background:rgba(247,179,43,.17); }
 .leader-chip span { color:#c8a96a; font:11px var(--font-mono); margin-left:6px; }
-.recent-ladder-card { background:#fff; border:1px solid #2a2f3a; border-radius:8px; padding:14px; }
-.recent-days { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:10px; }
+.recent-ladder-card { background:#fff; border:1px solid var(--c-border); border-radius:8px; padding:14px; }
+.recent-days { display:grid; grid-template-columns:repeat(5,minmax(110px,1fr)); gap:8px; margin-top:10px; overflow-x:auto; }
 .recent-day { border:1px solid #e2e6ec; border-radius:6px; padding:9px; background:#fafbfc; }
 .recent-day.today { border-color:#f7b32b; box-shadow:inset 0 2px 0 #f7b32b; }
 .recent-date { color:#7d8390; font:11px var(--font-mono); margin-bottom:5px; }
@@ -1014,25 +932,31 @@ onBeforeUnmount(() => {
 .seat-group-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 
 /* 深色表格微调 */
-:deep(.el-table) { background: transparent; color: #d8dce6; }
-:deep(.el-table tr), :deep(.el-table th.el-table__cell) { background: transparent; }
-:deep(.el-table th.el-table__cell) { color: #8b93a1; }
-:deep(.el-table--border, .el-table--group) { border-color: #2a2f3a; }
-:deep(.el-table td.el-table__cell), :deep(.el-table th.el-table__cell.is-leaf) { border-bottom: 1px solid #2a2f3a; }
-:deep(.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell) { background: #232936; }
-:deep(.el-link) { color: #ef6c6d; }
+:deep(.el-table) { color: var(--c-ink); }
+.review-nav { display:flex; gap:4px; overflow-x:auto; padding:10px 0; white-space:nowrap; }
+.review-nav a { color:#394754; background:transparent; border-bottom:2px solid transparent; padding:12px 16px; text-decoration:none; font-size:13px; font-weight:600; }
+.review-nav a:hover, .review-nav a:focus-visible { border-color:var(--c-primary); background:#edf3fb; }
 
 /* H5 移动端适配 */
 @media (max-width: 820px) {
-  .page { padding: 8px; }
+  .page { padding: 8px 12px 36px; }
   .card { padding: 10px; }
   .split-grid { grid-template-columns: 1fr; }
-  .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+  .hero-main { grid-template-columns: 1fr; gap: 18px; }
+  .hero-meter { border-left: 0; border-top: 1px solid #eee5df; padding: 18px 0 0; }
+  .hero-tape { grid-template-columns: repeat(2, 1fr); }
+  .hero-tape > div:nth-child(2) { border-right: 0; }
+  .hero-tape > div:nth-child(-n+2) { border-bottom: 1px solid #eae6e1; }
 }
 @media (max-width: 480px) {
   .card { padding: 8px; }
-  .kpi-val { font-size: 18px; }
-  .kpi-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .verdict-hero { padding: 18px 16px 0; }
+  .hero-top { flex-wrap: wrap; }
+  .hero-tape > div { padding: 12px 6px; flex-wrap: wrap; }
+  .hero-tape span { width: 100%; }
+  .editorial-head { align-items: flex-start; flex-direction: column; }
+  .pool-panel, .sector-panel, .trade-panel { padding: 16px 12px; }
+  .section-aside { display: none; }
   .seat-row { flex-wrap: wrap; }
 }
 </style>
