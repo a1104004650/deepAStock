@@ -7,9 +7,9 @@
         </template>
       </PageHeader>
 
-      <el-row :gutter="10">
+      <el-row :gutter="12" class="workspace-row">
         <!-- 左侧：分组 + 自选股列表 -->
-        <el-col :xs="24" :sm="8" :md="5">
+        <el-col :xs="24" :sm="8" :md="5" class="symbols-col">
           <div class="card sidebar-card">
             <div class="flex between" style="align-items:center;margin-bottom:8px">
               <span class="fs14 bold">自选分组</span>
@@ -49,13 +49,25 @@
                 </template>
               </div>
             </div>
-            <el-scrollbar max-height="400">
+            <div class="symbol-tools">
+              <el-input v-model="symbolFilter" size="small" clearable aria-label="筛选股票" placeholder="搜索名称 / 代码" />
+              <el-select v-model="symbolSort" size="small" aria-label="排序股票" style="width:110px">
+                <el-option label="默认顺序" value="default" />
+                <el-option label="涨幅优先" value="gain" />
+                <el-option label="跌幅优先" value="loss" />
+                <el-option label="名称排序" value="name" />
+              </el-select>
+            </div>
+            <el-scrollbar max-height="560">
               <div
                 v-for="row in displayItems"
                 :key="row.symbol"
                 class="wl-item"
                 :class="{ active: symbolStore.selectedSymbol === row.symbol }"
+                role="button" tabindex="0" :aria-label="`查看 ${row.name} ${row.symbol}`"
                 @click="batchMode ? toggleDelete(row) : selectItem(row)"
+                @keydown.enter.prevent="batchMode ? toggleDelete(row) : selectItem(row)"
+                @keydown.space.prevent="batchMode ? toggleDelete(row) : selectItem(row)"
               >
                 <div class="wl-line">
                   <span class="flex gap" style="align-items:center">
@@ -79,21 +91,20 @@
 
               </div>
             </el-scrollbar>
-            <el-empty v-if="!displayItems.length" description="暂无自选股" :image-size="50" />
+            <el-empty v-if="!displayItems.length" :description="symbolFilter ? '没有匹配的股票' : '暂无自选股'" :image-size="50" />
           </div>
         </el-col>
 
         <!-- 右侧：K线 + 详情 tabs -->
-        <el-col :xs="24" :sm="16" :md="19">
-          <div class="card" v-if="symbolStore.selectedSymbol">
+        <el-col :xs="24" :sm="16" :md="19" class="detail-col">
+          <div class="card stock-workspace" v-if="symbolStore.selectedSymbol">
             <div class="detail-wrap">
-            <div class="flex gap" style="align-items:center;flex-wrap:wrap">
-              <span class="fs16 bold">{{ symbolStore.selectedRealtime.name || symbolStore.selectedSymbol }}</span>
-              <span class="fs12" style="color:#909399">{{ symbolStore.selectedSymbol }}</span>
+            <div class="identity-header">
+              <div class="identity-title"><span class="detail-kicker">STOCK / {{ symbolStore.selectedSymbol }}</span><h2>{{ symbolStore.selectedRealtime.name || symbolStore.selectedSymbol }}</h2></div>
               <el-popover placement="bottom" :width="340" trigger="click" v-model:visible="alertPopoverVisible">
                 <template #reference>
                   <el-badge :value="currentAlerts.filter(a => a.enabled && !a.triggered).length || undefined" :max="99">
-                    <el-button size="small" link :type="currentAlerts.length ? 'warning' : 'info'">
+                    <el-button size="small" link :type="currentAlerts.length ? 'warning' : 'info'" aria-label="管理价格预警">
                       <el-icon :size="16"><Bell /></el-icon>
                     </el-button>
                   </el-badge>
@@ -128,12 +139,23 @@
                   </div>
                 </div>
               </el-popover>
-              <span v-if="symbolStore.selectedRealtime.price" class="fs18 bold mono" :class="pctCls(symbolStore.selectedRealtime)">
-                {{ fmt(symbolStore.selectedRealtime.price) }}
-                <span class="fs12">{{ symbolStore.selectedRealtime.change_pct >= 0 ? '+' : '' }}{{ symbolStore.selectedRealtime.change }} / {{ symbolStore.selectedRealtime.change_pct >= 0 ? '+' : '' }}{{ symbolStore.selectedRealtime.change_pct }}%</span>
-              </span>
-              <div style="flex:1"></div>
-              <el-radio-group v-model="period" size="small">
+              <div class="identity-price" :class="pctCls(symbolStore.selectedRealtime)">
+                <strong class="mono">{{ fmt(symbolStore.selectedRealtime.price) }}</strong>
+                <span class="mono">{{ symbolStore.selectedRealtime.change_pct == null ? '涨跌暂缺' : `${symbolStore.selectedRealtime.change_pct >= 0 ? '+' : ''}${symbolStore.selectedRealtime.change} / ${symbolStore.selectedRealtime.change_pct >= 0 ? '+' : ''}${symbolStore.selectedRealtime.change_pct}%` }}</span>
+              </div>
+              <div class="identity-asof">行情截至 {{ quoteAsOf }}</div>
+            </div>
+
+            <div class="decision-strip">
+              <div class="decision-cell"><span class="cell-label">01 / 日K背景</span><strong>{{ czsc.current_state?.trend === 'up' ? '多头' : czsc.current_state?.trend === 'down' ? '空头' : czsc.current_state?.trend ? '震荡' : '待分析' }} · {{ dailyPositionLabel }}</strong><small>{{ intradaySummary?.daily_behavior?.reason || '日K位置与分时形态分开判断' }}</small></div>
+              <div class="decision-cell"><span class="cell-label">02 / 分时观察</span><strong>{{ intradaySummary?.intent?.primary || '暂无观察' }}</strong><small>截至 {{ intradayAsOf }} · 规则归类，非主力身份</small></div>
+              <div class="decision-cell"><span class="cell-label">03 / 五档挂单</span><strong :class="pctClsObj(orderBookSummary.wei_bi)">{{ orderBookSummary.wei_bi == null ? '暂不可用' : `委比 ${orderBookSummary.wei_bi > 0 ? '+' : ''}${orderBookSummary.wei_bi}%` }}</strong><small>买 {{ orderBookSummary.bid_total }} / 卖 {{ orderBookSummary.ask_total }} 手 · 可撤单</small></div>
+              <div class="decision-cell"><span class="cell-label">04 / 近笔 B/S 样本</span><strong>{{ ticksSummary.side_data_available ? `B ${ticksSummary.outer_pct}% / S ${ticksSummary.inner_pct}%` : '方向暂不可用' }}</strong><small>最新 {{ ticksSummary.sample_count }} 笔 · 非全天成交</small></div>
+            </div>
+
+            <div class="chart-header">
+              <div><span class="detail-kicker">MARKET STRUCTURE</span><h3>走势与盘口</h3></div>
+              <el-radio-group v-model="period" size="small" class="period-picker" aria-label="图表周期">
                 <el-radio-button value="mf">分时</el-radio-button>
                 <el-radio-button value="m5">5分</el-radio-button>
                 <el-radio-button value="m15">15分</el-radio-button>
@@ -149,7 +171,7 @@
             </div>
 
             <!-- 行情数据条 -->
-            <div class="flex gap fs12 mt4" style="color:#909399;flex-wrap:wrap">
+            <div class="market-stats">
               <span>今开 {{ fmt(symbolStore.selectedRealtime.open) }}</span>
               <span>最高 {{ fmt(symbolStore.selectedRealtime.high) }}</span>
               <span>最低 {{ fmt(symbolStore.selectedRealtime.low) }}</span>
@@ -167,7 +189,7 @@
             <div class="main-split">
               <div class="main-left">
             <!-- K线图 -->
-            <div style="height:460px">
+            <div class="chart-stage">
               <div v-if="period !== 'mf'" style="position:relative;height:100%">
                 <HQChartKline :data="kline" height="460px"
                   :fx="period === 'day' ? czsc.fx_list || [] : []"
@@ -184,48 +206,39 @@
                   :show-t="intradayShowT" />
                 <el-empty v-else description="暂无分时数据" :image-size="70" style="position:absolute;inset:0" />
                 <!-- 分时图工具栏 -->
-                <div v-if="intraday.length" class="intraday-toolbar">
-                  <el-checkbox v-model="intradayShowSignals" size="small">主力信号</el-checkbox>
-                  <el-checkbox v-model="intradayShowT" size="small">做T信号</el-checkbox>
-                </div>
+                 <div v-if="intraday.length" class="intraday-toolbar">
+                   <el-checkbox v-model="intradayShowSignals" size="small">量价形态标记</el-checkbox>
+                  <el-checkbox v-model="intradayShowT" size="small">T形态确认</el-checkbox>
+                  <span class="t-caveat">T标记晚于拐点确认，非成交价或交易建议</span>
+                 </div>
                 <!-- 主力意图标签 -->
                  <div v-if="intradayShowSignals && intradaySummary?.intent" class="intent-bar">
                   <span class="intent-label" :class="'intent-' + (intradaySummary.intent.primary === '真拉升' ? 'rally' : intradaySummary.intent.primary === '诱多' ? 'trap' : intradaySummary.intent.primary === '诱空' ? 'bear' : intradaySummary.intent.primary === '吸筹' ? 'accumulate' : intradaySummary.intent.primary === '洗盘' ? 'shakeout' : intradaySummary.intent.primary === '出货' ? 'distribution' : 'wait')">
                     {{ intradaySummary.intent.primary }}
                   </span>
-                  <span v-if="intradaySummary.intent.confidence > 0" class="fs11" style="color:#606266">{{ intradaySummary.intent.confidence }}%</span>
+                   <span class="fs11" style="color:#606266">分时规则归类 · 非主力身份</span>
                   <span v-if="intradayDailyContext?.daily_trend && intradayDailyContext.daily_trend !== 'unknown'" class="intent-context">
                     日K{{ intradayDailyContext.daily_trend }} · {{ dailyPositionLabel }}
                   </span>
                   <span v-if="intradaySummary.daily_behavior?.t_bias" class="intent-context">
-                    做T：{{ intradaySummary.daily_behavior.t_bias }}
+                     日K对T形态：{{ intradaySummary.daily_behavior.t_bias }}
                   </span>
                   <template v-for="(v, k) in intradaySummary.intent.all_scores" :key="k">
-                    <span v-if="v > 10" class="fs11" style="color:#606266">{{ k }}{{ Math.round(v) }}%</span>
+                     <span v-if="v > 10" class="fs11" style="color:#606266">{{ k }}权重{{ Math.round(v) }}%</span>
                   </template>
                 </div>
                 <div v-if="intradayShowSignals && intradaySummary?.daily_behavior?.reason" class="intent-reason">
-                  {{ intradaySummary.daily_behavior.reason }}
+                   日K背景：{{ intradaySummary.daily_behavior.reason }}（与分时形态分开判断）
                 </div>
               </div>
             </div>
 
-            <!-- 个股详情（原多tab整合为一） -->
-            <el-tabs v-model="detailTab" class="mt8" type="border-card">
-              <el-tab-pane label="个股详情" name="detail" lazy>
-                <div class="detail-command">
-                  <div class="detail-command-head">
-                    <div><span class="detail-kicker">STOCK BRIEF / DECISION SNAPSHOT</span><h3>{{ symbolStore.selectedRealtime.name || symbolStore.selectedSymbol }} <small>{{ symbolStore.selectedSymbol }}</small></h3></div>
-                    <el-tag v-if="czsc.current_state?.trend" :type="czsc.current_state.trend === 'up' ? 'danger' : czsc.current_state.trend === 'down' ? 'success' : 'info'">{{ czsc.current_state.trend === 'up' ? '日K多头' : czsc.current_state.trend === 'down' ? '日K空头' : '日K震荡' }}</el-tag>
-                  </div>
-                  <div class="detail-metrics">
-                    <div><span>现价</span><b class="mono">{{ fmt(symbolStore.selectedRealtime.price) }}</b><em :class="pctCls(symbolStore.selectedRealtime)">{{ symbolStore.selectedRealtime.change_pct == null ? '-' : `${symbolStore.selectedRealtime.change_pct >= 0 ? '+' : ''}${Number(symbolStore.selectedRealtime.change_pct).toFixed(2)}%` }}</em></div>
-                    <div><span>主力意图</span><b>{{ intradaySummary?.intent?.primary || '未分析' }}</b><em>{{ intradaySummary?.intent?.confidence ? `${intradaySummary.intent.confidence}%` : '切换分时分析' }}</em></div>
-                    <div><span>资金趋势</span><b>{{ flowSummary?.trend === 'inflow' ? '持续流入' : flowSummary?.trend === 'outflow' ? '持续流出' : '方向反复' }}</b><em>{{ flowSummary?.net_5d == null ? '-' : `5日 ${fmtBig(flowSummary.net_5d * 1e8)}` }}</em></div>
-                    <div><span>估值/换手</span><b>{{ finOverview?.pe ?? '-' }} PE</b><em>{{ finOverview?.turnover == null ? '-' : `${finOverview.turnover}% 换手` }}</em></div>
-                  </div>
-                  <div v-if="intradaySummary?.daily_behavior?.reason" class="detail-verdict"><span>主力依据</span>{{ intradaySummary.daily_behavior.reason }}</div>
-                </div>
+               </div>
+
+               <!-- Research follows the chart and live quote rail. -->
+               <div class="research-heading"><span class="detail-kicker">RESEARCH DESK</span><h3>个股研究</h3><p>按主题查看分析；行情观察与研究结论不等同于交易建议。</p></div>
+               <el-tabs v-model="detailTab" class="research-tabs" type="border-card">
+                 <el-tab-pane label="技术结构" name="technical" lazy>
                 <div v-if="czsc.current_state" class="mb8">
                   <el-tag size="small" :type="czsc.current_state.trend === 'up' ? 'danger' : czsc.current_state.trend === 'down' ? 'success' : 'info'">
                     趋势: {{ czsc.current_state.trend === 'up' ? '多头' : czsc.current_state.trend === 'down' ? '空头' : '震荡' }}
@@ -248,8 +261,9 @@
                     20日涨幅: {{ czsc.current_state.yangjia_stage.chg_20d }}%
                   </div>
                 </div>
-                <!-- AI分析 -->
-                <el-divider content-position="left">AI分析</el-divider>
+                <!-- AI analysis -->
+                </el-tab-pane>
+                <el-tab-pane label="AI分析" name="ai" lazy>
                 <div v-if="isStreaming">
                   <div class="stream-box">{{ streamText }}<span class="stream-cursor"></span></div>
                   <div class="fs11 mt4" style="color:#909399">AI 正在生成分析…</div>
@@ -296,6 +310,8 @@
                   </div>
                   <div class="fs11" style="color:#909399">每次只运行所选智能体（避免多智能体并行超时），当日结果自动缓存，可点击重跑</div>
                 </div>
+                </el-tab-pane>
+                <el-tab-pane label="技术指标" name="indicators" lazy>
                 <!-- 布林带 -->
                 <div v-if="czsc.current_state?.boll?.mid" class="mb8">
                   <el-divider content-position="left">布林带</el-divider>
@@ -320,6 +336,8 @@
                     <el-tag v-if="czsc.current_state.rsi.cross && czsc.current_state.rsi.cross !== '—'" size="small" :type="(czsc.current_state.rsi.cross||'').includes('金叉') ? 'danger' : 'success'" class="ml4">{{ czsc.current_state.rsi.cross }}</el-tag>
                   </div>
                 </div>
+                </el-tab-pane>
+                <el-tab-pane label="板块与形态" name="sectors" lazy>
                 <!-- 板块 -->
                 <div v-if="sectorDetail.industry || (sectorDetail.concepts||[]).length" class="mb8">
                   <el-divider content-position="left">板块</el-divider>
@@ -372,6 +390,8 @@
                   </el-tag>
                 </div>
                 <el-empty v-if="!czsc.fx_list?.length && !czsc.signals?.length" description="切换到日K查看缠论信号" :image-size="40" />
+                </el-tab-pane>
+                <el-tab-pane label="消息与资金" name="news" lazy>
                 <el-divider content-position="left">消息面</el-divider>
                 <div v-if="stockNews.length" style="max-height:260px;overflow:auto">
                   <div v-for="(n, i) in stockNews" :key="i" class="fs12 mb6" style="line-height:1.5">
@@ -385,7 +405,7 @@
                 <el-empty v-else description="暂无相关新闻" :image-size="40" />
                 <el-divider content-position="left">资金流</el-divider>
                 <div v-if="flowSummary || moneyFlow.length" class="fs12">
-                  <div class="flex gap mb8" style="flex-wrap:wrap;align-items:center">
+                   <div v-if="flowSummary" class="flex gap mb8" style="flex-wrap:wrap;align-items:center">
                     <span>1日主力: <b :class="(flowSummary.net_1d||0) >= 0 ? 'up' : 'down'">{{ fmtBig(flowSummary.net_1d * 1e8) }}</b></span>
                     <span>5日主力: <b :class="(flowSummary.net_5d||0) >= 0 ? 'up' : 'down'">{{ fmtBig(flowSummary.net_5d * 1e8) }}</b></span>
                     <span>20日主力: <b :class="(flowSummary.net_20d||0) >= 0 ? 'up' : 'down'">{{ fmtBig(flowSummary.net_20d * 1e8) }}</b></span>
@@ -394,7 +414,7 @@
                     </el-tag>
                     <span v-if="flowSummary.latest_date" class="fs11" style="color:#c0c4cc">截至 {{ flowSummary.latest_date }}</span>
                   </div>
-                  <div class="mb8">
+                   <div v-if="moneyFlow.length" class="mb8">
                     <div class="fs11 mb4" style="color:#909399">近20个交易日主力当日净流入（单位：万元）</div>
                     <LineChart v-if="moneyFlow.length"
                       :data="moneyFlow.map(m => ({ name: String(m.date).slice(5), value: Math.round((Number(m.netamount) || 0) / 1e4) }))"
@@ -417,6 +437,8 @@
                   </div>
                 </div>
                 <el-empty v-else description="暂无资金流数据" :image-size="40" />
+                </el-tab-pane>
+                <el-tab-pane label="财务与同行" name="financial" lazy>
                 <el-divider content-position="left">技术形态</el-divider>
                 <div v-if="forms.length" class="fs12">
                   <el-tag v-for="(f, i) in forms" :key="i" size="small" :type="f.type === 'bullish' ? 'danger' : f.type === 'bearish' ? 'success' : 'info'" style="margin:2px">
@@ -514,13 +536,12 @@
                 </div>
               </el-tab-pane>
             </el-tabs>
-              </div>
 
               <!-- 右侧常驻盘口面板 -->
               <div class="side-panel">
                 <div class="quote-block">
                   <div class="quote-title">五档挂单 <span class="fs11" style="color:#909399">单位:手</span></div>
-                   <div v-if="orderBookSummary.bid_total || orderBookSummary.ask_total" class="ob-summary" title="委比仅反映当前五档挂单，不代表真实成交方向；主动买/卖来自逐笔成交方向，免费数据源可能存在未标注成交">
+                   <div v-if="orderBookSummary.bid_total || orderBookSummary.ask_total" class="ob-summary" title="委比仅反映当前五档挂单，不代表真实成交方向；主动买/卖仅统计最新返回的逐笔样本，免费数据源可能存在未标注成交">
                     <div class="ob-row">
                       <span class="ob-label">委比</span>
                       <span class="mono fs12" :class="orderBookSummary.wei_bi > 0 ? 'up' : orderBookSummary.wei_bi < 0 ? 'down' : ''">
@@ -532,13 +553,13 @@
                       </span>
                     </div>
                     <div class="ob-row" style="margin-top:4px">
-                      <span class="ob-label">外盘</span>
-                      <span class="mono fs12 down">{{ orderBookSummary.ask_total || '-' }}</span>
-                      <span class="ob-label" style="margin-left:12px">内盘</span>
-                      <span class="mono fs12 up">{{ orderBookSummary.bid_total || '-' }}</span>
+                       <span class="ob-label">卖盘挂单</span>
+                       <span class="mono fs12 down">{{ orderBookSummary.ask_total }}</span>
+                       <span class="ob-label" style="margin-left:12px">买盘挂单</span>
+                       <span class="mono fs12 up">{{ orderBookSummary.bid_total }}</span>
                     </div>
-                    <div v-if="ticksSummary.outer_volume || ticksSummary.inner_volume" class="ob-row" style="margin-top:4px">
-                       <span class="ob-label">主动买/卖</span>
+                     <div v-if="ticksSummary.side_data_available" class="ob-row" style="margin-top:4px" :title="`最近返回 ${ticksSummary.sample_count} 笔中的已标注 B/S 成交，不是全天内外盘`">
+                        <span class="ob-label">近笔买/卖</span>
                        <span class="mono fs11 up">{{ ticksSummary.outer_volume }}</span>
                       <span style="margin:0 4px;color:#dcdfe6">/</span>
                        <span class="mono fs11 down">{{ ticksSummary.inner_volume }}</span>
@@ -566,9 +587,9 @@
                 </div>
 
                 <div class="quote-block">
-                  <div class="quote-title">逐笔成交 <span class="fs11" style="color:#909399">滚动递增</span></div>
+                   <div class="quote-title">成交明细 <span class="fs11" style="color:#909399">最新窗口 {{ ticksSummary.sample_count || 0 }} 笔 · B主动买 / S主动卖 / M未标注</span></div>
                   <div ref="ticksScroller" class="ticks-list">
-                    <div v-for="t in ticksIncremental" :key="tickKey(t)" class="ticks-row" :class="{ 'row-hl': t.__hl }">
+                     <div v-for="(t, i) in ticksIncremental" :key="`${tickKey(t)}-${i}`" class="ticks-row" :class="{ 'row-hl': t.__hl }">
                       <span class="mono">{{ t.time }}</span>
                       <span class="mono" :class="priceCls(Number(t.price))">{{ fmt(t.price) }}</span>
                       <span class="mono" :class="pctClsObj(t.change)">{{ t.change == null ? '-' : ((t.change >= 0 ? '+' : '') + t.change) }}</span>
@@ -581,7 +602,6 @@
                 </div>
               </div>
             </div>
-
             <div v-if="symbolStore.selectedSymbol" class="mt8 flex gap">
               <el-popconfirm title="确认移除？" @confirm="removeSelected">
                 <template #reference>
@@ -651,7 +671,7 @@ const addGroupDialog = ref(false)
 const newGroupName = ref('')
 const symbolStore = useSymbolStore()
 const VALID_PERIODS = ['mf', 'm5', 'm15', 'm30', 'm60', 'day']
-const period = ref('day')
+const period = ref('mf')
 const kline = ref([])
 const intraday = ref([])
 const intradaySignals = ref([])
@@ -689,19 +709,22 @@ const brainLoading = ref(false)
 const streamText = ref('')
 const isStreaming = ref(false)
 const agentList = ref([])
-const detailTab = ref('detail')
+const detailTab = ref('technical')
 const bidBook = ref([])
 const askBook = ref([])
 const ticksIncremental = ref([])
 const ticksScroller = ref(null)
-const orderBookSummary = ref({ bid_total: 0, ask_total: 0, wei_bi: 0, wei_cha: 0 })
-const ticksSummary = ref({ inner_volume: 0, outer_volume: 0, inner_pct: 50, outer_pct: 50 })
+const orderBookSummary = ref({ bid_total: 0, ask_total: 0, wei_bi: null, wei_cha: null })
+const ticksSummary = ref({ inner_volume: 0, outer_volume: 0, inner_pct: null, outer_pct: null, sample_count: 0, side_data_available: false })
 let obSeq = 0   // order-book 请求序号，防竞态
 let tickSeq = 0  // ticks 请求序号，防竞态
 const showRecent = ref(false)
 const recentList = ref([])
 const recentPriceMap = ref({})
 const recentLoading = ref(false)
+let recentPriceSeq = 0
+const symbolFilter = ref('')
+const symbolSort = ref('default')
 const batchMode = ref(false)
 const selectedForDelete = ref([])
 
@@ -725,12 +748,14 @@ function getAlerts() {
 
 function saveAlerts(list) {
   localStorage.setItem(ALERTS_KEY, JSON.stringify(list))
+  alertsState.value = list
 }
 
+const alertsState = ref(getAlerts())
 const currentAlerts = computed(() => {
   const sym = symbolStore.selectedSymbol
   if (!sym) return []
-  return getAlerts().filter(a => a.symbol === sym)
+  return alertsState.value.filter(a => a.symbol === sym)
 })
 
 function addAlert() {
@@ -892,22 +917,38 @@ function addToRecent(symbol, name) {
 
 const currentGroup = computed(() => groups.value.find(g => g.id === currentGroupId.value) || { items: [] })
 const displayItems = computed(() => {
+  let items
   if (showRecent.value) {
-    return recentList.value.map(r => {
+    items = recentList.value.map(r => {
       const rt = recentPriceMap.value[r.symbol] || {}
       return { ...r, price: rt.price, change_pct: rt.change_pct, volume_ratio: rt.volume_ratio, turnover_rate: rt.turnover_rate, amplitude: rt.amplitude }
     })
+  } else {
+    const sel = symbolStore.selectedSymbol
+    const rt = symbolStore.selectedRealtime
+    items = (currentGroup.value.items || []).map(item => item.symbol === sel && rt?.price
+      ? { ...item, price: rt.price, change_pct: rt.change_pct, change: rt.change, volume_ratio: rt.volume_ratio, turnover_rate: rt.turnover_rate, amplitude: rt.amplitude }
+      : item)
   }
-  const items = currentGroup.value.items || []
-  const sel = symbolStore.selectedSymbol
-  const rt = symbolStore.selectedRealtime
-  if (!sel || !rt?.price) return items
-  return items.map(item => {
-    if (item.symbol === sel) {
-      return { ...item, price: rt.price, change_pct: rt.change_pct, change: rt.change, volume_ratio: rt.volume_ratio, turnover_rate: rt.turnover_rate, amplitude: rt.amplitude }
-    }
-    return item
-  })
+  const query = symbolFilter.value.trim().toLowerCase()
+  if (query) items = items.filter(item => `${item.name} ${item.symbol}`.toLowerCase().includes(query))
+  if (symbolSort.value === 'name') return items.sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-CN'))
+  if (symbolSort.value === 'gain' || symbolSort.value === 'loss') {
+    const direction = symbolSort.value === 'gain' ? -1 : 1
+    return items.sort((a, b) => {
+      if (a.change_pct == null) return 1
+      if (b.change_pct == null) return -1
+      return direction * (Number(a.change_pct) - Number(b.change_pct))
+    })
+  }
+  return items
+})
+
+const intradayAsOf = computed(() => intraday.value.at(-1)?.time || '暂无分钟数据')
+const quoteAsOf = computed(() => {
+  const quote = symbolStore.selectedRealtime
+  const stamp = quote?.datetime || quote?.timestamp || quote?.time || quote?.date
+  return stamp ? String(stamp).replace('T', ' ').slice(0, 19) : '时间未提供'
 })
 
 function fmtVol(v) { if (v == null) return '-'; const n = Number(v); return n >= 1e8 ? (n / 1e8).toFixed(2) + '亿手' : n >= 1e4 ? (n / 1e4).toFixed(2) + '万手' : n.toFixed(0) }
@@ -921,7 +962,7 @@ function priceCls(p) {
 function sideText(s) { return s === 'B' ? '买' : s === 'S' ? '卖' : '中性' }
 function sideTag(s) { return s === 'B' ? 'danger' : s === 'S' ? 'success' : 'info' }
 function tickKey(t) {
-  return t.time + '|' + t.price + '|' + t.side
+  return t.sequence != null ? String(t.sequence) : [t.time, t.price, t.side, t.volume, t.amount].join('|')
 }
 
 function applyOrderBookIncremental(p) {
@@ -929,8 +970,8 @@ function applyOrderBookIncremental(p) {
     orderBookSummary.value = {
       bid_total: p.bid_total ?? 0,
       ask_total: p.ask_total ?? 0,
-      wei_bi: p.wei_bi ?? 0,
-      wei_cha: p.wei_cha ?? 0,
+      wei_bi: p.wei_bi ?? null,
+      wei_cha: p.wei_cha ?? null,
     }
   }
   const bid = p?.order_book?.bid
@@ -961,22 +1002,27 @@ function applyTicksIncremental(p) {
     ticksSummary.value = {
       inner_volume: p.inner_volume ?? 0,
       outer_volume: p.outer_volume ?? 0,
-      inner_pct: p.inner_pct ?? 50,
-      outer_pct: p.outer_pct ?? 50,
+      inner_pct: p.inner_pct ?? null,
+      outer_pct: p.outer_pct ?? null,
+      side_data_available: p.side_data_available === true,
+      sample_count: p.ticks?.length || 0,
     }
   }
   const fresh = p?.ticks
-  if (!fresh || !fresh.length) return  // 空响应不覆盖旧数据
+  if (!fresh?.length) { ticksIncremental.value = []; return }
   const rows = ticksIncremental.value
   const had = rows.length > 0
   const scroller = ticksScroller.value
   const prevH = had && scroller ? scroller.scrollHeight : null
-  const seen = new Set(rows.map(tickKey))
+  const seen = new Map()
+  for (const t of rows) seen.set(tickKey(t), (seen.get(tickKey(t)) || 0) + 1)
+  const occurrences = new Map()
   const added = []
   for (const t of fresh) {
     const k = tickKey(t)
-    if (!seen.has(k)) {
-      seen.add(k)
+    const count = (occurrences.get(k) || 0) + 1
+    occurrences.set(k, count)
+    if (count > (seen.get(k) || 0)) {
       const obj = Object.assign({}, t, had ? { __hl: true } : {})
       rows.push(obj)
       added.push(obj)
@@ -1003,9 +1049,11 @@ async function loadOrderBook() {
   const seq = ++obSeq
   try {
     const p = await stockApi.orderBook(sym)
-    if (seq !== obSeq) return  // 有更新的请求在途，丢弃旧响应
+    if (seq !== obSeq || sym !== symbolStore.selectedSymbol) return
     applyOrderBookIncremental(p)
-  } catch { /* 保留已有增量数据 */ }
+  } catch {
+    if (sym === symbolStore.selectedSymbol) orderBookSummary.value = { ...orderBookSummary.value, wei_bi: null, wei_cha: null }
+  }
 }
 
 async function refreshSelectedRealtime() {
@@ -1013,7 +1061,7 @@ async function refreshSelectedRealtime() {
   if (!sym) return
   try {
     const b = await stockApi.basic(sym)
-    if (b?.realtime) {
+    if (b?.realtime && sym === symbolStore.selectedSymbol) {
       symbolStore.updateRealtime({ ...b.realtime, name: b.name || symbolStore.selectedRealtime.name })
       checkAlerts(sym, { ...b.realtime, name: b.name })
     }
@@ -1026,9 +1074,11 @@ async function loadTicks() {
   const seq = ++tickSeq
   try {
     const p = await stockApi.ticks(sym)
-    if (seq !== tickSeq) return  // 有更新的请求在途，丢弃旧响应
+    if (seq !== tickSeq || sym !== symbolStore.selectedSymbol) return
     applyTicksIncremental(p)
-  } catch { /* 保留已有增量数据 */ }
+  } catch {
+    if (sym === symbolStore.selectedSymbol) ticksSummary.value = { ...ticksSummary.value, side_data_available: false }
+  }
 }
 function goStockByCode(code) {
   if (!code) return
@@ -1045,23 +1095,21 @@ function goRowStock(code) { goStockByCode(code) }
 
 async function loadRecentPrices() {
   const syms = (recentList.value || []).map(r => r.symbol)
-  if (!recentList.value.length) return
-  if (recentLoading.value) return
+  const seq = ++recentPriceSeq
+  if (!syms.length) { recentPriceMap.value = {}; return }
   recentLoading.value = true
   try {
     const r = await marketApi.realtime({ symbols: syms.join(',') })
-    const arr = Array.isArray(r) ? r : (r?.data || [])
-    const map = {}
-    arr.forEach(x => {
-      if (x?.symbol) map[x.symbol] = x
-    })
-    recentPriceMap.value = map
-  } catch { recentPriceMap.value = {} } finally { recentLoading.value = false }
+    if (seq !== recentPriceSeq) return
+    const quotes = r?.data && !Array.isArray(r.data) ? r.data : r
+    recentPriceMap.value = quotes && !Array.isArray(quotes) && typeof quotes === 'object'
+      ? Object.fromEntries(syms.filter(sym => quotes[sym]).map(sym => [sym, quotes[sym]])) : {}
+  } catch { if (seq === recentPriceSeq) recentPriceMap.value = {} }
+  finally { if (seq === recentPriceSeq) recentLoading.value = false }
 }
 
 function showRecentViewed() {
   showRecent.value = true
-  symbolStore.clear()
   batchMode.value = false
   selectedForDelete.value = []
   loadRecentPrices()
@@ -1070,9 +1118,10 @@ function showRecentViewed() {
 function selectGroup(id) {
   showRecent.value = false
   currentGroupId.value = id
-  symbolStore.clear()
-  const first = (groups.value.find(g => g.id === id)?.items || [])[0]
-  if (first) selectItem(first)
+  if (!symbolStore.selectedSymbol) {
+    const first = (groups.value.find(g => g.id === id)?.items || [])[0]
+    if (first) selectItem(first)
+  }
 }
 
 function selectItem(row) {
@@ -1080,7 +1129,7 @@ function selectItem(row) {
   selectedForDelete.value = []
   symbolStore.select(row.symbol, { name: row.name, price: row.price, change_pct: row.change_pct, change: row.change, ...row })
   addToRecent(row.symbol, row.name)
-  detailTab.value = 'detail'
+  detailTab.value = 'technical'
   loadKline()
        loadStockDetail()
 }
@@ -1094,6 +1143,7 @@ async function loadStockDetail(basicOverride = null) {
     stockApi.news(sym), stockApi.sector(sym),
     stockApi.industryRanking(sym), stockApi.industryChain(sym),
   ])
+  if (sym !== symbolStore.selectedSymbol) return
   if (basic.status === 'fulfilled' && basic.value) {
     symbolStore.updateRealtime({ ...basic.value.realtime, name: basic.value.name || symbolStore.selectedRealtime.name })
     checkAlerts(sym, { ...basic.value.realtime, name: basic.value.name })
@@ -1110,15 +1160,14 @@ async function loadStockDetail(basicOverride = null) {
   if (chainData.status === 'fulfilled') industryChain.value = chainData.value || null
 }
 
-let _klineLoading = false
 let _klineSeq = 0
 let _lastPeriod = ''
 let _lastSymbol = ''
 async function loadKline() {
   const sym = symbolStore.selectedSymbol
-  if (!sym || _klineLoading) return
-  _klineLoading = true
+  if (!sym) return
   const seq = ++_klineSeq
+  const requestedPeriod = period.value
   // 切周期或切个股时清空，定时刷新不清空（避免闪烁）
   const symbolChanged = _lastSymbol && _lastSymbol !== sym
   const periodChanged = _lastPeriod && _lastPeriod !== period.value
@@ -1137,7 +1186,7 @@ async function loadKline() {
       if (!preClose) {
         try {
           const b = await stockApi.basic(sym)
-          if (b?.realtime?.prev_close) {
+          if (b?.realtime?.prev_close && sym === symbolStore.selectedSymbol) {
             preClose = b.realtime.prev_close
             symbolStore.updateRealtime(b.realtime)
             checkAlerts(sym, b.realtime)
@@ -1145,7 +1194,7 @@ async function loadKline() {
         } catch {}
       }
       const r = await marketApi.intradayAnalysis({ symbol: sym, pre_close: preClose })
-      if (seq !== _klineSeq) return
+      if (seq !== _klineSeq || sym !== symbolStore.selectedSymbol || requestedPeriod !== period.value) return
       intraday.value = r.bars || []
       intradaySignals.value = [...(r.signals || []), ...(r.t_signals || [])]
       intradaySummary.value = r.summary || null
@@ -1153,7 +1202,7 @@ async function loadKline() {
       return
     }
     const r = await stockApi.kline(sym, { period: period.value })
-    if (seq !== _klineSeq) return
+    if (seq !== _klineSeq || sym !== symbolStore.selectedSymbol || requestedPeriod !== period.value) return
     const newData = r.data || []
     const old = kline.value
     if (old.length > 0 && newData.length > 0 && Math.abs(old.length - newData.length) <= 3) {
@@ -1173,13 +1222,16 @@ async function loadKline() {
     } else {
       kline.value = newData
     }
-  } catch (e) { console.warn('loadKline error:', e) } finally { _klineLoading = false }
+  } catch (e) { console.warn('loadKline error:', e) }
 }
 
 async function loadBrain() {
   const sym = symbolStore.selectedSymbol
   if (!sym) return
-  try { brain.value = (await agentApi.brainstormGet(sym)) || {} } catch { brain.value = {} }
+  try {
+    const result = (await agentApi.brainstormGet(sym)) || {}
+    if (sym === symbolStore.selectedSymbol) brain.value = result
+  } catch { if (sym === symbolStore.selectedSymbol) brain.value = {} }
 }
 
 async function runBrainOne(at) {
@@ -1262,21 +1314,25 @@ async function load(silent = false) {
   } finally { loading.value = false }
 }
 
+let loadWithSeq = 0
 async function loadWithSymbol(sym) {
+  const seq = ++loadWithSeq
+  const requested = String(sym).toUpperCase()
   await load(true)
+  if (seq !== loadWithSeq) return
   if (!sym) return
-  const item = groups.value.flatMap(g => g.items || []).find(i => i.symbol === sym)
+  const item = groups.value.flatMap(g => g.items || []).find(i => i.symbol === requested)
   if (item) {
     selectItem(item)
     return
   }
   try {
-    const basic = await stockApi.basic(sym)
-    if (basic) {
-      const row = { symbol: sym, name: basic.name || sym, price: basic.realtime?.price, change_pct: basic.realtime?.change_pct }
-      symbolStore.select(sym, row)
-      addToRecent(sym, row.name)
-      checkAlerts(sym, basic.realtime || row)
+    const basic = await stockApi.basic(requested)
+    if (basic && seq === loadWithSeq) {
+      const row = { symbol: requested, name: basic.name || requested, price: basic.realtime?.price, change_pct: basic.realtime?.change_pct }
+      symbolStore.select(requested, row)
+      addToRecent(requested, row.name)
+      checkAlerts(requested, basic.realtime || row)
       loadKline()
        loadStockDetail(basic)
     }
@@ -1395,7 +1451,16 @@ function removeSelected() {
 
 watch(period, (v) => { if (VALID_PERIODS.includes(v)) loadKline() })
 
-watch(() => symbolStore.selectedSymbol, (sym) => { if (sym) { loadOrderBook(); loadTicks() } })
+watch(() => symbolStore.selectedSymbol, (sym) => {
+  ++obSeq; ++tickSeq; ++_klineSeq
+  bidBook.value = []; askBook.value = []; ticksIncremental.value = []
+  orderBookSummary.value = { bid_total: 0, ask_total: 0, wei_bi: null, wei_cha: null }
+  ticksSummary.value = { inner_volume: 0, outer_volume: 0, inner_pct: null, outer_pct: null, sample_count: 0, side_data_available: false }
+  intraday.value = []; intradaySignals.value = []; intradaySummary.value = null; intradayDailyContext.value = null; kline.value = []
+  brain.value = {}; czsc.value = {}; flowSummary.value = null; moneyFlow.value = []; finOverview.value = null
+  stockNews.value = []; forms.value = []; financial.value = []; sectorDetail.value = {}; industryRanking.value = null; industryChain.value = null
+  if (sym) { loadKline(); loadOrderBook(); loadTicks() }
+})
 
 function restoreTabState() {
   try {
@@ -1460,9 +1525,8 @@ onMounted(() => {
   }, 10000)
 })
 // 路由变化时重新加载（解决导航回自选股不刷新的问题）
-watch(() => route.path, (p) => {
-  if (p === '/watchlist' && loaded) {
-    const qSym = route.query.symbol
+watch(() => [route.path, route.query.symbol], ([p, qSym], [oldPath, oldSym] = []) => {
+  if (p === '/watchlist' && loaded && (p !== oldPath || qSym !== oldSym)) {
     if (qSym) { loadWithSymbol(qSym) }
     else if (!symbolStore.selectedSymbol) { load() }
   }
@@ -1474,7 +1538,7 @@ onUnmounted(() => { if (orderBookTimer) clearInterval(orderBookTimer); if (ticks
 .group-item { display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 5px; cursor: pointer; margin-bottom: 4px; border-left: 2px solid transparent; transition: .16s ease; }
 .group-item:hover { background: #f3f4f6; border-left-color: var(--c-primary); }
 .group-item.active { background: #edf3fb; color: var(--c-primary); border-left-color: var(--c-primary); box-shadow: none; font-weight: 600; }
-.group-item.active .fs12, .group-item.active .group-del, .group-item.active .el-icon { color: #fff !important; }
+.group-item.active .fs12, .group-item.active .group-del, .group-item.active .el-icon { color: var(--c-text-2) !important; }
 .wl-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; }
 .wl-item:hover { background: #f3f4f6; }
 .wl-item.active { background: #f0f5fb; border-color: #b8cce6; box-shadow: inset 3px 0 0 var(--c-primary); }
@@ -1512,23 +1576,52 @@ onUnmounted(() => { if (orderBookTimer) clearInterval(orderBookTimer); if (ticks
 .intraday-toolbar { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
 .quote-block { padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fafbfc; height: 100%; }
 .quote-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; }
-.sidebar-card { background: #fafbfc; }
-.detail-wrap { max-width: 1080px; margin: 0 auto; }
-.main-split { display: flex; gap: 12px; margin-top: 8px; align-items: flex-start; }
-.main-left { flex: 1 1 auto; min-width: 0; }
-.side-panel { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; max-height: 640px; overflow: hidden auto; }
+.sidebar-card { background: #fafbfc; border-top: 3px solid #315477; }
+.symbol-tools { display: flex; gap: 6px; margin: 12px 0 8px; }
+.symbol-tools .el-input { min-width: 0; flex: 1; }
+.wl-item:focus-visible, .group-item:focus-visible { outline: 2px solid #315477; outline-offset: 2px; }
+.stock-workspace { padding: 18px; border-top: 3px solid #315477; }
+.identity-header { display: flex; align-items: center; gap: 18px; padding-bottom: 17px; border-bottom: 1px solid #e4e9ef; flex-wrap: wrap; }
+.identity-title { min-width: 160px; }
+.identity-title h2 { font-size: 25px; line-height: 1.2; margin: 5px 0 0; color: #1d3044; }
+.identity-price { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.identity-price strong { font-size: 30px; line-height: 1; }
+.identity-price span { font-size: 14px; font-weight: 600; }
+.identity-asof { margin-left: auto; color: #68798b; font-size: 12px; }
+.decision-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 16px 0 20px; border: 1px solid #dfe6ed; background: #f6f9fc; }
+.decision-cell { min-width: 0; padding: 15px; border-right: 1px solid #dfe6ed; display: flex; flex-direction: column; gap: 7px; }
+.decision-cell:last-child { border-right: 0; }
+.cell-label { color: #526c86; font: 700 11px var(--font-mono); letter-spacing: .035em; }
+.decision-cell strong { color: #22354a; font-size: 17px; line-height: 1.3; }
+.decision-cell strong.up { color: #ef232a; }.decision-cell strong.down { color: #14b143; }
+.decision-cell small { color: #5f7080; font-size: 12px; line-height: 1.5; }
+.chart-header { display: flex; align-items: end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.chart-header h3, .research-heading h3 { margin: 4px 0 0; font-size: 19px; color: #22354a; }
+.market-stats { display: flex; gap: 8px 18px; flex-wrap: wrap; padding: 12px 0; color: #50647a; font-size: 12px; border-bottom: 1px solid #e6ecf1; }
+.chart-stage { height: 460px; }
+.t-caveat { color: #596c7b; font-size: 11px; }
+.research-heading { grid-column: 1 / -1; grid-row: 2; margin: 10px 0 0; padding-top: 17px; border-top: 2px solid #dce5ee; }
+.research-heading p { font-size: 12px; color: #647587; margin: 5px 0 0; }
+.research-tabs { grid-column: 1 / -1; grid-row: 3; min-width: 0; }
+.research-tabs :deep(.el-tabs__nav-scroll) { overflow-x: auto; }
+.research-tabs :deep(.el-tabs__content) { min-height: 160px; }
+.detail-wrap { width: 100%; }
+.main-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(290px, 33%); gap: 14px; margin-top: 12px; align-items: start; }
+.main-left { display: contents; }
+.chart-stage { grid-column: 1; grid-row: 1; min-width: 0; }
+.side-panel { grid-column: 2; grid-row: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .order-grid { display: flex; flex-direction: column; gap: 2px; }
                 .order-row { display: grid; grid-template-columns: 26px minmax(0,1fr) minmax(44px,auto) 12px minmax(44px,auto) minmax(0,1fr) 26px; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; transition: background-color .3s; }
                 .order-row span { line-height: 1.35; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ticks-list { max-height: 220px; overflow-y: auto; border: 1px solid #eef0f3; border-radius: 4px; }
-                .ticks-row { display: grid; grid-template-columns: 42px 48px 38px 40px 40px 34px 40px; align-items: center; gap: 2px; padding: 3px 4px; border-radius: 4px; font-size: 9px; transition: background-color .3s; }
-                .ticks-row .mono { font-size: 9px; }
-                .ticks-row .el-tag { width: 100%; justify-content: center; padding: 0; font-size: 9px; }
+.ticks-row { display: grid; grid-template-columns: 48px 52px 42px 42px minmax(50px,1fr) 34px; align-items: center; gap: 4px; padding: 5px 4px; border-radius: 4px; font-size: 11px; transition: background-color .3s; }
+.ticks-row .mono { font-size: 11px; }
+.ticks-row .el-tag { width: 100%; justify-content: center; padding: 0; font-size: 10px; }
 .ticks-row.row-hl, .order-row.row-hl { background: #fff7e6; }
 .ticks-row:hover { background: #f7f8fa; }
 .ob-summary { padding: 6px 8px; background: #f8f9fa; border-radius: 4px; margin-bottom: 6px; }
 .ob-row { display: flex; align-items: center; gap: 4px; }
-.ob-label { font-size: 11px; color: #909399; min-width: 30px; }
+.ob-label { font-size: 11px; color: var(--c-text-2); white-space: nowrap; }
 .ob-bar { flex: 1; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden; display: flex; min-width: 60px; }
 .ob-bar-outer { background: #ef232a; height: 100%; transition: width .3s; }
 .ob-bar-inner { background: #14b143; height: 100%; transition: width .3s; }
@@ -1538,7 +1631,31 @@ onUnmounted(() => { if (orderBookTimer) clearInterval(orderBookTimer); if (ticks
 .alert-popover .alert-item.disabled { opacity: 0.5; }
 .alert-popover .alert-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 @media (max-width: 991px) {
-  .main-split { flex-direction: column; }
-  .side-panel { width: 100%; max-height: none; }
+  .main-split { grid-template-columns: minmax(0, 1fr); }
+  .side-panel { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .research-heading { grid-row: 3; }
+  .research-tabs { grid-row: 4; }
+  .decision-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .decision-cell:nth-child(2) { border-right: 0; }
+  .decision-cell:nth-child(-n+2) { border-bottom: 1px solid #dfe6ed; }
+}
+@media (max-width: 600px) {
+  .stock-workspace { padding: 12px; }
+  .workspace-row { row-gap: 12px; }
+  .symbols-col .sidebar-card { margin-bottom: 12px; }
+  .identity-price strong { font-size: 26px; }
+  .identity-asof { margin-left: 0; width: 100%; }
+  .decision-strip { grid-template-columns: 1fr; }
+  .decision-cell { border-right: 0; border-bottom: 1px solid #dfe6ed; }
+  .decision-cell:last-child { border-bottom: 0; }
+  .side-panel { grid-template-columns: 1fr; }
+  .period-picker { max-width: 100%; overflow-x: auto; }
+  .chart-stage { height: 460px; }
+  .intraday-toolbar { flex-wrap: wrap; }
+  .detail-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .intent-bar { position: static; flex-wrap: wrap; box-shadow: none; margin-top: 4px; }
+  .intent-reason { position: static; max-width: none; }
+  .ticks-list { overflow-x: auto; }
+  .ticks-row { min-width: 290px; }
 }
 </style>

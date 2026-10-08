@@ -202,7 +202,7 @@ class SinaSource(DataSourceBase):
                                 "volume": int(_f(fields[10 + i * 2]))})
                     asks.append({"price": round(_f(fields[21 + i * 2]), 4),
                                  "volume": int(_f(fields[20 + i * 2]))})
-                ask[:] = reversed(asks)
+                ask[:] = asks
         except Exception as e:
             logger.warning(f"sina 五档 failed {symbol}: {e}")
         return {
@@ -248,7 +248,7 @@ class SinaSource(DataSourceBase):
                 if len(parts) < 7:
                     continue
                 try:
-                    ticks.append({"time": parts[1],
+                    ticks.append({"sequence": parts[0], "time": parts[1],
                                   "price": round(float(parts[2]), 4),
                                   "change": float(parts[3]),
                                   "volume": int(float(parts[4])),
@@ -476,13 +476,13 @@ class SinaSource(DataSourceBase):
     def get_sector_money_flow(self) -> list[dict]:
         rows = self._fljk_sectors()
         rows = sorted(rows, key=lambda r: r.get("amount") or 0, reverse=True)[:12]
-        return [{"sector_name": r["name"], "net_inflow": r["amount"], "change_pct": r["change_pct"],
+        return [{"sector_name": r["name"], "turnover": r["amount"], "change_pct": r["change_pct"],
                  "leader": r["leader_name"], "count": r["count"]} for r in rows]
 
     def get_sector_speed(self) -> list[dict]:
         rows = self._fljk_sectors()
         rows = sorted(rows, key=lambda r: r.get("change_pct") or 0, reverse=True)[:12]
-        return [{"sector_name": r["name"], "change_pct": r["change_pct"], "net_inflow": r["amount"],
+        return [{"sector_name": r["name"], "change_pct": r["change_pct"], "turnover": r["amount"],
                  "leader": r["leader_name"], "count": r["count"]} for r in rows]
 
     # ---------- 个股所属板块真实涨幅（FLJK 板块行情查询） ----------

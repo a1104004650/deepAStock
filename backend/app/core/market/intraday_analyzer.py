@@ -627,7 +627,7 @@ def _detect_t_signals_low_lag(bars: list[dict], pre_close: float = 0,
                 continue
             if last_price and last_type == "t_sell" and (last_price - p2) / last_price * 100 < MIN_GAP:
                 continue
-            label, signal_type = "T买", "t_buy"
+            label, signal_type = "低点确认", "t_buy"
         else:
             if rsi >= 62:
                 confidence += 8
@@ -645,13 +645,16 @@ def _detect_t_signals_low_lag(bars: list[dict], pre_close: float = 0,
                 continue
             if last_price and last_type == "t_buy" and (p2 - last_price) / last_price * 100 < MIN_GAP:
                 continue
-            label, signal_type = "T卖", "t_sell"
+            label, signal_type = "高点确认", "t_sell"
 
         signals.append({
             "time": bars[i + 2].get("time", bars[i].get("time", "")),
+            "pivot_time": bars[i].get("time", ""),
+            "pivot_price": p2,
+            "confirm_price": p4,
             "signal": label,
             "confidence": max(35, min(85, int(confidence))),
-            "desc": f"{'低点' if is_low else '高点'}反转后确认，" + "、".join(reasons),
+            "desc": f"{'低点' if is_low else '高点'}在两分钟后确认，" + "、".join(reasons) + "；不含费用、滑点与持仓约束",
             "type": signal_type,
             "basis": {"daily_trend": trend, "position_pct": position,
                       "near_support": near_support, "near_resistance": near_resistance},

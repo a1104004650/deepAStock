@@ -1,6 +1,6 @@
 """数据源管理器 - 主备切换 + 数据库缓存 + 设置驱动多源回退"""
 import asyncio
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.datasource.base import DataSourceBase
@@ -72,16 +72,14 @@ class DataSourceManager:
                     if (not start_s or str(row.get("dt")) >= start_s)
                     and (not end_s or str(row.get("dt")) <= end_s)]
 
-        if cached:
-            last_date = cached[-1]["dt"]
-            today = date.today()
-            # 若缓存已经包含今天，直接返回
-            if last_date >= today.isoformat() if isinstance(last_date, str) else last_date >= today:
+        if period == "day" and end and end < shanghai_now().date() and cached:
+            if str(cached[-1]["dt"])[:10] >= end.isoformat():
                 return _in_range(cached)
 
         # 请求增量
-        start_date = date.today() - timedelta(days=400) if not start else start
-        new_data = await self._call("get_klines", symbol, period, start_date, end or date.today())
+        today = shanghai_now().date()
+        start_date = today - timedelta(days=400) if not start else start
+        new_data = await self._call("get_klines", symbol, period, start_date, end or today)
 
         if new_data:
             await self._save_klines_db(symbol, period, new_data)
@@ -111,8 +109,8 @@ class DataSourceManager:
         total = bid_total + ask_total
         ans["bid_total"] = bid_total
         ans["ask_total"] = ask_total
-        ans["wei_bi"] = round((bid_total - ask_total) / total * 100, 2) if total > 0 else 0
-        ans["wei_cha"] = bid_total - ask_total
+        ans["wei_bi"] = round((bid_total - ask_total) / total * 100, 2) if total > 0 else None
+        ans["wei_cha"] = bid_total - ask_total if total > 0 else None
         return ans
 
     async def get_ticks(self, symbol: str) -> dict:
@@ -133,8 +131,8 @@ class DataSourceManager:
         total = inner + outer
         ans["inner_volume"] = inner
         ans["outer_volume"] = outer
-        ans["inner_pct"] = round(inner / total * 100, 1) if total > 0 else 50
-        ans["outer_pct"] = round(outer / total * 100, 1) if total > 0 else 50
+        ans["inner_pct"] = round(inner / total * 100, 1) if total > 0 else None
+        ans["outer_pct"] = round(outer / total * 100, 1) if total > 0 else None
         ans["side_data_available"] = bool(total > 0)
         return ans
 
@@ -323,27 +321,27 @@ class DataSourceManager:
 
     async def _save_klines_db(self, symbol: str, period: str, data: list[dict]) -> None:
         try:
-            existing_dates = set()
             rows = (await self.db.execute(
-                select(Kline.timestamp).where(Kline.symbol == symbol, Kline.period == period)
+                select(Kline).where(Kline.symbol == symbol, Kline.period == period)
             )).scalars().all()
-            for ts in rows:
-                existing_dates.add(ts.strftime("%Y-%m-%d") if hasattr(ts, "strftime") else str(ts))
+            existing = {r.timestamp.strftime("%Y-%m-%d"): r for r in rows}
 
             new_rows = []
             for d in data:
                 day = d["dt"] if isinstance(d["dt"], str) else d["dt"].strftime("%Y-%m-%d")
-                if day in existing_dates:
+                if day in existing:
+                    if day == shanghai_now().date().isoformat() or period in ("week", "month"):
+                        row = existing[day]
+                        row.open, row.high, row.low, row.close = d["open"], d["high"], d["low"], d["close"]
+                        row.volume, row.amount = d["volume"], d["amount"]
                     continue
-                from datetime import datetime
                 new_rows.append(Kline(
                     symbol=symbol, period=period,
                     timestamp=datetime.strptime(day, "%Y-%m-%d"),
                     open=d["open"], high=d["high"], low=d["low"], close=d["close"],
                     volume=d["volume"], amount=d["amount"],
                 ))
-                existing_dates.add(day)
-            if new_rows:
+            if new_rows or self.db.dirty:
                 self.db.add_all(new_rows)
                 await self.db.commit()
         except Exception as e:
@@ -356,10 +354,7 @@ class DataSourceManager:
             return new
         if not new:
             return cached
-        seen = {d["dt"] for d in cached}
-        combined = list(cached)
+        combined = {str(d["dt"]): d for d in cached}
         for d in new:
-            if d["dt"] not in seen:
-                combined.append(d)
-        combined.sort(key=lambda x: x["dt"])
-        return combined
+            combined[str(d["dt"])] = d
+        return sorted(combined.values(), key=lambda x: x["dt"])

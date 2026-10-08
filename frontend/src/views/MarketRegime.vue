@@ -29,7 +29,7 @@
           </div>
           <div class="stage-scale"><i :style="{ width: `${regime?.score || 0}%` }"></i></div>
           <div class="stage-meta">
-            <span>可信度 {{ pct(regime?.confidence) }}</span>
+             <span title="有效分项权重占比，不是走势预测概率">数据覆盖 {{ pct(regime?.confidence) }}</span>
             <span v-if="regime?.previous_score != null">前值 {{ regime.previous_score }} · {{ regime.previous_date }}</span>
           </div>
         </div>
@@ -70,9 +70,9 @@
             <el-empty v-else description="暂无有效证据" :image-size="42" />
           </article>
           <article class="card leaders-panel">
-            <div class="panel-head"><div><h2>资金主线</h2><p>按板块净流入排序，仅作轮动强弱证据</p></div></div>
+             <div class="panel-head"><div><h2>板块净额样本</h2><p>东方财富 f62，净额绝对值靠前；仅为数据源分类</p></div></div>
             <div v-for="(s, i) in leaders" :key="s.name" class="leader-row">
-              <b>{{ i + 1 }}</b><span>{{ s.name }}</span><em :class="Number(s.change_pct || 0) >= 0 ? 'up' : 'down'">{{ signed(s.change_pct) }}</em><strong class="mono" :class="Number(s.net_inflow || 0) >= 0 ? 'up' : 'down'">{{ money(s.net_inflow) }}</strong>
+               <b>{{ i + 1 }}</b><span>{{ s.name }}</span><em :class="Number(s.change_pct || 0) >= 0 ? 'up' : 'down'">{{ signed(s.change_pct) }}</em><strong class="mono" :class="s.net_inflow >= 0 ? 'up' : 'down'">{{ money(s.net_inflow) }}</strong>
             </div>
             <el-empty v-if="!leaders.length" description="板块资金数据不可用" :image-size="42" />
           </article>
@@ -124,8 +124,8 @@ const componentCards = computed(() => [
   { key: 'continuity', index: '03', title: '接力连续性', score: fmtScore(c.value.continuity?.score), available: c.value.continuity?.available, description: '用前后交易日集合确认接力，不用单日结果猜周期。', basis: '权重20% · 首板晋级率 + 断板率（跨日代理）', metrics: [
     { label: '晋级率', value: pct100(c.value.continuity?.promotion_rate) }, { label: '断板率', value: pct100(c.value.continuity?.broken_rate) }, { label: '历史基准', value: regime.value?.previous_date || '-' },
   ] },
-  { key: 'rotation', index: '04', title: '板块轮动', score: fmtScore(c.value.rotation?.score), available: c.value.rotation?.available, description: '确认资金是否形成多个正向板块，而非孤立拉升。', basis: '权重15% · 净流入为正的板块占比', metrics: [
-    { label: '正流入', value: c.value.rotation?.positive_sectors ?? '-' }, { label: '统计板块', value: c.value.rotation?.sector_count ?? '-' }, { label: '主线', value: leaders.value[0]?.name || '-' },
+   { key: 'rotation', index: '04', title: '板块净额样本', score: fmtScore(c.value.rotation?.score), available: c.value.rotation?.available, description: '净额绝对值前12板块中，正净额板块所占比例。', basis: '权重15% · 东方财富 f62 净额样本占比', metrics: [
+     { label: '正净额', value: c.value.rotation?.positive_sectors ?? '-' }, { label: '统计样本', value: c.value.rotation?.sector_count ?? '-' }, { label: '净流入首位', value: leaders.value[0]?.name || '-' },
   ] },
 ])
 

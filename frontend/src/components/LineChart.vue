@@ -15,6 +15,8 @@ const SIGNAL_COLORS = {
   '真拉升': '#409eff',
   'T买': '#14b143',
   'T卖': '#ef232a',
+  '低点确认': '#14b143',
+  '高点确认': '#ef232a',
 }
 
 const props = defineProps({
@@ -34,6 +36,7 @@ const props = defineProps({
 const el = ref(null)
 let chart = null
 let rendering = false
+let observer = null
 
 function minuteAxis() {
   const labels = []
@@ -252,7 +255,11 @@ function _doRender() {
           }
           if (v) tip += `<br/>VWAP: ${v.toFixed(2)}`
           const sig = sigIdx[t]
-          if (sig) tip += `<br/><span style="color:${SIGNAL_COLORS[sig.signal]}">● ${sig.signal} (${sig.confidence}%)</span><br/>${sig.desc}`
+           if (sig) {
+             const isT = sig.type === 't_buy' || sig.type === 't_sell'
+              const detail = isT ? `拐点 ${sig.pivot_time || '-'} / ${sig.pivot_price ?? '-'}，后续分钟确认价 ${sig.confirm_price ?? '-'}；确认晚于拐点，非交易建议` : (sig.desc || '')
+             tip += `<br/><span style="color:${SIGNAL_COLORS[sig.signal] || '#2e6bc6'}">● ${sig.signal}（规则分 ${sig.confidence ?? '-'}，非概率）</span><br/>${detail}`
+           }
           return tip
         }
       },
@@ -371,9 +378,12 @@ function resize() {
 onMounted(() => {
   chart = echarts.init(el.value)
   render()
+  observer = new ResizeObserver(resize)
+  observer.observe(el.value)
   window.addEventListener('resize', resize)
 })
 onBeforeUnmount(() => {
+  observer?.disconnect()
   window.removeEventListener('resize', resize)
   chart && chart.dispose()
 })
