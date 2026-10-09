@@ -624,11 +624,7 @@ class SinaSource(DataSourceBase):
         self._MOVERS_TS = now
         return out
 
-    # ---------- ETF 资金流（东方财富实时含今日 + 新浪兜底） ----------
-    _ETF_FLOW_CACHE: Optional[dict] = None
-    _ETF_FLOW_TS = 0.0
-    _ETF_FFLOW_CACHE: dict = {}
-    _ETF_FFLOW_TS = 0.0
+    # ---------- 东方财富资金流公共接口 ----------
     _EM_FFLOW_HOSTS = ["10.push2his.eastmoney.com", "push2his.eastmoney.com",
                        "2.push2his.eastmoney.com", "push2delay.eastmoney.com",
                        "9.push2his.eastmoney.com"]
@@ -666,49 +662,7 @@ class SinaSource(DataSourceBase):
         logger.warning(f"em fflow kline {secid} klt={klt} failed: {first_err}")
         return []
 
-    @staticmethod
-    def _em_secid(symbol: str) -> str:
-        """sh510300 → 1.510300，sz159915 → 0.159915"""
-        s = (symbol or "").lower()
-        if s.startswith(("sh", "bj")):
-            return "1." + s[2:]
-        if s.startswith("sz"):
-            return "0." + s[2:]
-        return s
-
-    @classmethod
-    def _parse_em_fflow(cls, klines: list[str]) -> list[dict]:
-        """东财资金流 rows 解析为主力净流入序列（新→旧）。"""
-        out = []
-        for line in klines or []:
-            parts = (line or "").split(",")
-            if len(parts) < 2:
-                continue
-            date = parts[0][:10]
-            if not date or not date.replace("-", "").isdigit():
-                continue
-            try:
-                out.append({"date": date, "netamount": float(parts[1])})
-            except (ValueError, TypeError):
-                continue
-        return out
-
-    @staticmethod
-    def _etf_watchlist() -> list[dict]:
-        return [
-            {"symbol": "sh510300", "name": "沪深300ETF"},
-            {"symbol": "sh510050", "name": "上证50ETF"},
-            {"symbol": "sh510500", "name": "中证500ETF"},
-            {"symbol": "sh512100", "name": "中证1000ETF"},
-            {"symbol": "sz159915", "name": "创业板ETF"},
-            {"symbol": "sh588000", "name": "科创50ETF"},
-            {"symbol": "sz159949", "name": "创业板50ETF"},
-            {"symbol": "sh512880", "name": "证券ETF"},
-            {"symbol": "sh512760", "name": "芯片ETF"},
-            {"symbol": "sh513050", "name": "中概互联ETF"},
-        ]
-
-    def _etf_net_flows(self, code: str) -> list[dict]:
+    def _stock_net_flows(self, code: str) -> list[dict]:
         """返回该标的最近交易日主力净流入序列（新→旧），字段 netamount(元)"""
         url = ("http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/"
                "MoneyFlow.ssl_qsfx_zjlrqs?pc=1&cc=30&daima=" + code)
@@ -740,7 +694,7 @@ class SinaSource(DataSourceBase):
         if self._STOCK_FLOW_CACHE.get(cache_key) and (now - self._STOCK_FLOW_TS) < 600:
             return self._STOCK_FLOW_CACHE[cache_key]
         code = symbol.lower()
-        flows = self._etf_net_flows(code)[:limit]
+        flows = self._stock_net_flows(code)[:limit]
         net_1d = sum(x["netamount"] for x in flows[:1])
         net_5d = sum(x["netamount"] for x in flows[:5])
         net_20d = sum(x["netamount"] for x in flows[:20])
@@ -889,54 +843,6 @@ class SinaSource(DataSourceBase):
             self._STOCK_NEWS_CACHE[symbol] = items
             self._STOCK_NEWS_TS = now
         return items[:limit]
-
-    def get_etf_flow(self, top: int = 5) -> dict:
-        """各ETF主力资金流：东财当日实时(含今日)优先，新浪(最多T-1)兜底。"""
-        import time as _t
-        now = _t.time()
-        if self._ETF_FLOW_CACHE and (now - self._ETF_FLOW_TS) < 300:
-            return self._ETF_FLOW_CACHE
-        rows = []
-        _ETF_FFLOW_CACHE = getattr(SinaSource, "_ETF_FFLOW_CACHE", {})
-        _ETF_FFLOW_TS = getattr(SinaSource, "_ETF_FFLOW_TS", 0.0)
-        for etf in self._etf_watchlist():
-            symbol = etf["symbol"].lower()
-            flows = []
-            cached_rows = (_ETF_FFLOW_CACHE.get(symbol) or []) if (now - _ETF_FFLOW_TS) < 300 else []
-            if not cached_rows:
-                try:
-                    cached_rows = self._parse_em_fflow(self._em_fflow_kline(self._em_secid(symbol), 30))
-                except Exception as e:
-                    logger.warning(f"em fflow kline {symbol}: {e}")
-                    cached_rows = []
-                if cached_rows:
-                    _ETF_FFLOW_CACHE[symbol] = cached_rows
-                    _ETF_FFLOW_TS = now
-            if cached_rows:
-                flows = cached_rows
-            else:
-                try:
-                    flows = self._etf_net_flows(symbol)
-                except Exception as e:
-                    logger.warning(f"sina fflow fallback {symbol}: {e}")
-                    continue
-            if not flows:
-                continue
-            sums = {}
-            for label, n in (("net_1d", 1), ("net_5d", 5), ("net_20d", 20)):
-                seg = flows[:n]
-                sums[label] = round(sum(x["netamount"] for x in seg) / 1e8, 2)
-            rows.append({"symbol": etf["symbol"].upper(), "name": etf["name"],
-                         "net_1d": sums["net_1d"], "net_5d": sums["net_5d"],
-                         "net_20d": sums["net_20d"],
-                         "flow_date": flows[0]["date"] if flows else ""})
-        ranked = sorted(rows, key=lambda r: r.get("net_1d") or 0, reverse=True)
-        result = {"in_top": ranked[:top], "out_top": ranked[-top:][::-1], "all": rows[:top * 2]}
-        SinaSource._ETF_FFLOW_CACHE = _ETF_FFLOW_CACHE
-        SinaSource._ETF_FFLOW_TS = _ETF_FFLOW_TS
-        self._ETF_FLOW_CACHE = result
-        self._ETF_FLOW_TS = now
-        return result
 
     # ---------- 新闻（新浪财经滚动） ----------
     _NEWS_CACHE: Optional[list[dict]] = None
@@ -1227,27 +1133,7 @@ class SinaSource(DataSourceBase):
         self._SECTOR_INFO[symbol] = result
         return result
 
-    # ---------- 板块监控（ETF 实时行情 + 概念/行业关键词实时行情） ----------
-    SECTOR_MONITOR_MAP = [
-        {"sector": "银行", "symbol": "SH512800", "name": "银行ETF"},
-        {"sector": "证券", "symbol": "SH512880", "name": "证券ETF"},
-        {"sector": "半导体", "symbol": "SH512480", "name": "半导体ETF"},
-        {"sector": "医药", "symbol": "SH512010", "name": "医药ETF"},
-        {"sector": "房地产", "symbol": "SH512200", "name": "房地产ETF"},
-        {"sector": "黄金", "symbol": "SH518880", "name": "黄金ETF"},
-        {"sector": "军工", "symbol": "SH512660", "name": "军工ETF"},
-        {"sector": "新能源", "symbol": "SH516160", "name": "新能源ETF"},
-        {"sector": "白酒", "symbol": "SH512690", "name": "白酒ETF"},
-        {"sector": "芯片", "symbol": "SH512760", "name": "芯片ETF"},
-        {"sector": "光伏", "symbol": "SH515790", "name": "光伏ETF"},
-        {"sector": "CPO", "symbol": "SZ159515", "name": "CPO概念"},
-        {"sector": "机器人", "symbol": "SH562500", "name": "机器人ETF"},
-        {"sector": "AI", "symbol": "SH515070", "name": "人工智能ETF"},
-        # ---- v1.0.0 扩充（无对应东财板块，用ETF代替） ----
-        {"sector": "国债", "symbol": "SH511010", "name": "十年国债ETF"},
-        {"sector": "恒生", "symbol": "SZ159920", "name": "恒生ETF"},
-        {"sector": "恒科", "symbol": "SH513130", "name": "恒生科技ETF"},
-    ]
+    # ---------- 板块监控（概念/行业实时行情） ----------
     # 大盘看板「板块监控」追加的概念/行业监控板块（东方财富板块信源）
     _EM_SECTOR_GROUPS = [
         ["跨境电商"],
@@ -1340,8 +1226,7 @@ class SinaSource(DataSourceBase):
 
     def _em_sector_groups_rows(self) -> list[dict]:
         """按 _EM_SECTOR_GROUPS 聚合东方财富板块：实时涨跌幅/成交额 + 领涨股。
-        板块无 ETF 分时，前端展示实时行情与可点击的领涨股。
-        新增 kind 字段区分 行业/概念。"""
+        前端展示实时行情与可点击的领涨股。新增 kind 字段区分 行业/概念。"""
         import time as _t
         import concurrent.futures
         now = _t.time()
@@ -1384,7 +1269,7 @@ class SinaSource(DataSourceBase):
                 "sector": name, "name": name, "symbol": best.get("f12") or "",
                 "price": 0, "change_pct": round(_f(best.get("f3")), 2),
                 "amount": _f(best.get("f6")), "change": 0,
-                "is_etf": False, "leader_name": leader, "leader_symbol": "", "count": 0,
+                "leader_name": leader, "leader_symbol": "", "count": 0,
                 "kind": best.get("_kind", "概念"),
             })
         if leader_names:
@@ -2266,22 +2151,7 @@ class SinaSource(DataSourceBase):
         return rows
 
     def get_sector_monitor(self) -> list[dict]:
-        codes = [s["symbol"].lower() for s in self.SECTOR_MONITOR_MAP]
-        try:
-            rt = self.get_realtime(codes)
-        except Exception as e:
-            logger.warning(f"sector monitor realtime failed: {e}")
-            rt = {}
         result = []
-        for s in self.SECTOR_MONITOR_MAP:
-            info = rt.get(s["symbol"], {})
-            result.append({
-                "sector": s["sector"], "name": s["name"], "symbol": s["symbol"],
-                "price": info.get("price", 0), "change_pct": info.get("change_pct", 0),
-                "amount": info.get("amount", 0), "change": info.get("change", 0),
-                "is_etf": True, "leader_name": "", "leader_symbol": "", "count": 0,
-                "kind": "指数",
-            })
         # 概念/行业监控板块（东方财富板块信源：跨境电商/IT软件/液冷服务器/云游戏/白银/铜/钻石培育/稀土/贵金属/风电/火电/传媒/旅游/航运）
         try:
             result.extend(self._em_sector_groups_rows())

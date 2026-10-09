@@ -185,7 +185,7 @@
                   <div class="flow-daily-bar-wrap">
                     <div class="flow-daily-bar" :style="{ width: item.barPct + '%', background: item.main_net >= 0 ? '#ef232a' : '#14b143' }"></div>
                   </div>
-                  <span class="mono fs11" :class="item.main_net >= 0 ? 'up' : 'down'" style="width:60px;text-align:right;flex-shrink:0">{{ signed(item.main_net) }}亿</span>
+                  <span class="mono fs11" :class="item.main_net >= 0 ? 'up' : 'down'" style="width:60px;text-align:right;flex-shrink:0">{{ signed(item.main_net / 1e8) }}亿</span>
                 </div>
               </div>
               <div v-else class="fs12" style="color:#909399;text-align:center;height:235px;line-height:235px">日级资金流向加载中…</div>
@@ -244,7 +244,7 @@
       </el-collapse-item>
       </el-collapse>
 
-      <!-- 板块监控：自选板块ETF + 概念/行业实时行情 -->
+      <!-- 板块监控：概念/行业实时行情 -->
       <el-collapse v-model="openSections" class="funnel-collapse mt8">
       <el-collapse-item id="market-sectors" name="sectors" title="板块强弱 · 领涨观察">
       <el-row :gutter="10" class="mt8">
@@ -296,21 +296,21 @@
                   class="sector-card" :class="{ active: selectedSector?.symbol === s.symbol }"
                   @click="selectSector(s)">
                   <div class="fs12 bold">
-                    <span v-if="s.kind && !s.is_etf" class="kind-badge" :class="'kind-' + (s.kind === '行业' ? 'industry' : 'concept')">{{ s.kind }}</span>
+                    <span v-if="s.kind" class="kind-badge" :class="'kind-' + (s.kind === '行业' ? 'industry' : 'concept')">{{ s.kind }}</span>
                     {{ s.sector }}
                   </div>
                   <div class="mono fs13" :class="Number(s.change_pct) >= 0 ? 'up' : 'down'">
                     {{ Number(s.change_pct) >= 0 ? '+' : '' }}{{ (s.change_pct || 0).toFixed(2) }}%
                   </div>
                   <div class="fs11" style="color:#909399">{{ fmtMoney(s.amount) }}</div>
-                  <div v-if="s.is_etf === false" class="fs11" style="color:#c0c4cc">
+                  <div class="fs11" style="color:#c0c4cc">
                     领涨 <b style="color:#606266">{{ s.leader_name || '-' }}</b>
                   </div>
                 </div>
                 <el-empty v-if="!sectorList.length" description="暂无数据" :image-size="40" />
               </div>
               <div class="ai-comment" v-if="sectorComment">💡 板块点评：{{ sectorComment }}</div>
-              <!-- 选中板块详情：ETF 有分时图，概念/行业展示实时行情+领涨股 -->
+              <!-- 选中板块详情 -->
               <div v-if="selectedSector" class="mt8" style="border-top:1px solid #f0f0f0;padding-top:8px">
                 <div class="flex gap" style="align-items:center;flex-wrap:wrap">
                   <span class="fs13 bold">{{ selectedSector.name }}</span>
@@ -319,21 +319,14 @@
                   </span>
                   <span class="fs12" style="color:#909399">{{ fmtMoney(selectedSector.amount) }}</span>
                 </div>
-                <template v-if="selectedSector.is_etf === false">
-                  <div class="fs12 mt4" style="line-height:1.8">
-                    成分股 <b>{{ selectedSector.count || '-' }}</b> · 领涨股
-                    <el-link v-if="selectedSector.leader_symbol" type="primary" :underline="false" style="font-size:12px"
-                      @click="goStock(selectedSector.leader_symbol, selectedSector.leader_name)">
-                      {{ selectedSector.leader_name }}
-                    </el-link>
-                    <span v-else>{{ selectedSector.leader_name || '-' }}</span>
-                    <span class="fs11" style="color:#c0c4cc">（概念板块暂无 ETF 分时，展示板块实时行情）</span>
-                  </div>
-                </template>
-                <template v-else>
-                  <LineChart v-if="sectorIntraday.length" :data="sectorIntraday" height="180px" :pre-close="sectorPreClose" class="mt4" />
-                  <div v-else class="fs12" style="color:#909399;text-align:center;height:60px;line-height:60px">分时数据加载中…</div>
-                </template>
+                <div class="fs12 mt4" style="line-height:1.8">
+                  成分股 <b>{{ selectedSector.count || '-' }}</b> · 领涨股
+                  <el-link v-if="selectedSector.leader_symbol" type="primary" :underline="false" style="font-size:12px"
+                    @click="goStock(selectedSector.leader_symbol, selectedSector.leader_name)">
+                    {{ selectedSector.leader_name }}
+                  </el-link>
+                  <span v-else>{{ selectedSector.leader_name || '-' }}</span>
+                </div>
               </div>
             </template>
           </div>
@@ -472,9 +465,9 @@
       </el-row>
 
       </el-collapse-item>
-      <el-collapse-item name="news" title="📰 消息 · ETF 资金流">
+       <el-collapse-item name="news" title="消息滚动">
       <el-row :gutter="10" class="mt8">
-        <el-col :xs="24" :sm="12">
+         <el-col :span="24">
           <div class="card col-card">
             <div class="flex between" style="align-items:center;flex-wrap:wrap;gap:4px">
               <span class="fs14 bold">消息滚动 <span class="fs12" style="color:#909399">（平台新闻 + RSSHub 订阅推送）</span></span>
@@ -495,36 +488,6 @@
               </div>
               <el-empty v-if="!filteredNews.length" description="暂无消息" :image-size="50" />
             </el-scrollbar>
-          </div>
-        </el-col>
-        <el-col :xs="24" :sm="12">
-          <div class="card col-card">
-            <div class="flex between" style="align-items:center">
-               <span class="fs14 bold">ETF 资金流 <span class="fs12 mono" style="color:#909399">（现有榜单样本重排 · 截至 {{ etfFlowDate }}）</span></span>
-              <el-radio-group v-model="etfDim" size="small">
-                <el-radio-button value="net_1d">今日</el-radio-button>
-                <el-radio-button value="net_5d">5日</el-radio-button>
-                <el-radio-button value="net_20d">20日</el-radio-button>
-              </el-radio-group>
-            </div>
-            <div class="split-grid mt8">
-              <div>
-                <div class="fs12 bold" style="color:#f56c6c">净流入 TOP5</div>
-                <div v-for="(r, i) in etfIn" :key="'ei' + i" class="flow-row">
-                  <span class="fs12">{{ r.name }}</span>
-                  <span class="mono fs12" :class="r[etfDim] >= 0 ? 'up' : 'down'">{{ signed(r[etfDim]) }}亿</span>
-                </div>
-                <el-empty v-if="!etfIn.length" description="暂无" :image-size="34" />
-              </div>
-              <div>
-                <div class="fs12 bold" style="color:#67c23a">净流出 TOP5</div>
-                <div v-for="(r, i) in etfOut" :key="'eo' + i" class="flow-row">
-                  <span class="fs12">{{ r.name }}</span>
-                  <span class="mono fs12" :class="r[etfDim] >= 0 ? 'up' : 'down'">{{ signed(r[etfDim]) }}亿</span>
-                </div>
-                <el-empty v-if="!etfOut.length" description="暂无" :image-size="34" />
-              </div>
-            </div>
           </div>
         </el-col>
       </el-row>
@@ -703,26 +666,19 @@ const marketUpShare = computed(() => {
   const down = Number(distribution.value.down_count || 0)
   return up + down ? Math.round(up / (up + down) * 100) : 0
 })
-const etfFlow = ref({ in_top: [], out_top: [], all: [] })
-const etfDim = ref('net_1d')
 
 const sectorList = ref([])
 const sectorLoading = ref(false)
 const selectedSector = ref(null)
-const sectorIntraday = ref([])
-const sectorPreClose = ref(0)
 const sectorKind = ref('all')
 const sectorTabMode = ref('monitor')
 const sectorSpeedRaw = ref([])
 const filteredSectors = computed(() => {
   let list = sectorList.value || []
   if (sectorKind.value !== 'all') {
-    list = list.filter(s => s.kind === sectorKind.value || s.is_etf === true)
+    list = list.filter(s => s.kind === sectorKind.value)
   }
-  // ETF 排前面，其余按涨幅降序
-  const etfs = list.filter(s => s.is_etf === true).sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0))
-  const boards = list.filter(s => s.is_etf !== true).sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0))
-  return [...etfs, ...boards]
+  return [...list].sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0))
 })
 const sectorSpeedList = computed(() => {
   const rows = sectorSpeedRaw.value || []
@@ -803,14 +759,6 @@ async function loadSectorSpeed() {
 
 async function selectSector(s) {
   selectedSector.value = s
-  sectorIntraday.value = []
-  sectorPreClose.value = 0
-  if (s.is_etf === false) return
-  try {
-    const data = (await marketApi.sectorMonitorIntraday(s.symbol)) || []
-    sectorIntraday.value = data
-    if (data.length) sectorPreClose.value = data[0].price || 0
-  } catch { sectorIntraday.value = [] }
 }
 
 const indexPeriodDefs = [
@@ -843,13 +791,6 @@ function signed(v) {
   const n = Number(v) || 0
   return (n > 0 ? '+' : n < 0 ? '-' : '') + Math.abs(n).toFixed(2)
 }
-const etfRows = computed(() => [...new Map([...(etfFlow.value.in_top || []), ...(etfFlow.value.out_top || [])]
-  .map(r => [r.symbol || r.code || r.name, r])).values()])
-const etfIn = computed(() => etfRows.value.filter(r => Number(r[etfDim.value]) > 0)
-  .sort((a, b) => Number(b[etfDim.value]) - Number(a[etfDim.value])).slice(0, 5))
-const etfOut = computed(() => etfRows.value.filter(r => Number(r[etfDim.value]) < 0)
-  .sort((a, b) => Number(a[etfDim.value]) - Number(b[etfDim.value])).slice(0, 5))
-const etfFlowDate = computed(() => (etfFlow.value.in_top || []).find((r) => r.flow_date)?.flow_date || '')
 const maxBoard = computed(() => {
   const keys = Object.keys(ladder.value.ladder || {})
   const nums = keys.map(k => parseInt(k, 10)).filter(n => !isNaN(n))
@@ -1289,9 +1230,6 @@ function changeIndexPeriod(code, v) {
 async function loadSectorFlowTop() {
   try { flowRank.value = await marketApi.sectorFlowTop() } catch { /* 保留旧数据 */ }
 }
-async function loadEtf() {
-  try { etfFlow.value = await marketApi.etfFlow() } catch { /* 保留旧数据 */ }
-}
 async function loadNews() {
   try { news.value = (await marketApi.news(50)) || [] } catch { /* 保留旧数据 */ }
 }
@@ -1335,7 +1273,6 @@ async function load() {
       loadIndices(),
       ...mainIdxDefs.map((m) => loadPanel(m.code)),
       loadSectorFlowTop(),
-      loadEtf(),
       loadNews(),
       loadRssNews(),
       loadDistribution(),
@@ -1361,7 +1298,6 @@ async function refreshAll() {
     loadIndices(),
     ...mainIdxDefs.map((m) => loadPanel(m.code)),
     loadSectorFlowTop(),
-    loadEtf(),
     loadDistribution(),
     loadLadder(),
     loadSectorMonitor(),

@@ -26,7 +26,6 @@ class MarketService:
             "sectors_flow": await self.dsm.get_sector_money_flow(),
             "sectors_flow_top": await self.dsm.get_sector_flow_top(),
             "sectors_speed": await self.dsm.get_sector_speed(),
-            "etf_flow": await self.dsm.get_etf_flow(),
             "limit_up": await self.dsm.get_limit_up(),
             "news": await self.dsm.get_news(30),
         }
@@ -36,9 +35,6 @@ class MarketService:
 
     async def get_sector_flow_top(self) -> dict:
         return await self.dsm.get_sector_flow_top()
-
-    async def get_etf_flow(self) -> dict:
-        return await self.dsm.get_etf_flow()
 
     async def get_sector_speed(self, limit: int = 10) -> list[dict]:
         rows = await self.dsm.get_sector_speed()

@@ -55,6 +55,7 @@ async def init_db():
         rss,
         strategy,
         laboratory,
+        event_study,
     )
     async with engine.begin() as conn:
         # 旧版 RSS 订阅表（旧字段结构 + filter_st 等旧列）整体重建，避免迁移残留

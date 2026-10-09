@@ -204,10 +204,6 @@ class DataSourceManager:
         ans = await self._call("get_sector_flow_top")
         return ans if isinstance(ans, dict) else {"industries": {"in": [], "out": []}, "concepts": {"in": [], "out": []}}
 
-    async def get_etf_flow(self) -> dict:
-        ans = await self._call("get_etf_flow")
-        return ans if isinstance(ans, dict) else {"in_top": [], "out_top": [], "all": []}
-
     async def get_market_money_flow(self, days: int = 20) -> dict:
         ans = await self._call("get_market_money_flow", days)
         return ans if isinstance(ans, dict) else {"date": "", "intraday": [], "daily": []}
