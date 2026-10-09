@@ -177,12 +177,6 @@ async def get_sector_flow_top(db: AsyncSession = Depends(get_db)):
     return await svc.get_sector_flow_top()
 
 
-@router.get("/etf/flow")
-async def get_etf_flow(db: AsyncSession = Depends(get_db)):
-    svc = MarketService(db)
-    return await svc.get_etf_flow()
-
-
 @router.get("/sectors/speed")
 async def get_sector_speed(limit: int = 10, db: AsyncSession = Depends(get_db)):
     svc = MarketService(db)
@@ -320,12 +314,6 @@ async def get_intraday_analysis(symbol: str, pre_close: float = 0, db: AsyncSess
 async def get_sector_monitor(db: AsyncSession = Depends(get_db)):
     svc = MarketService(db)
     return await svc.get_sector_monitor()
-
-
-@router.get("/sectors/monitor/intraday")
-async def get_sector_monitor_intraday(symbol: str, db: AsyncSession = Depends(get_db)):
-    svc = KlineService(db)
-    return await svc.get_intraday(symbol)
 
 
 @router.get("/sectors/constituents")

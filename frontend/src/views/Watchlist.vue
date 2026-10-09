@@ -395,8 +395,8 @@
                 <el-divider content-position="left">消息面</el-divider>
                 <div v-if="stockNews.length" style="max-height:260px;overflow:auto">
                   <div v-for="(n, i) in stockNews" :key="i" class="fs12 mb6" style="line-height:1.5">
-                    <el-tag size="small" :type="n.sentiment === 'positive' ? 'danger' : n.sentiment === 'negative' ? 'success' : 'info'" style="flex-shrink:0">
-                      {{ n.sentiment === 'positive' ? '利好' : n.sentiment === 'negative' ? '利空' : '中性' }}
+                    <el-tag size="small" :type="n.sentiment === 'bullish' ? 'danger' : n.sentiment === 'bearish' ? 'success' : 'info'" style="flex-shrink:0">
+                      {{ n.sentiment === 'bullish' ? '利好' : n.sentiment === 'bearish' ? '利空' : '中性' }}
                     </el-tag>
                     <a v-if="n.url" :href="n.url" target="_blank" rel="noopener" class="ml4">{{ n.title }}</a>
                     <span v-else class="ml4">{{ n.title }}</span>
@@ -441,8 +441,8 @@
                 <el-tab-pane label="财务与同行" name="financial" lazy>
                 <el-divider content-position="left">技术形态</el-divider>
                 <div v-if="forms.length" class="fs12">
-                  <el-tag v-for="(f, i) in forms" :key="i" size="small" :type="f.type === 'bullish' ? 'danger' : f.type === 'bearish' ? 'success' : 'info'" style="margin:2px">
-                    {{ f.name }}: {{ f.description || f.signal }}
+                  <el-tag v-for="(f, i) in forms" :key="i" size="small" :type="f.level === 'bullish' ? 'danger' : f.level === 'bearish' ? 'success' : 'info'" style="margin:2px">
+                    {{ f.name }}: {{ f.desc || '-' }}
                   </el-tag>
                 </div>
                 <el-empty v-else description="暂无技术形态" :image-size="40" />

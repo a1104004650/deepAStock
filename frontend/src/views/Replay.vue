@@ -364,7 +364,7 @@
       </section>
 
       <el-dialog v-model="mdDialog" title="复盘报告原文" width="700">
-        <pre class="md">{{ report?.report_md }}</pre>
+        <pre class="md">{{ rpt?.report_md }}</pre>
       </el-dialog>
     </div>
   </MainLayout>
@@ -575,7 +575,7 @@ function dateStr(backDays) {
 
 async function loadKline() {
   try {
-    const resp = await marketApi.kline('sh000001', { period: 'day' })
+    const resp = await marketApi.kline({ symbol: 'SH000001', period: 'day' })
     const d = resp?.data || resp || []
     kline.value = (Array.isArray(d) ? d : []).map((x) => ({
       dt: x.dt || x.date,

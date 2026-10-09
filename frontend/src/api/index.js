@@ -62,13 +62,11 @@ export const marketApi = {
   news: (limit = 50) => http.get('/market/news', { params: { limit } }),
   sectorFlow: () => http.get('/market/sectors/money-flow'),
   sectorFlowTop: () => http.get('/market/sectors/flow-top'),
-  etfFlow: () => http.get('/market/etf/flow'),
   sectorSpeed: () => http.get('/market/sectors/speed'),
   limitUpLadder: () => http.get('/market/limit-up/ladder'),
   dragonTiger: () => http.get('/market/dragon-tiger'),
   distribution: () => http.get('/market/distribution'),
   sectorMonitor: () => http.get('/market/sectors/monitor'),
-  sectorMonitorIntraday: (symbol) => http.get('/market/sectors/monitor/intraday', { params: { symbol } }),
   sectorConstituents: (symbol) => http.get('/market/sectors/constituents', { params: { symbol } }),
   hotStocks: (top = 15) => http.get('/market/hot-stocks', { params: { top } }),
   screening: (params) => http.get('/market/screening', { params }),
@@ -182,6 +180,17 @@ export const tradeApi = {
   reset: () => http.post('/trade/reset'),
   pnl: () => http.get('/trade/pnl/summary'),
   reviewTrade: (id) => http.post(`/trade/trades/${id}/review`)
+}
+
+// 历史条件事件研究
+export const eventStudyApi = {
+  capabilities: () => http.get('/event-study/capabilities'),
+  presets: () => http.get('/event-study/presets'),
+  definitions: () => http.get('/event-study/definitions'),
+  createDefinition: (data) => http.post('/event-study/definitions', data),
+  updateDefinition: (id, data) => http.put(`/event-study/definitions/${id}`, data),
+  deleteDefinition: (id) => http.delete(`/event-study/definitions/${id}`),
+  run: (data) => http.post('/event-study/run', data, { timeout: 300000 })
 }
 
 // 系统

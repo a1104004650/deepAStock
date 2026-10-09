@@ -80,7 +80,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   DataBoard, Star, Document, TrendCharts, Histogram, Upload,
-  MagicStick, Promotion, Setting, Close, DataLine, Coin, Cpu, Reading, Fold, Expand, Menu
+  MagicStick, Promotion, Setting, Close, DataLine, Cpu, Reading, Fold, Expand, Menu
 } from '@element-plus/icons-vue'
 import { systemApi, marketApi, rssApi } from '../api'
 import { useNewsStore } from '../stores/news'
@@ -109,14 +109,14 @@ const desktopGroups = [
       { path: '/screening', label: '智能选股', icon: TrendCharts },
       { path: '/replay', label: '每日复盘', icon: Document },
       { path: '/macro', label: '宏观数据', icon: DataLine },
-      { path: '/fund', label: '基金与ETF', icon: Coin }
     ]
   },
   {
     label: '交易',
     items: [
       { path: '/backtest', label: '策略回测', icon: Histogram },
-      { path: '/trade', label: '实盘导入', icon: Upload }
+      { path: '/trade', label: '实盘导入', icon: Upload },
+      { path: '/attribution', label: '条件归因', icon: DataLine, isNew: true },
     ]
   },
   {

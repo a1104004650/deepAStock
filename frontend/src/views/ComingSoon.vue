@@ -15,7 +15,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { DataLine, Coin, Cpu, Reading } from '@element-plus/icons-vue'
+import { DataLine, Cpu, Reading } from '@element-plus/icons-vue'
 import MainLayout from '../layout/MainLayout.vue'
 
 const props = defineProps({
@@ -24,7 +24,7 @@ const props = defineProps({
 })
 
 const router = useRouter()
-const icons = { macro: DataLine, fund: Coin, lab: Cpu, knowledge: Reading }
+const icons = { macro: DataLine, lab: Cpu, knowledge: Reading }
 const iconComp = computed(() => icons[props.code] || DataLine)
 
 function backHome() { router.push('/') }
