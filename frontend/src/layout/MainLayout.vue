@@ -25,7 +25,7 @@
           </router-link>
         </div>
       </nav>
-      <div class="rail-footer" v-if="!sidebarCollapsed"><span class="status-dot" :class="`status-${healthState}`"></span>{{ healthLabel }}<span class="rail-version">v1.7</span></div>
+      <div class="rail-footer" v-if="!sidebarCollapsed"><span class="status-dot" :class="`status-${healthState}`"></span>{{ healthLabel }}<span class="rail-version">v1.9</span></div>
     </aside>
     <el-container class="content-shell">
       <el-header class="topbar" height="60px">
@@ -106,6 +106,7 @@ const desktopGroups = [
     items: [
       { path: '/watchlist', label: '自选股', icon: Star },
       { path: '/regime', label: '市场周期', icon: DataLine, isNew: true },
+      { path: '/wave-study', label: '指数波浪', icon: TrendCharts },
       { path: '/screening', label: '智能选股', icon: TrendCharts },
       { path: '/replay', label: '每日复盘', icon: Document },
       { path: '/macro', label: '宏观数据', icon: DataLine },

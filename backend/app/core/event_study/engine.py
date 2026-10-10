@@ -122,6 +122,47 @@ def _window(rows: list[dict], index: int, lookback: int, include_current: bool =
     return rows[start:end] if start >= 0 and lookback > 0 else []
 
 
+def _required_history_bars(conditions: list[dict], universe_spec: dict) -> int:
+    """Return the trading-session warmup needed before the study window."""
+    required = int(universe_spec.get("min_observed_bars", 0) or 0)
+    for condition in conditions:
+        kind = condition.get("type")
+        candidates = [condition.get("lookback", 0)]
+        if kind == "close_vs_ma5":
+            candidates.append(5)
+        elif kind in ("limit_up_streak", "direction_streak", "volume_contraction_streak", "days_since_limit"):
+            candidates.append(condition.get("max", 0))
+        elif kind == "ma_cross":
+            candidates.append(condition.get("long", 20))
+        elif kind == "volume_trend":
+            candidates.append(int(condition.get("recent", 3)) + int(condition.get("baseline", 20)))
+        elif kind == "post_limit_pullback":
+            candidates.append(int(condition.get("days_max", 5)) + int(condition.get("streak_max", 3)))
+        required = max(required, *(int(value or 0) for value in candidates))
+    return required
+
+
+def _validate_rule(logic: str, conditions: list[dict]) -> None:
+    if logic != "all":
+        return
+    kinds = {condition.get("type") for condition in conditions}
+    current_limit_conditions = kinds.intersection({
+        "limit_up_streak", "turnover_limit_up", "first_limit_in_window",
+    })
+    if "post_limit_pullback" in kinds and current_limit_conditions:
+        labels = {
+            "limit_up_streak": "连续涨停天数",
+            "turnover_limit_up": "换手涨停",
+            "first_limit_in_window": "窗口内首次涨停",
+        }
+        conflicts = "、".join(labels[kind] for kind in sorted(current_limit_conditions))
+        raise ValueError(
+            f"AND 条件互斥：{conflicts}要求事件日涨停，但连板后缩量调整要求事件日处于非涨停调整段。"
+            "请删除事件日涨停条件，并直接在连板后缩量调整中设置前序连板最小/最大值；"
+            "例如研究2至4板后调整，应设置 streak_min=2、streak_max=4。"
+        )
+
+
 def _range(value: float | None, condition: dict, low: float = -math.inf,
            high: float = math.inf) -> bool:
     minimum = float(condition.get("min", low))
@@ -210,6 +251,8 @@ class EventStudyEngine:
         unsupported = [c.get("type") for c in conditions if c.get("type") not in self.SUPPORTED_TYPES]
         if unsupported:
             raise ValueError(f"不支持的条件: {', '.join(str(x) for x in unsupported)}")
+        logic = rule.get("logic", "all")
+        _validate_rule(logic, conditions)
 
         symbols = [str(s).upper() for s in (request.get("universe") or {}).get("symbols", []) if s]
         symbol_query = select(Kline.symbol).where(Kline.period == "day").distinct()
@@ -232,8 +275,11 @@ class EventStudyEngine:
         names = dict((await self.db.execute(
             select(StockName.symbol, StockName.name).where(StockName.symbol.in_(query_symbols))
         )).all())
-        max_lookback = max([int(c.get("lookback", 0) or 0) for c in conditions] + [120])
-        query_start = start - timedelta(days=max_lookback * 2 + 60)
+        # The eligibility gate counts observed trading bars, not calendar days. A
+        # two-times conversion can leave too few bars around long holidays or in
+        # sparse caches, silently excluding the start of a study.
+        history_bars = _required_history_bars(conditions, universe_spec)
+        query_start = start - timedelta(days=history_bars * 3 + 30)
         query_end = end + timedelta(days=max(horizons) * 2 + 30)
         raw_rows = (await self.db.execute(
             select(Kline).where(
@@ -252,7 +298,6 @@ class EventStudyEngine:
 
         benchmark_rows = grouped.get(benchmark_symbol, [])
         benchmark_by_date = {r["date"]: r for r in benchmark_rows}
-        logic = rule.get("logic", "all")
         occurrence = request.get("occurrence_policy", "entry")
         cooldown = max(0, int(request.get("cooldown_sessions", max(horizons))))
         events, condition_errors = [], []
