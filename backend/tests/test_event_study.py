@@ -1,6 +1,16 @@
 import unittest
 
-from app.core.event_study.engine import EventStudyEngine, _derived, _limit_threshold
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from app.api.v1.event_study import StudyRequest, router
+from app.core.event_study.engine import (
+    EventStudyEngine,
+    _derived,
+    _limit_threshold,
+    _required_history_bars,
+    _validate_rule,
+)
 
 
 def rows(prices, volumes=None, turnovers=None):
@@ -15,6 +25,41 @@ def rows(prices, volumes=None, turnovers=None):
 
 
 class EventStudyTests(unittest.TestCase):
+    def test_history_warmup_covers_universe_gate_and_condition_windows(self):
+        self.assertEqual(_required_history_bars(
+            [{"type": "limit_up_streak", "min": 1, "max": 3}],
+            {"min_observed_bars": 120},
+        ), 120)
+        self.assertEqual(_required_history_bars(
+            [{"type": "volume_trend", "recent": 10, "baseline": 250}],
+            {"min_observed_bars": 60},
+        ), 260)
+        self.assertEqual(_required_history_bars(
+            [{"type": "post_limit_pullback", "days_max": 5, "streak_max": 3}],
+            {"min_observed_bars": 0},
+        ), 8)
+
+    def test_default_limit_streak_request_uses_entry_policy(self):
+        request = StudyRequest(rule={
+            "name": "连续涨停1-3天",
+            "conditions": [{"type": "limit_up_streak", "min": 1, "max": 3}],
+        })
+        self.assertEqual(request.occurrence_policy, "entry")
+        self.assertEqual(request.universe.min_observed_bars, 60)
+        self.assertEqual(request.rule.conditions[0].min, 1)
+        self.assertEqual(request.rule.conditions[0].max, 3)
+
+    def test_presets_api_contract(self):
+        app = FastAPI()
+        app.include_router(router)
+        response = TestClient(app).get("/api/v1/event-study/presets")
+        self.assertEqual(response.status_code, 200)
+        presets = {item["key"]: item for item in response.json()}
+        self.assertEqual(presets["three_limit_ups"]["rule"]["conditions"], [
+            {"type": "limit_up_streak", "min": 3, "max": 3},
+        ])
+        self.assertIn("limit_pullback_shrink", presets)
+
     def test_chinext_301_uses_twenty_percent_threshold(self):
         self.assertEqual(_limit_threshold("SZ301001"), .195)
         data = _derived(rows([10, 11]), "SZ301001", "sample")
@@ -133,6 +178,20 @@ class EventStudyTests(unittest.TestCase):
         self.assertIsNone(event["entry_date"])
         self.assertIsNone(event["forward"]["1"])
         self.assertEqual(event["entry_basis"], "next_open")
+
+    def test_post_limit_pullback_rejects_same_day_limit_condition(self):
+        with self.assertRaisesRegex(ValueError, "AND 条件互斥"):
+            _validate_rule("all", [
+                {"type": "limit_up_streak", "min": 2, "max": 4},
+                {"type": "post_limit_pullback", "streak_min": 1, "streak_max": 3},
+            ])
+        _validate_rule("all", [
+            {"type": "post_limit_pullback", "streak_min": 2, "streak_max": 4},
+        ])
+        _validate_rule("any", [
+            {"type": "limit_up_streak", "min": 2, "max": 4},
+            {"type": "post_limit_pullback", "streak_min": 1, "streak_max": 3},
+        ])
 
 
 if __name__ == "__main__":

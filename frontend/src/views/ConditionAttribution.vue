@@ -9,7 +9,7 @@
         <template #badge><span class="engine-badge">{{ capabilities?.engine_version || 'ENGINE CHECK' }}</span></template>
         <template #actions>
           <span class="run-scope mono">{{ selectedHorizons.length }} HORIZONS · {{ form.universe.max_symbols }} SYMBOLS MAX</span>
-          <el-button type="primary" :loading="running" :disabled="initializing" @click="runStudy">运行事件研究</el-button>
+          <el-button type="primary" :loading="running" :disabled="actionBusy" @click="runStudy">运行事件研究</el-button>
         </template>
       </PageHeader>
 
@@ -21,7 +21,7 @@
         <p>{{ capabilities?.fields?.exact_limit_price?.reason || '正在读取本地字段能力，缺失字段不会以零值代替。' }}</p>
       </section>
 
-      <div v-if="loadError" class="notice error" role="alert"><span>{{ loadError }}</span><el-button link @click="loadMeta">重新读取</el-button></div>
+      <div v-if="loadError" class="notice error" role="alert"><span>{{ loadError }}</span><el-button link :loading="initializing" :disabled="actionBusy" @click="loadMeta">重新读取</el-button></div>
 
       <section class="workbench">
         <aside class="preset-rail" aria-label="研究预设">
@@ -32,6 +32,7 @@
             type="button"
             class="preset-card"
             :class="{ active: activePreset === preset.key }"
+            :disabled="actionBusy"
             @click="applyPreset(preset)"
           >
             <span class="preset-code mono">{{ preset.key }}</span>
@@ -41,15 +42,15 @@
           <div v-if="!presets.length" class="preset-empty">{{ initializing ? '读取预设中…' : '没有可用预设' }}</div>
           <div class="saved-divider">
             <span>SAVED STUDIES</span>
-            <el-button link type="primary" size="small" :loading="saving" @click="saveDefinition">{{ activeDefinitionId ? '更新当前' : '保存当前' }}</el-button>
+            <el-button link type="primary" size="small" :loading="saving" :disabled="actionBusy" @click="saveDefinition">{{ activeDefinitionId ? '更新当前' : '保存当前' }}</el-button>
           </div>
           <div v-for="item in definitions" :key="item.id" class="preset-card saved-card" :class="{ active: activeDefinitionId === item.id }">
-            <button type="button" class="saved-load" @click="applyDefinition(item)">
+            <button type="button" class="saved-load" :disabled="actionBusy" @click="applyDefinition(item)">
               <span class="preset-code mono">ID {{ item.id }} · {{ item.updated_at?.slice(0, 10) || '-' }}</span>
               <strong>{{ item.name }}</strong>
               <small>{{ item.description || '已保存条件方案' }}</small>
             </button>
-            <el-button class="saved-delete" link type="danger" size="small" aria-label="删除已保存方案" @click.stop="removeDefinition(item)"><el-icon><Delete /></el-icon></el-button>
+            <el-button class="saved-delete" link type="danger" size="small" aria-label="删除已保存方案" :loading="deletingDefinitionId === item.id" :disabled="actionBusy" @click.stop="removeDefinition(item)"><el-icon><Delete /></el-icon></el-button>
           </div>
           <div v-if="!definitions.length" class="preset-empty">尚未保存条件方案</div>
         </aside>
@@ -91,7 +92,7 @@
                   <template v-else-if="condition.type === 'close_vs_ma5'">
                     <div class="field direction-field"><label>收盘相对 MA5</label><el-select v-model="condition.direction"><el-option label="位于 MA5 上方" value="above" /><el-option label="位于 MA5 下方" value="below" /></el-select></div>
                   </template>
-                  <button type="button" class="delete-condition" :disabled="form.rule.conditions.length === 1" :aria-label="`删除条件 ${index + 1}`" @click="removeCondition(index)">
+                  <button type="button" class="delete-condition" :disabled="actionBusy || form.rule.conditions.length === 1" :aria-label="`删除条件 ${index + 1}`" @click="removeCondition(index)">
                     <el-icon><Delete /></el-icon>
                   </button>
                 </div>
@@ -133,7 +134,7 @@
               </div>
             </article>
           </div>
-          <button type="button" class="add-condition" :disabled="form.rule.conditions.length >= 20" @click="addCondition"><el-icon><Plus /></el-icon>添加条件</button>
+          <button type="button" class="add-condition" :disabled="actionBusy || form.rule.conditions.length >= 20" @click="addCondition"><el-icon><Plus /></el-icon>添加条件</button>
         </div>
       </section>
 
@@ -152,7 +153,7 @@
         <div class="config-foot">
           <span>缓存范围 <b class="mono">{{ capabilities?.first_date || '-' }} → {{ capabilities?.last_date || '-' }}</b></span>
           <span>缓存标的 <b class="mono">{{ capabilities?.daily_symbols ?? '-' }}</b></span>
-          <el-button type="primary" :loading="running" @click="runStudy">运行事件研究</el-button>
+          <el-button type="primary" :loading="running" :disabled="actionBusy" @click="runStudy">运行事件研究</el-button>
         </div>
       </section>
 
@@ -181,11 +182,11 @@
         <div class="config-foot">
           <span>过滤发生在事件判定之前，剔除原因会汇总到结果的 <b>excluded_event_bars</b></span>
           <span>缓存标的 <b class="mono">{{ capabilities?.daily_symbols ?? '-' }}</b></span>
-          <el-button type="primary" :loading="running" @click="runStudy">运行事件研究</el-button>
+          <el-button type="primary" :loading="running" :disabled="actionBusy" @click="runStudy">运行事件研究</el-button>
         </div>
       </section>
 
-      <div v-if="runError" class="notice error" role="alert"><span>{{ runError }}</span><el-button link @click="runStudy">重试</el-button></div>
+      <div v-if="runError" class="notice error" role="alert"><span>{{ runError }}</span><el-button link :loading="running" :disabled="actionBusy" @click="runStudy">重试</el-button></div>
       <section v-if="running && !report" class="loading-panel" aria-live="polite"><el-skeleton :rows="8" animated /></section>
 
       <template v-if="report">
@@ -200,6 +201,10 @@
         </section>
 
         <div v-if="resultWarnings.length" class="warning-stack" role="status"><b>结果约束</b><span v-for="warning in resultWarnings" :key="warning">{{ warning }}</span></div>
+
+        <div v-if="!events.length" class="notice empty-notice" role="status">
+          <span><b>本次研究没有匹配事件。</b>{{ emptyResultDetail }}</span>
+        </div>
 
         <section v-if="statistics.length" class="horizon-cards" aria-label="各前瞻期限统计">
           <article v-for="stat in statistics" :key="stat.horizon" class="horizon-card">
@@ -409,7 +414,8 @@ const presets = ref([])
 const definitions = ref([])
 const activeDefinitionId = ref(null)
 const saving = ref(false)
-const initializing = ref(true)
+const deletingDefinitionId = ref(null)
+const initializing = ref(false)
 const loadError = ref('')
 const running = ref(false)
 const runError = ref('')
@@ -426,17 +432,27 @@ let distributionChart = null
 const form = ref({
   benchmark: 'SH000300', return_basis: 'event_close', occurrence_policy: 'entry', cooldown_sessions: 30,
   universe: { mode: 'cached', max_symbols: 500, equity_only: true, exclude_current_st: true,
-    exclude_boards: ['star', 'beijing'], min_observed_bars: 120, min_price: null, max_price: null },
+    exclude_boards: ['star', 'beijing'], min_observed_bars: 60, min_price: null, max_price: null },
   rule: { name: '未命名条件组', logic: 'all', conditions: [makeCondition()] },
 })
 
 const turnoverAvailable = computed(() => Boolean(capabilities.value?.fields?.turnover_rate?.available))
+const actionBusy = computed(() => initializing.value || running.value || saving.value || deletingDefinitionId.value != null)
 const turnoverCoverage = computed(() => capabilities.value ? `${capabilities.value.turnover_symbols || 0} / ${capabilities.value.daily_symbols || 0} 标的` : '检查中')
 const availabilityTone = computed(() => capabilities.value?.fields?.ohlcv?.available ? 'available' : 'unavailable')
 const statistics = computed(() => report.value?.statistics || [])
 const hasChartData = computed(() => statistics.value.some((row) => Number(row.samples) > 0))
 const events = computed(() => (report.value?.events || []).map((row, index) => ({ ...row, eventKey: `${row.symbol}-${row.event_date}-${index}` })))
 const resultWarnings = computed(() => [...new Set([...(report.value?.summary?.condition_errors || []), ...(report.value?.data_quality?.warnings || [])])])
+const emptyResultDetail = computed(() => {
+  const scanned = Number(report.value?.universe?.symbols_scanned || 0)
+  const excluded = report.value?.universe?.excluded_event_bars || {}
+  const historyExcluded = Number(excluded.insufficient_observed_history || 0)
+  const parts = [`已扫描 ${scanned} 个标的，当前条件、区间与事件抽样策略下未产生样本。`]
+  if (historyExcluded) parts.push(`其中 ${historyExcluded} 个事件日因观察K线不足被剔除，可降低“最少观察K线”或扩大本地历史缓存。`)
+  if (resultWarnings.value.length) parts.push(`约束提示：${resultWarnings.value.join('；')}`)
+  return parts.join('')
+})
 const resultScope = computed(() => {
   const scope = report.value?.scope
   return scope ? `${scope.start_date} → ${scope.end_date} · ${scope.return_basis === 'next_open' ? '次日开盘起算' : '事件收盘起算'}` : ''
@@ -482,12 +498,13 @@ function disableDate(date) {
   return (first && date < first) || date > last
 }
 async function loadMeta() {
+  if (actionBusy.value) return
   initializing.value = true; loadError.value = ''
   try {
     const [caps, presetRows, savedRows] = await Promise.all([eventStudyApi.capabilities(), eventStudyApi.presets(), eventStudyApi.definitions()])
     capabilities.value = caps; presets.value = presetRows || []; definitions.value = savedRows || []; setInitialDates()
   } catch (error) {
-    loadError.value = error?.response?.data?.detail || error?.message || '事件研究能力读取失败'
+    loadError.value = apiErrorMessage(error, '事件研究能力读取失败')
   } finally { initializing.value = false }
 }
 function cleanCondition(source) {
@@ -524,12 +541,13 @@ function applyDefinition(item) {
     occurrence_policy: config.occurrence_policy || 'entry', cooldown_sessions: config.cooldown_sessions ?? 30,
     universe: { mode: 'cached', max_symbols: universe.max_symbols || 500,
       equity_only: universe.equity_only ?? true, exclude_current_st: universe.exclude_current_st ?? true,
-      exclude_boards: [...(universe.exclude_boards || [])], min_observed_bars: universe.min_observed_bars ?? 120,
+      exclude_boards: [...(universe.exclude_boards || [])], min_observed_bars: universe.min_observed_bars ?? 60,
       min_price: universe.min_price ?? null, max_price: universe.max_price ?? null },
     rule: { ...config.rule, conditions: (config.rule?.conditions || []).map(condition => ({ _id: ++conditionId, ...condition })) },
   }
 }
 async function saveDefinition() {
+  if (actionBusy.value) return
   const invalid = validate(); if (invalid) { ElMessage.warning(invalid); return }
   saving.value = true
   try {
@@ -539,16 +557,22 @@ async function saveDefinition() {
     definitions.value = await eventStudyApi.definitions()
     ElMessage.success('条件组已保存')
   } catch (error) {
-    ElMessage.error(error?.response?.data?.detail || error?.message || '条件组保存失败')
+    ElMessage.error(apiErrorMessage(error, '条件组保存失败'))
   } finally { saving.value = false }
 }
 async function removeDefinition(item) {
+  if (actionBusy.value) return
+  deletingDefinitionId.value = item.id
   try {
     await ElMessageBox.confirm(`删除条件组「${item.name}」？`, '删除条件组', { type: 'warning' })
     await eventStudyApi.deleteDefinition(item.id)
     if (activeDefinitionId.value === item.id) activeDefinitionId.value = null
     definitions.value = definitions.value.filter(row => row.id !== item.id)
-  } catch { /* cancelled */ }
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(apiErrorMessage(error, '条件组删除失败'))
+  } finally {
+    deletingDefinitionId.value = null
+  }
 }
 function resetCondition(condition) {
   const id = condition._id, type = condition.type
@@ -581,6 +605,11 @@ function validate() {
   if (!selectedHorizons.value.length) return '至少选择一个前瞻期限'
   if (!form.value.rule.name.trim()) return '请输入研究名称'
   if (form.value.rule.conditions.some((condition) => condition.type === 'turnover_limit_up') && !turnoverAvailable.value) return '历史换手率字段不可用，不能运行换手涨停条件'
+  const types = new Set(form.value.rule.conditions.map((condition) => condition.type))
+  const currentLimitTypes = ['limit_up_streak', 'turnover_limit_up', 'first_limit_in_window'].filter((type) => types.has(type))
+  if (form.value.rule.logic === 'all' && types.has('post_limit_pullback') && currentLimitTypes.length) {
+    return 'AND 条件互斥：事件日涨停条件与“连板后缩量调整”的非涨停调整日不能同时成立。请删除事件日涨停条件，直接在“连板后缩量调整”里设置前序连板范围，例如 2–4 板。'
+  }
   const universe = form.value.universe
   if (universe.min_price != null && universe.max_price != null && Number(universe.min_price) > Number(universe.max_price)) return '股票池最低价不能大于最高价'
   for (const condition of form.value.rule.conditions) {
@@ -592,6 +621,7 @@ function validate() {
   return ''
 }
 async function runStudy() {
+  if (actionBusy.value) return
   const invalid = validate()
   if (invalid) { ElMessage.warning(invalid); return }
   running.value = true; runError.value = ''
@@ -599,8 +629,21 @@ async function runStudy() {
     report.value = await eventStudyApi.run(buildPayload())
     await nextTick(); renderCharts()
   } catch (error) {
-    runError.value = error?.response?.data?.detail || error?.message || '事件研究运行失败'
+    runError.value = apiErrorMessage(error, '事件研究运行失败')
   } finally { running.value = false }
+}
+function apiErrorMessage(error, fallback) {
+  const detail = error?.response?.data?.detail
+  if (Array.isArray(detail)) {
+    const messages = detail.map((item) => {
+      if (typeof item === 'string') return item
+      const location = Array.isArray(item?.loc) ? item.loc.filter((part) => part !== 'body').join('.') : ''
+      return `${location ? `${location}: ` : ''}${item?.msg || JSON.stringify(item)}`
+    }).filter(Boolean)
+    if (messages.length) return messages.join('；')
+  }
+  if (detail && typeof detail === 'object') return detail.message || JSON.stringify(detail)
+  return detail || error?.message || fallback
 }
 function tone(value) { const n = Number(value); return !Number.isFinite(n) || n === 0 ? 'flat' : n > 0 ? 'up' : 'down' }
 function formatPct(value, signed = false) { const n = Number(value); return value == null || !Number.isFinite(n) ? '-' : `${signed && n > 0 ? '+' : ''}${n.toFixed(2)}%` }
@@ -647,6 +690,7 @@ onBeforeUnmount(() => { window.removeEventListener('resize', handleResize); retu
 .engine-badge { padding:3px 7px; border:1px solid #c8d6e9; background:#edf3fb; color:#315b94; font:600 9px var(--font-mono); letter-spacing:.06em; }.run-scope { color:var(--c-text-3); font-size:9px; }
 .availability-strip { display:grid; grid-template-columns:auto auto auto auto minmax(220px,1fr); align-items:center; gap:18px; padding:9px 13px; margin-bottom:10px; border:1px solid #d8dee7; border-left:3px solid #d18a18; background:#fffdf7; font-size:10px; }.availability-title,.field-state { display:flex; align-items:center; gap:6px; white-space:nowrap; }.availability-title strong { color:#775512; font:700 9px var(--font-mono); letter-spacing:.08em; }.pulse,.field-state i { width:7px; height:7px; border-radius:50%; flex:none; }.pulse,.field-state i.warn { background:#d18a18; box-shadow:0 0 0 3px rgba(209,138,24,.12); }.field-state i.ok { background:#2e6bc6; }.field-state i.bad { background:var(--c-down); }.field-state b { color:var(--c-text-2); font-weight:600; }.availability-strip p { color:var(--c-text-3); line-height:1.4; text-align:right; }.availability-strip.unavailable { border-left-color:var(--c-down); }
 .notice { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 12px; margin-bottom:10px; font-size:11px; }.notice.error { border:1px solid #edb7b7; background:#fff3f3; color:#8b2f32; }
+.notice.empty-notice { margin:10px 0 0; border:1px solid #d8dee7; background:#f7f9fc; color:var(--c-text-2); line-height:1.6; }.notice.empty-notice b { margin-right:5px; color:var(--c-ink); }
 .workbench { display:grid; grid-template-columns:230px minmax(0,1fr); background:#fff; border:1px solid var(--c-border); box-shadow:var(--shadow-card); }.preset-rail { padding:15px 12px; background:#f5f7fa; border-right:1px solid var(--c-border); }.preset-rail header { padding:0 3px 10px; }.preset-rail header span,.section-head span,.result-header > div > span,.method-lead > span,.empty-result > div:last-child > span { color:var(--c-primary); font:600 9px var(--font-mono); letter-spacing:.1em; }.preset-rail h2,.section-head h2 { font-size:15px; margin-top:4px; }.preset-rail header p,.section-head p { color:var(--c-text-3); font-size:9px; margin-top:3px; }.preset-card { position:relative; width:100%; display:flex; flex-direction:column; align-items:flex-start; gap:5px; padding:10px; margin-top:7px; border:1px solid #dde2e9; border-left:2px solid transparent; border-radius:3px; background:#fff; text-align:left; cursor:pointer; transition:border-color .15s, transform .15s, box-shadow .15s; }.preset-card:hover { transform:translateY(-1px); border-color:#bfc9d6; box-shadow:0 4px 12px rgba(25,39,58,.06); }.preset-card.active { border-color:#b9cceb; border-left-color:var(--c-primary); background:#f5f8fd; }.preset-code { color:#8b96a5; font-size:8px; text-transform:uppercase; }.preset-card strong { color:var(--c-ink); font-size:11px; }.preset-card small { color:var(--c-text-3); font-size:9px; line-height:1.45; }.preset-empty { padding:18px 5px; color:var(--c-text-3); font-size:10px; }.saved-divider { display:flex; align-items:center; justify-content:space-between; margin-top:16px; padding:9px 3px 2px; border-top:1px solid var(--c-border); color:var(--c-primary); font:600 9px var(--font-mono); letter-spacing:.1em; }.saved-card { padding:0; cursor:default; }.saved-load { width:100%; display:flex; flex-direction:column; align-items:flex-start; gap:5px; padding:10px 34px 10px 10px; border:0; background:transparent; text-align:left; cursor:pointer; }.saved-delete { position:absolute; right:4px; top:2px; opacity:0; }.saved-card:hover .saved-delete,.saved-card:focus-within .saved-delete { opacity:1; }
 .builder-panel { min-width:0; padding:14px; }.section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:14px; padding-bottom:10px; border-bottom:1px solid var(--c-border); }.logic-switch { display:flex; align-items:center; gap:8px; }.logic-switch label,.field label,.rule-name-row label,.config-cell > label { color:var(--c-text-3); font-size:9px; font-weight:600; }.rule-name-row { display:grid; grid-template-columns:86px 1fr; align-items:center; gap:10px; padding:10px 0; }.rule-name-row :deep(.el-input) { max-width:520px; }
 .condition-stack { display:flex; flex-direction:column; gap:7px; }.condition-row { display:grid; grid-template-columns:38px 1fr; border:1px solid #dde2e9; border-radius:4px; background:#fbfcfd; overflow:hidden; }.condition-index { display:grid; place-items:center; color:#8a96a6; font-size:10px; background:#f0f3f7; border-right:1px solid #dde2e9; }.condition-body { min-width:0; padding:9px 10px 8px; }.condition-main { display:flex; align-items:flex-end; gap:8px; }.field { display:flex; flex-direction:column; gap:4px; }.condition-type { width:220px; }.field.compact { width:128px; }.direction-field { width:210px; }.field :deep(.el-input-number),.field :deep(.el-select),.config-cell :deep(.el-select),.config-cell :deep(.el-input-number) { width:100%; }.range-mark { color:#a0a9b5; padding-bottom:9px; }.delete-condition { margin-left:auto; display:grid; place-items:center; width:34px; height:32px; border:1px solid #e0e4ea; border-radius:4px; background:#fff; color:#8b96a5; cursor:pointer; }.delete-condition:hover:not(:disabled) { color:var(--c-down); border-color:#addbbb; }.delete-condition:disabled { opacity:.35; cursor:not-allowed; }.pullback-fields { display:flex; align-items:flex-end; flex-wrap:wrap; gap:8px 12px; padding-top:9px; margin-top:8px; border-top:1px dashed #dce1e8; }.pullback-fields :deep(.el-checkbox) { margin-right:0; height:32px; }.condition-note { color:var(--c-text-3); font-size:9px; line-height:1.4; margin-top:7px; }.add-condition { min-height:36px; width:100%; display:flex; align-items:center; justify-content:center; gap:6px; margin-top:8px; border:1px dashed #b9c5d3; border-radius:4px; background:#f8fafc; color:#45648e; font:600 10px inherit; cursor:pointer; }.add-condition:hover { border-color:var(--c-primary); background:#f2f6fc; }

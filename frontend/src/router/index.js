@@ -4,6 +4,7 @@ const routes = [
   { path: '/', name: 'home', component: () => import('../views/Home.vue'), meta: { title: '大盘看板' } },
   { path: '/watchlist', name: 'watchlist', component: () => import('../views/Watchlist.vue'), meta: { title: '自选股' } },
   { path: '/regime', name: 'regime', component: () => import('../views/MarketRegime.vue'), meta: { title: '市场周期' } },
+  { path: '/wave-study', name: 'wave-study', component: () => import('../views/WaveStudy.vue'), meta: { title: '指数波浪' } },
   { path: '/screening', name: 'screening', component: () => import('../views/ScreeningPage.vue'), meta: { title: '智能选股' } },
   { path: '/stock/:symbol', redirect: to => ({ path: '/watchlist', query: { symbol: to.params.symbol } }) },
   { path: '/replay', name: 'replay', component: () => import('../views/Replay.vue'), meta: { title: '每日复盘' } },
