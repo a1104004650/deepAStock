@@ -196,7 +196,8 @@
                   :bi="period === 'day' ? czsc.bi_list || [] : []"
                   :zs="period === 'day' ? czsc.zs_list || [] : []"
                   :signals="period === 'day' ? czsc.signals || [] : []"
-                  :stage-points="period === 'day' ? (czsc.stage_points || []) : []" />
+                  :stage-points="period === 'day' ? (czsc.stage_points || []) : []"
+                  :levels="period === 'day' && techStructure?.levels?.available ? techStructure.levels : null" />
                 <el-empty v-if="!kline.length" description="暂无该周期K线" :image-size="70" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center" />
               </div>
               <div v-else style="position:relative;height:100%">
@@ -261,6 +262,73 @@
                     20日涨幅: {{ czsc.current_state.yangjia_stage.chg_20d }}%
                   </div>
                 </div>
+                <!-- ===== 真实数据技术结构：控盘/交易趋势/支撑压力/指标信号 ===== -->
+                <template v-if="techStructure?.available">
+                  <el-divider content-position="left">主力控盘（真实换手衰减筹码）</el-divider>
+                  <div class="flex gap mb8" style="align-items:center;flex-wrap:wrap">
+                    <el-tag size="small" :type="chipTagType">{{ techStructure.chip?.available ? techStructure.chip.level + '控盘' : '筹码不可用' }}</el-tag>
+                    <span v-if="techStructure.chip?.available" class="fs12" style="color:#606266">
+                      90%筹码宽 {{ techStructure.chip.concentration }}% · 控盘分 {{ techStructure.chip.score }} · 获利盘 {{ techStructure.chip.winner_rate }}%
+                    </span>
+                    <span v-else class="fs12" style="color:#909399">{{ techStructure.chip?.reason || '缺流通股数，筹码分析不可用' }}</span>
+                  </div>
+                  <div v-if="techStructure.chip?.peaks?.length" class="flex gap mb4" style="flex-wrap:wrap">
+                    <span v-for="(p, i) in techStructure.chip.peaks" :key="i" class="tech-peak">
+                      <span class="fs11" style="color:#909399">筹码峰{{ i + 1 }}</span>
+                      <span class="fs12 bold ml4">{{ p.price }}</span>
+                      <span class="fs11 ml4" style="color:#909399">占比{{ p.share }}%</span>
+                    </span>
+                  </div>
+                  <div v-if="techStructure.chip?.description" class="fs11 mb8" style="color:#909399">{{ techStructure.chip.description }}</div>
+
+                  <el-divider content-position="left">交易趋势 · 六阶段循环</el-divider>
+                  <div class="stage-cycle mb4">
+                    <template v-for="(s, i) in STAGE_CYCLE" :key="s">
+                      <span class="stage-node" :class="{ active: s === techStructure.trend_stage?.stage }">{{ s }}</span>
+                      <span v-if="i < STAGE_CYCLE.length - 1" class="stage-arrow">→</span>
+                    </template>
+                  </div>
+                  <div class="fs12 mb4" style="color:#303133">
+                    当前 <el-tag size="small" :type="stageTagType">{{ techStructure.trend_stage?.stage }}</el-tag>
+                    <span class="ml4">自 {{ techStructure.trend_stage?.since }} 起 {{ techStructure.trend_stage?.days }} 个交易日</span>
+                    <span class="fs11 ml4" style="color:#909399">条件3根确认 · 停留≥5根 · 仅相邻推进</span>
+                  </div>
+                  <div v-if="techStructure.trend_stage?.recent_changes?.length" class="fs11 mb8" style="color:#606266">
+                    近期切换：{{ stageChangeText(techStructure.trend_stage.recent_changes) }}
+                  </div>
+
+                  <el-divider content-position="left">支撑压力（接触点画线）</el-divider>
+                  <div v-if="techStructure.levels?.available" class="mb8">
+                    <div class="tech-level-row">
+                      <span class="fs12 bold lv-head">短期60日</span>
+                      <span v-for="(lv, i) in techStructure.levels.short?.support || []" :key="'ss'+i" class="fs12 lv-sup">支撑 {{ lv.price }}<span class="fs11" style="color:#909399"> · 触{{ lv.touches }} · {{ (lv.last_date || '').slice(5) }}</span></span>
+                      <span v-for="(lv, i) in techStructure.levels.short?.resistance || []" :key="'sr'+i" class="fs12 lv-res">压力 {{ lv.price }}<span class="fs11" style="color:#909399"> · 触{{ lv.touches }} · {{ (lv.last_date || '').slice(5) }}</span></span>
+                    </div>
+                    <div class="tech-level-row">
+                      <span class="fs12 bold lv-head">中期240日</span>
+                      <span v-for="(lv, i) in techStructure.levels.mid?.support || []" :key="'ms'+i" class="fs12 lv-sup">支撑 {{ lv.price }}<span class="fs11" style="color:#909399"> · 触{{ lv.touches }} · {{ (lv.last_date || '').slice(5) }}</span></span>
+                      <span v-for="(lv, i) in techStructure.levels.mid?.resistance || []" :key="'mr'+i" class="fs12 lv-res">压力 {{ lv.price }}<span class="fs11" style="color:#909399"> · 触{{ lv.touches }} · {{ (lv.last_date || '').slice(5) }}</span></span>
+                    </div>
+                    <div class="fs11 mt4" style="color:#909399">±2根分型拐点按ATR容差聚类（容差 {{ techStructure.levels.tolerance }}），同价位近线已在图上合并显示；接触点越多越强</div>
+                  </div>
+                  <div v-else class="fs11 mb8" style="color:#909399">{{ techStructure.levels?.reason || '支撑压力数据不足' }}</div>
+
+                  <el-divider content-position="left">16项指标信号 · 最近出现</el-divider>
+                  <div class="tech-signal-grid mb4">
+                    <el-tooltip v-for="s in techStructure.signals || []" :key="s.key" :content="`${s.name} · ${s.last_date || '窗口内未出现'}${s.detail ? ' — ' + s.detail : ''}`" placement="top" :show-after="150">
+                      <div class="tech-signal" :class="['sig-' + s.side, { 'sig-now': s.days_ago === 0 }]">
+                        <div class="flex between" style="align-items:center">
+                          <span class="fs12 bold">{{ s.name }}</span>
+                          <span class="sig-badge" :class="'badge-' + s.side">{{ s.side === 'buy' ? '买' : '卖' }}</span>
+                        </div>
+                        <div class="fs11 sig-time" :class="{ 'sig-today': s.days_ago === 0 }">{{ sigTimeText(s) }}</div>
+                        <div class="fs11 sig-flag">{{ s.now ? '当前成立' : '当前不成立' }}</div>
+                      </div>
+                    </el-tooltip>
+                  </div>
+                  <div class="fs11" style="color:#909399">口径：{{ (techStructure.methodology || []).join('；') }}。数据截至 {{ techStructure.as_of }}，全部由真实日K推导，非模拟。</div>
+                </template>
+                <div v-else-if="techStructure && !techStructure.available" class="fs12 mb8" style="color:#909399">{{ techStructure.reason || '技术结构分析不可用' }}</div>
                 <!-- AI analysis -->
                 </el-tab-pane>
                 <el-tab-pane label="AI分析" name="ai" lazy>
@@ -704,6 +772,7 @@ const flowSummary = ref(null)
 const sectorDetail = ref({})
 const industryRanking = ref(null)
 const industryChain = ref(null)
+const techStructure = ref(null)
 const brain = ref({})
 const brainLoading = ref(false)
 const streamText = ref('')
@@ -843,6 +912,22 @@ function scoreTag(a) { const s = scoreOf(a); return s == null ? 'info' : s >= 7 
 function yangjiaTag(stage) {
   const map = { '吸筹': 'warning', '洗盘': 'info', '拉升': 'danger', '出货': 'success' }
   return map[stage] || 'info'
+}
+// ---- 技术结构（真实数据）展示辅助 ----
+const STAGE_CYCLE = ['逢低关注', '洗拉', '上涨阶段', '逢高兑现', '派落', '下跌阶段']
+const STAGE_TAG = { '上涨阶段': 'danger', '洗拉': 'danger', '逢低关注': 'warning', '逢高兑现': 'warning', '派落': 'info', '下跌阶段': 'success' }
+const chipTagType = computed(() => {
+  const lv = techStructure.value?.chip?.level
+  return lv === '高度' ? 'danger' : lv === '中度' ? 'warning' : lv === '轻度' ? 'primary' : 'info'
+})
+const stageTagType = computed(() => STAGE_TAG[techStructure.value?.trend_stage?.stage] || 'info')
+function sigTimeText(s) {
+  if (s.days_ago == null) return '窗口内未出现'
+  if (s.days_ago === 0) return '今天'
+  return `${s.days_ago}天前`
+}
+function stageChangeText(changes) {
+  return (changes || []).map(c => `${(c.date || '').slice(5)} ${c.from}→${c.to}`).join(' · ')
 }
 const threeSignals = computed(() => (czsc.value.signals || []).filter(s => s.signal_type?.includes('买') || s.signal_type?.includes('卖')))
 
@@ -1137,11 +1222,12 @@ function selectItem(row) {
 async function loadStockDetail(basicOverride = null) {
   const sym = symbolStore.selectedSymbol
   if (!sym) return
-  const [basic, czscData, formData, finData, finOv, flowData, fsData, nzData, secData, rankData, chainData] = await Promise.allSettled([
+  const [basic, czscData, formData, finData, finOv, flowData, fsData, nzData, secData, rankData, chainData, techData] = await Promise.allSettled([
     basicOverride ? Promise.resolve(basicOverride) : stockApi.basic(sym), stockApi.czsc(sym), stockApi.forms(sym),
     stockApi.financial(sym), stockApi.financialOverview(sym), stockApi.moneyFlow(sym), stockApi.moneyFlowSummary(sym),
     stockApi.news(sym), stockApi.sector(sym),
     stockApi.industryRanking(sym), stockApi.industryChain(sym),
+    stockApi.technicalStructure(sym),
   ])
   if (sym !== symbolStore.selectedSymbol) return
   if (basic.status === 'fulfilled' && basic.value) {
@@ -1158,6 +1244,7 @@ async function loadStockDetail(basicOverride = null) {
   if (secData.status === 'fulfilled') sectorDetail.value = secData.value || {}
   if (rankData.status === 'fulfilled') industryRanking.value = rankData.value || null
   if (chainData.status === 'fulfilled') industryChain.value = chainData.value || null
+  techStructure.value = techData.status === 'fulfilled' ? (techData.value || null) : null
 }
 
 let _klineSeq = 0
@@ -1459,6 +1546,7 @@ watch(() => symbolStore.selectedSymbol, (sym) => {
   intraday.value = []; intradaySignals.value = []; intradaySummary.value = null; intradayDailyContext.value = null; kline.value = []
   brain.value = {}; czsc.value = {}; flowSummary.value = null; moneyFlow.value = []; finOverview.value = null
   stockNews.value = []; forms.value = []; financial.value = []; sectorDetail.value = {}; industryRanking.value = null; industryChain.value = null
+  techStructure.value = null
   if (sym) { loadKline(); loadOrderBook(); loadTicks() }
 })
 
@@ -1499,6 +1587,7 @@ async function refreshWatchlistPrices() {
 }
 
 let orderBookTimer = null
+let realtimeTimer = null
 let ticksTimer = null
 let watchlistRefreshTimer = null
 let klineTimer = null
@@ -1508,11 +1597,12 @@ onMounted(() => {
   const qSym = route.query.symbol
   if (qSym) { loadWithSymbol(qSym) } else { load() }
   loaded = true
+  // 五档挂单降频 15s，行情价格保留 5s
   orderBookTimer = setInterval(() => {
-    if (symbolStore.selectedSymbol) {
-      loadOrderBook()
-      refreshSelectedRealtime()
-    }
+    if (symbolStore.selectedSymbol) loadOrderBook()
+  }, 15000)
+  realtimeTimer = setInterval(() => {
+    if (symbolStore.selectedSymbol) refreshSelectedRealtime()
   }, 5000)
   klineTimer = setInterval(() => {
     if (symbolStore.selectedSymbol) loadKline()
@@ -1531,10 +1621,29 @@ watch(() => [route.path, route.query.symbol], ([p, qSym], [oldPath, oldSym] = []
     else if (!symbolStore.selectedSymbol) { load() }
   }
 })
-onUnmounted(() => { if (orderBookTimer) clearInterval(orderBookTimer); if (ticksTimer) clearInterval(ticksTimer); if (watchlistRefreshTimer) clearInterval(watchlistRefreshTimer); if (klineTimer) clearInterval(klineTimer) })
+onUnmounted(() => { if (orderBookTimer) clearInterval(orderBookTimer); if (realtimeTimer) clearInterval(realtimeTimer); if (ticksTimer) clearInterval(ticksTimer); if (watchlistRefreshTimer) clearInterval(watchlistRefreshTimer); if (klineTimer) clearInterval(klineTimer) })
 </script>
 
 <style scoped>
+/* ---- 技术结构（真实数据） ---- */
+.tech-peak { display: inline-flex; align-items: baseline; padding: 2px 8px; background: #f6f7f9; border-radius: 4px; }
+.stage-cycle { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; font-size: 11px; }
+.stage-node { padding: 2px 7px; border-radius: 4px; background: #f3f4f6; color: #909399; border: 1px solid transparent; }
+.stage-node.active { background: #fdebec; color: #ef232a; border-color: #f6b6ba; font-weight: 700; }
+.stage-arrow { color: #c0c4cc; }
+.tech-level-row { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; padding: 3px 0; }
+.lv-head { width: 62px; flex: none; color: #606266; }
+.lv-sup { color: #14b143; }
+.lv-res { color: #ef232a; }
+.tech-signal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 6px; }
+.tech-signal { padding: 5px 8px; border: 1px solid #ebeef5; border-radius: 5px; background: #fafbfc; }
+.tech-signal.sig-now { background: #fff; border-color: #dcdfe6; }
+.sig-badge { font-size: 10px; padding: 0 5px; border-radius: 3px; line-height: 15px; }
+.badge-buy { background: #fdebec; color: #ef232a; }
+.badge-sell { background: #e7f7ec; color: #14b143; }
+.sig-time { color: #606266; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.sig-time.sig-today { color: #ef232a; font-weight: 700; }
+.sig-flag { color: #909399; }
 .group-item { display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 5px; cursor: pointer; margin-bottom: 4px; border-left: 2px solid transparent; transition: .16s ease; }
 .group-item:hover { background: #f3f4f6; border-left-color: var(--c-primary); }
 .group-item.active { background: #edf3fb; color: var(--c-primary); border-left-color: var(--c-primary); box-shadow: none; font-weight: 600; }

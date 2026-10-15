@@ -124,6 +124,27 @@ class StockService:
                 "concepts": info.get("concepts") or [],
                 "changes": changes}
 
+    async def get_technical_structure(self, symbol: str) -> dict:
+        """技术结构：主力控盘四档 / 交易趋势阶段 / 支撑压力位 / 16项指标信号。
+        全部由真实日K与真实流通市值推导；缺数据时对应板块标记不可用，不提供模拟值。"""
+        from app.core.market.technical_structure import build_technical_structure
+        kline = await self.get_kline(symbol, "day")
+        data = kline.get("data", [])
+        float_shares = None
+        price = None
+        try:
+            ov = await self.dsm.get_financial_overview(symbol)
+            if ov.get("available") and ov.get("float_mv") and ov.get("price"):
+                float_shares = float(ov["float_mv"]) * 1e8 / float(ov["price"])
+                price = float(ov["price"])
+        except Exception as e:
+            logger.warning(f"technical structure overview failed {symbol}: {e}")
+        if price is None and data:
+            price = float(data[-1]["close"])
+        result = build_technical_structure(data, float_shares, price)
+        result["symbol"] = symbol
+        return result
+
     async def get_technic_forms(self, symbol: str) -> list[dict]:
         kline = await self.get_kline(symbol, "day")
         data = kline.get("data", [])
