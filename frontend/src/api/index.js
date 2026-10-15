@@ -109,6 +109,7 @@ export const stockApi = {
   shareholders: (s) => http.get(`/stocks/${s}/shareholders`),
   sentiment: (s) => http.get(`/stocks/${s}/sentiment`),
   forms: (s) => http.get(`/stocks/${s}/forms`),
+  technicalStructure: (s) => http.get(`/stocks/${s}/technical-structure`),
   sector: (s) => http.get(`/stocks/${s}/sector`),
   industryRanking: (s) => http.get(`/stocks/${s}/industry-ranking`),
   industryChain: (s) => http.get(`/stocks/${s}/industry-chain`),

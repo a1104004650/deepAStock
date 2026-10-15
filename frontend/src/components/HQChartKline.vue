@@ -27,6 +27,7 @@ const props = defineProps({
   zs: { type: Array, default: () => [] },
   signals: { type: Array, default: () => [] },
   stagePoints: { type: Array, default: () => [] },
+  levels: { type: Object, default: null },
 })
 
 const STAGE_COLORS = {
@@ -187,6 +188,35 @@ function render() {
     if (pts.length) series.push({ name: '信号', type: 'scatter', data: pts, z: 5, xAxisIndex: 0, yAxisIndex: 0 })
   }
 
+  // 支撑压力水平线（短=实线 中=虚线；支撑绿 压力红）
+  if (props.levels?.available && props.levels?.tolerance != null) {
+    const ml = []
+    const seen = {}
+    const add = (list, tag, isSup, dashed) => {
+      for (const lv of list || []) {
+        if (lv?.price == null) continue
+        const key = lv.price.toFixed(2)
+        if (seen[key]) continue
+        seen[key] = true
+        ml.push({
+          yAxis: lv.price,
+          name: tag,
+          lineStyle: { color: isSup ? '#14b143' : '#ef232a', width: 1, type: dashed ? 'dashed' : 'solid', opacity: 0.85 },
+          label: {
+            show: true, formatter: `${tag} ${lv.price}`, fontSize: 9,
+            color: isSup ? '#14b143' : '#ef232a', position: 'insideEndTop',
+          },
+          tooltip: { formatter: p => `${p.name} · 触点${lv.touches ?? '-'} · 最近${lv.last_date || '-'}` },
+        })
+      }
+    }
+    add(props.levels.short?.support, '短支', true, false)
+    add(props.levels.short?.resistance, '短压', false, false)
+    add(props.levels.mid?.support, '中支', true, true)
+    add(props.levels.mid?.resistance, '中压', false, true)
+    if (ml.length) series[0].markLine = { silent: true, symbol: 'none', data: ml }
+  }
+
   const hasMacd = indicators.value.includes('macd')
 
   // 情绪阶段色带（吸筹/洗盘/拉升/出货）
@@ -285,7 +315,7 @@ onBeforeUnmount(() => {
   chart && chart.dispose()
 })
 
-watch(() => [props.data, props.fx, props.bi, props.zs, props.signals], render, { deep: true })
+watch(() => [props.data, props.fx, props.bi, props.zs, props.signals, props.levels], render, { deep: true })
 </script>
 
 <style scoped>

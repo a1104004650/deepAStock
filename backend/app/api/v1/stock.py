@@ -93,6 +93,13 @@ async def get_sentiment(symbol: str, db: AsyncSession = Depends(get_db)):
     return await svc.get_sentiment(symbol)
 
 
+@router.get("/{symbol}/technical-structure")
+async def get_technical_structure(symbol: str, db: AsyncSession = Depends(get_db)):
+    """技术结构：主力控盘(无/轻度/中度/高度) · 交易趋势六阶段循环 · 支撑压力位 · 16项指标信号（真实日K推导）"""
+    svc = StockService(db)
+    return await svc.get_technical_structure(symbol)
+
+
 @router.get("/{symbol}/forms")
 async def get_forms(symbol: str, db: AsyncSession = Depends(get_db)):
     svc = StockService(db)
